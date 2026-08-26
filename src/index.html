@@ -130,22 +130,110 @@
           <div class="settings__panels">
             <div class="panel" id="panel-schedules" hidden>
               <h2 class="panel__title">Schedules</h2>
-              <p class="panel__note">
-                Not built yet. This is where schedule templates get created and
-                edited &mdash; Regular, Delayed start, Half day, Assembly.
-              </p>
-              <p class="panel__note">
-                Overlapping periods will be blocked at input time, naming the
-                period they collide with.
-              </p>
+
+              <div class="schedpicker" role="group" aria-label="Choose a schedule to edit">
+                <div class="schedpicker__list" id="schedule-list"></div>
+                <button class="schedpicker__new" type="button" id="schedule-new">
+                  + New schedule
+                </button>
+              </div>
+
+              <div class="editor" id="editor">
+                <div class="editor__toolbar">
+                  <label class="editor__name">
+                    <span class="visually-hidden">Schedule name</span>
+                    <input type="text" id="schedule-name-input" maxlength="60" />
+                  </label>
+
+                  <div class="editor__actions">
+                    <button class="minibutton" type="button" id="schedule-duplicate">
+                      Duplicate
+                    </button>
+                    <button class="minibutton minibutton--danger" type="button" id="schedule-delete">
+                      Delete
+                    </button>
+                  </div>
+                </div>
+
+                <!--
+                  Shift all: nudges every period by the same number of minutes.
+                  This is how a school actually announces a delay ("everything
+                  runs 30 minutes late"), so it beats retyping eleven rows.
+                -->
+                <div class="shiftall">
+                  <label class="shiftall__field">
+                    <span class="shiftall__label">Shift all by</span>
+                    <input
+                      type="number"
+                      id="shift-minutes"
+                      value="5"
+                      min="-720"
+                      max="720"
+                      step="5"
+                      inputmode="numeric"
+                    />
+                    <span class="shiftall__unit">min</span>
+                  </label>
+                  <button class="minibutton" type="button" id="shift-apply">Apply</button>
+                </div>
+
+                <!-- Column headers for sighted users. Each input carries its own
+                     visually-hidden label as well, because a column header is
+                     not programmatically tied to a control inside a list. -->
+                <div class="editrow__head" aria-hidden="true">
+                  <span>Name</span>
+                  <span>Kind</span>
+                  <span>Start</span>
+                  <span>Length</span>
+                  <span></span>
+                </div>
+
+                <ol class="editlist" id="period-editor"></ol>
+
+                <p class="editor__error" id="schedule-error" role="alert" hidden></p>
+
+                <button class="minibutton" type="button" id="period-add">+ Add period</button>
+              </div>
             </div>
 
             <div class="panel" id="panel-calendar" hidden>
               <h2 class="panel__title">Calendar</h2>
-              <p class="panel__note">
-                Not built yet. This is where a schedule gets attached to a day
-                &mdash; the weekday default map, plus one-off date overrides.
-              </p>
+
+              <p class="panel__note" id="calendar-today">&mdash;</p>
+
+              <section class="calsection" aria-labelledby="weekday-heading">
+                <h3 class="calsection__title" id="weekday-heading">Normal week</h3>
+                <p class="field__hint">
+                  Which schedule runs on an ordinary day. Choose &ldquo;No
+                  school&rdquo; for days you are closed.
+                </p>
+                <div class="weekdays" id="weekday-map"></div>
+              </section>
+
+              <section class="calsection" aria-labelledby="override-heading">
+                <h3 class="calsection__title" id="override-heading">Exceptions</h3>
+                <p class="field__hint">
+                  One-off days that beat the normal week &mdash; an assembly, a
+                  snow day, a half day before a holiday.
+                </p>
+
+                <div class="addoverride">
+                  <label class="addoverride__field">
+                    <span class="visually-hidden">Date</span>
+                    <input type="date" id="override-date" />
+                  </label>
+                  <label class="addoverride__field">
+                    <span class="visually-hidden">Schedule for that date</span>
+                    <select id="override-schedule"></select>
+                  </label>
+                  <button class="minibutton" type="button" id="override-add">Add</button>
+                </div>
+
+                <p class="editor__error" id="override-error" role="alert" hidden></p>
+
+                <ul class="overrides" id="override-list"></ul>
+                <p class="panel__note" id="override-empty">No exceptions yet.</p>
+              </section>
             </div>
 
             <div class="panel" id="panel-preferences">
@@ -232,6 +320,56 @@
       <span class="strip__cell">
         <span class="strip__fill" data-field="fill"></span>
       </span>
+    </template>
+
+    <!--
+      One editable period row.
+
+      Each control is wrapped in its own <label>, which associates them without
+      needing an id - and ids would collide across cloned rows anyway. The
+      label text is visually hidden and rewritten per row by JS ("Name of
+      period 3"), so a screen reader user tabbing the list always knows which
+      row they are in; the visible column headers do that job for everyone else.
+
+      Start is a native <input type="time"> so it gets the platform's own time
+      picker and locale formatting for free. Length is minutes rather than an
+      end time because that is how bell schedules are actually written down.
+    -->
+    <template id="period-edit-row">
+      <li class="editrow">
+        <div class="editrow__grid">
+          <label class="editrow__field">
+            <span class="visually-hidden editrow__labeltext" data-field="label-name">Name</span>
+            <input type="text" data-field="name" maxlength="60" />
+          </label>
+
+          <label class="editrow__field">
+            <span class="visually-hidden editrow__labeltext" data-field="label-kind">Kind</span>
+            <select data-field="kind">
+              <option value="class">Class</option>
+              <option value="lunch">Lunch</option>
+              <option value="passing">Passing</option>
+            </select>
+          </label>
+
+          <label class="editrow__field">
+            <span class="visually-hidden editrow__labeltext" data-field="label-start">Start</span>
+            <input type="time" data-field="start" />
+          </label>
+
+          <label class="editrow__field">
+            <span class="visually-hidden editrow__labeltext" data-field="label-length">Length</span>
+            <input type="number" data-field="length" min="1" max="1440" inputmode="numeric" />
+          </label>
+
+          <button class="editrow__delete" type="button" data-field="delete">
+            <span aria-hidden="true">&times;</span>
+            <span class="visually-hidden" data-field="label-delete">Delete period</span>
+          </button>
+        </div>
+
+        <p class="editrow__error" data-field="error" hidden></p>
+      </li>
     </template>
 
     <!--

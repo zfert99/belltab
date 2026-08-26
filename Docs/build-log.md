@@ -23,20 +23,26 @@ the end of a phase.
 
 ## Current state
 
-**Working:** a plain HTML/CSS/JS countdown, no build step. The clock ticks, the
-tab title updates, all five schedule phases render.
+**Working:** a plain HTML/CSS/JS app, no build step.
 
-**Not started:** the schedule list view, the editor, sharing, and the entire
-Next.js/TypeScript port.
+- Three live views — **Now** (timer + period strip), **Day** (the readable
+  list), **Big** (the projector).
+- **Settings** with all three sections built: Schedules (a full editor),
+  Calendar (weekday map + dated exceptions), Preferences (theme, 12/24-hour).
+- Multiple schedules, resolved per day, persisted to `localStorage`, surviving
+  midnight rollover.
+
+**Not started:** sharing (versioned hash encoding, export/import), bell offset,
+wake lock, chime, PWA, and the entire Next.js/TypeScript port.
 
 ### Files
 
 | File | What it is |
 | --- | --- |
-| `src/index.html` | Markup only. Ten `id` attributes are the sockets JS writes into. |
-| `src/styles.css` | Design tokens (palette → semantic layer), light + dark, all layout. |
-| `src/schedule.js` | Hard-coded schedule data. No logic. |
-| `src/app.js` | Pure engine (top half) + DOM and clock (bottom half). |
+| `src/index.html` | Markup and four `<template>`s. One inline script sets the theme before first paint. |
+| `src/styles.css` | Design tokens (palette → semantic layer), light + dark, 17 sections. |
+| `src/schedule.js` | Seed data only — four schedules and the default calendar. No logic. |
+| `src/app.js` | Pure half (engine, parsers, formatters) + impure half (store, DOM, clock). |
 
 ### Running it
 
@@ -149,8 +155,6 @@ until the plain version has taught us the shape.
 | 2026-08-26 | 12-hour clock has no am/pm | Matches the mockups and is unambiguous for a school day. Revisit if a schedule ever crosses noon ambiguously. |
 | 2026-08-26 | No `clearInterval` anywhere | Harmless for a page that lives until closed. Becomes a timer leak on every remount once this is a React component — needs a `useEffect` cleanup at the port. |
 | 2026-08-26 | `els` is a one-time DOM snapshot | If the DOM is ever rebuilt (the editor will do this), those cached references point at detached nodes and paints silently go nowhere. |
-| 2026-08-26 | Settings: Schedules panel is a placeholder | No longer blocked — the overlap question is settled. Next thing to build. |
-| 2026-08-26 | Settings: Calendar panel is a placeholder | Weekday default map plus date overrides. Roadmap Phase 4. |
 | 2026-08-26 | The inline theme script needs a CSP hash at the Next port | `AGENTS.md` requires baseline security headers. An inline `<script>` is fine today with no CSP, but becomes a violation the moment one ships. |
 | 2026-08-26 | No period-change announcement for screen readers | The design system permits an `aria-live="polite"` region that fires **only at period boundaries**. Not built. The countdown itself must never become one. |
 | 2026-08-26 | Day view has no "scroll the current period into view" | With eleven periods on a short viewport the current row can sit off-screen when the view is opened. |
@@ -162,6 +166,8 @@ until the plain version has taught us the shape.
 | Opened | Closed | Item |
 | --- | --- | --- |
 | 2026-08-26 | 2026-08-26 | Schedule list view not built — shipped as the day view (mockup 1): day progress bar, eleven period rows, past/current/future states, per-row countdown, and a Now/Day switcher. |
+| 2026-08-26 | 2026-08-26 | Settings: Schedules panel was a placeholder — now a full editor with live validation bound to `parseSchedule`. |
+| 2026-08-26 | 2026-08-26 | Settings: Calendar panel was a placeholder — now the weekday map plus dated exceptions, resolving per day. |
 
 ---
 
@@ -571,3 +577,118 @@ rides on top of both, because the settings region genuinely is a disclosure.
 The initial state stays in the HTML rather than being written by JS at startup:
 the markup has to say something before the module runs, and duplicating it in
 `setSettingsOpen` would mean two owners of the same fact for no gain.
+
+### 2026-08-26 13:22 — the schedule model, before the editor UI
+
+The rest of settings needs data the app did not have: more than one schedule,
+and a notion of which one applies today. Model first, UI next.
+
+**`src/schedule.js` is now seed data, not *the* schedule.** Four schedules
+(Regular, Delayed start, Half day, Assembly) plus `DEFAULT_CALENDAR`. Once the
+user edits anything the edited copy lives in `localStorage`, and this file is
+only read again on a reset.
+
+**`parseSchedule` is the boundary.** Returns `{ ok: true, value }` or
+`{ ok: false, errors }` — never a boolean, per the repo rule. Each error carries
+the row index and the field within it, so the editor can bind the message to
+that input with `aria-describedby` rather than reddening a border and leaving a
+screen reader with nothing. Periods come out **sorted**; that is normalisation,
+not rejection — the order rows were typed in is not the order the day runs in.
+
+**Overlap is checked on a sorted copy, but errors keep the original index**, so
+the message names the period actually collided with (*"A Lunch overlaps Period
+4"*) while landing on the row the user is looking at.
+
+**The seed data goes through the same parser as user input.** A typo in
+`schedule.js` gets caught by the validator instead of shipping as a subtly
+broken default, and the happy path exercises the parser on every load.
+
+**Calendar dates are `"YYYY-MM-DD"` strings**, for the same reason times are
+integers: a school day is a date on a wall calendar, not an instant.
+`parseIsoDate` checks arithmetically rather than round-tripping through `Date`,
+which silently rolls `2026-02-30` forward to March 2nd instead of rejecting it.
+
+**An override to `null` is a closure, not a miss.** `resolveScheduleId` tests
+for the *entry*, not its value, so a snow day beats a weekday that says school
+is on. Getting this backwards would make every closure fall through to the
+normal schedule.
+
+**A calendar pointing at a deleted schedule degrades to "no school"** rather
+than refusing the whole calendar — that is already a state the app renders.
+
+**Midnight rollover is now handled.** `tick` compares the local date key and
+re-resolves when it changes. A tab left open overnight on a projector would
+otherwise show Friday's bells on Monday.
+
+**`rebuildViews()`** replaces the strip cells and list rows when the schedule
+changes, and clears `hoveredPeriod` — the old period objects are gone, and a
+stale hover would caption a period that no longer exists.
+
+**Verification:** 49 new checks, 127 total across five suites. Notable ones: all
+four seed schedules pass their own validator; an end time equal to the next
+start is legal while one minute of overlap is not; `1900-02-29` is rejected and
+`2000-02-29` accepted; duplicate override dates collapse to the first; and a
+null override resolves to no-school rather than falling through.
+
+**Bug caught while writing this up:** `loadSchedules` was capping the number of
+schedules with `SCHEDULE_LIMITS.periods` (60) — the wrong limit, right-looking
+name. Added an explicit `schedules: 50`.
+
+### 2026-08-26 13:41 — the Schedules editor
+
+Chips to pick a schedule, a name field, per-period rows (Name / Kind / Start /
+Length / delete), add, duplicate, delete, and shift-all.
+
+- **The editor works on a draft, not on the live schedule.** A draft period
+  holds `lengthMin` where a stored one holds `endMin` — that is what the form
+  asks for and how bell schedules are actually written ("Period 2, 9:05, 60
+  minutes"). Keeping start and length independent means an unparseable start
+  time does not also destroy the length already typed.
+- **Invalid drafts stay on screen and are simply not saved.** The user keeps
+  what they typed and `localStorage` never holds a schedule that would fail to
+  load. That is the whole reason the draft is separate from the store.
+- **Validation runs on `input`, not `change`,** so errors follow typing rather
+  than waiting for a field to be left. Safe precisely because nothing is
+  committed unless it parses.
+- **Errors get `aria-invalid` *and* `aria-describedby`.** A red border is
+  invisible to a screen reader and ambiguous to anyone who cannot separate red
+  from grey. Cherry is the emphasis, never the message.
+- **The committed value is sorted; the draft keeps typed order.** Re-sorting
+  rows under the cursor while someone edits a start time would be hostile.
+- **Every control has a positional label** — "Start time of period 3", written
+  by JS per row. "Start" alone is useless when tabbing sixty inputs, and the
+  visible column headers cannot do this job: a header in a sibling element is
+  not programmatically tied to a control inside a list item. Below 45rem the
+  headers disappear and those labels stop being visually hidden.
+- **Focus is managed on add and delete.** A new row takes focus (otherwise the
+  user hunts for it); deleting lands focus on the row that took its place,
+  because the button that had focus no longer exists.
+- **Shift-all refuses rather than clamps.** Clamping at midnight would silently
+  collapse the periods at the edge into each other and then report it as an
+  overlap — an error message about the wrong thing.
+
+### 2026-08-26 13:48 — the Calendar
+
+Weekday map plus dated exceptions, and a line at the top saying what today
+actually resolves to.
+
+- **`""` is the wire form of `null`.** A `<select>` value is always a string,
+  so "No school" has to be encoded and decoded rather than stored directly.
+- **Adding an exception for a date that already has one replaces it**, rather
+  than creating a duplicate the resolver would have to arbitrate between.
+  `parseCalendar` also collapses duplicates on load, so both paths agree.
+- **Deleting a schedule re-parses the calendar against the surviving ids**,
+  turning dangling references into "no school" instead of leaving the calendar
+  pointing at something gone.
+- **The calendar re-renders on panel entry, not per edit.** Its selects list
+  schedule names, so a rename in the Schedules panel must show up — but
+  re-rendering per keystroke would blow away an open dropdown.
+- **Weekday selects are `auto-fit, minmax(7.5rem, 1fr)`.** Seven fixed columns
+  at 320px would be about 30px each.
+- **Remove buttons are individually named** ("Remove exception on 2026-09-14").
+  A list of buttons all reading "Remove" is the classic screen-reader dead end.
+
+**Verification:** 127 checks still pass — this was all presentation over the
+parser and resolver, which did not change. Static cross-checks: 55 ids declared
+/ 51 queried / none missing, and all 13 `data-field` names match between the
+templates and the queries.

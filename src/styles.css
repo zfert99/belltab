@@ -904,3 +904,445 @@ body.is-settings .viewswitch {
     margin: 0;
   }
 }
+
+/* ============================================================
+   16. THE SCHEDULE EDITOR
+   ============================================================ */
+
+/* Present to assistive tech, absent from the page. clip-path plus a 1px box is
+   the version that survives: display:none and visibility:hidden remove it from
+   the accessibility tree too, and a negative text-indent breaks in RTL. */
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* --- Shared control skin --- */
+
+.editor input[type="text"],
+.editor input[type="time"],
+.editor input[type="number"],
+.editor select {
+  min-height: 44px;
+  padding: 0 var(--s-3);
+  font-family: var(--font-body);
+  font-size: 1rem;
+  color: var(--fg);
+  background: var(--bg);
+  border: var(--border-passive);
+  border-radius: var(--r-md);
+}
+
+.editor input:hover,
+.editor select:hover {
+  border-color: var(--fg);
+}
+
+/* Cherry appears only on validation errors, per the design system - and never
+   alone. Every field marked this way also has a message bound to it with
+   aria-describedby, because a red border says nothing to a screen reader and
+   nothing at all to someone who cannot distinguish it. */
+.editor [aria-invalid="true"] {
+  border-color: var(--danger);
+}
+
+.minibutton {
+  min-height: 44px;
+  padding: 0 var(--s-3);
+  font-family: var(--font-body);
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--fg);
+  background: var(--bg);
+  border: var(--border-passive);
+  border-radius: var(--r-md);
+  cursor: pointer;
+}
+
+.minibutton:hover {
+  border-color: var(--fg);
+}
+
+.minibutton--danger:hover {
+  color: var(--danger);
+  border-color: var(--danger);
+}
+
+/* --- Schedule picker --- */
+
+.schedpicker {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-2);
+}
+
+.schedpicker__list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-2);
+}
+
+.schedchip {
+  min-height: 44px;
+  padding: 0 var(--s-3);
+  font-family: var(--font-body);
+  font-size: 0.9375rem;
+  font-weight: 500;
+  color: var(--fg-soft);
+  background: var(--bg);
+  border: var(--border-passive);
+  border-radius: var(--r-md);
+  cursor: pointer;
+}
+
+.schedchip:hover {
+  color: var(--fg);
+  border-color: var(--fg);
+}
+
+.schedchip[aria-pressed="true"] {
+  color: var(--bg);
+  background: var(--grape);
+  border-color: var(--grape);
+}
+
+.schedpicker__new {
+  min-height: 44px;
+  padding: 0 var(--s-3);
+  font-family: var(--font-body);
+  font-size: 0.9375rem;
+  font-weight: 500;
+  color: var(--fg-soft);
+  background: none;
+  border: 1.5px dashed var(--line);
+  border-radius: var(--r-md);
+  cursor: pointer;
+}
+
+.schedpicker__new:hover {
+  color: var(--fg);
+  border-color: var(--fg);
+}
+
+/* --- Editor shell --- */
+
+.editor {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+  padding-top: var(--s-4);
+  border-top: var(--border-passive);
+}
+
+.editor__toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-3);
+}
+
+.editor__name {
+  flex: 1 1 14rem;
+  display: flex;
+}
+
+.editor__name input {
+  flex: 1;
+  font-size: 1.125rem;
+  font-weight: 600;
+}
+
+.editor__actions {
+  display: flex;
+  gap: var(--s-2);
+}
+
+.shiftall {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-2);
+}
+
+.shiftall__field {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+}
+
+.shiftall__label,
+.shiftall__unit {
+  font-size: 0.875rem;
+  color: var(--fg-soft);
+}
+
+.shiftall__field input {
+  width: 5.5rem;
+}
+
+.editor__error {
+  padding: var(--s-2) var(--s-3);
+  font-size: 0.875rem;
+  color: var(--danger);
+  border: 1.5px solid var(--danger);
+  border-radius: var(--r-sm);
+}
+
+/* --- Rows --- */
+
+.editrow__head,
+.editrow__grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 7rem 8rem 5.5rem 2.75rem;
+  gap: var(--s-2);
+  align-items: center;
+}
+
+.editrow__head {
+  padding: 0 var(--s-1);
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--fg-soft);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.editlist {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.editrow__field {
+  display: flex;
+  min-width: 0;
+}
+
+.editrow__field input,
+.editrow__field select {
+  width: 100%;
+  min-width: 0;
+}
+
+.editrow__delete {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  min-height: 44px;
+  font-size: 1.25rem;
+  color: var(--fg-soft);
+  background: none;
+  border: 1.5px solid transparent;
+  border-radius: var(--r-md);
+  cursor: pointer;
+}
+
+.editrow__delete:hover {
+  color: var(--danger);
+  border-color: var(--danger);
+}
+
+.editrow__error {
+  margin: var(--s-1) 0 0;
+  font-size: 0.875rem;
+  color: var(--danger);
+}
+
+/* Below this the five-column row cannot hold its shape, so it stacks - and the
+   per-field labels stop being visually hidden, because the column headers that
+   were naming these controls are gone. */
+@media (max-width: 45rem) {
+  .editrow__head {
+    display: none;
+  }
+
+  .editrow__grid {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      "name del"
+      "kind kind"
+      "start length";
+  }
+
+  .editrow__field:nth-of-type(1) {
+    grid-area: name;
+  }
+
+  .editrow__field:nth-of-type(2) {
+    grid-area: kind;
+  }
+
+  .editrow__field:nth-of-type(3) {
+    grid-area: start;
+  }
+
+  .editrow__field:nth-of-type(4) {
+    grid-area: length;
+  }
+
+  .editrow__delete {
+    grid-area: del;
+    width: 2.75rem;
+  }
+
+  .editrow__field {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--s-1);
+  }
+
+  .editrow__labeltext {
+    position: static;
+    width: auto;
+    height: auto;
+    margin: 0;
+    overflow: visible;
+    clip-path: none;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--fg-soft);
+  }
+
+  .editrow {
+    padding: var(--s-3);
+    border: var(--border-passive);
+    border-radius: var(--r-md);
+  }
+}
+
+/* ============================================================
+   17. THE CALENDAR
+   ============================================================ */
+
+.calsection {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  padding-top: var(--s-4);
+  border-top: var(--border-passive);
+}
+
+.calsection__title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 1.125rem;
+  font-weight: 600;
+}
+
+.weekdays {
+  display: grid;
+  /* auto-fit rather than a fixed seven columns: at 320px seven selects would
+     each be about 30px wide. This collapses to however many fit. */
+  grid-template-columns: repeat(auto-fit, minmax(7.5rem, 1fr));
+  gap: var(--s-2);
+}
+
+.weekday {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-1);
+}
+
+.weekday__name {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--fg-soft);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.weekday select,
+.addoverride select,
+.addoverride input[type="date"] {
+  min-height: 44px;
+  padding: 0 var(--s-2);
+  font-family: var(--font-body);
+  font-size: 0.9375rem;
+  color: var(--fg);
+  background: var(--bg);
+  border: var(--border-passive);
+  border-radius: var(--r-md);
+}
+
+.weekday select:hover,
+.addoverride select:hover,
+.addoverride input:hover {
+  border-color: var(--fg);
+}
+
+/* A closed day is stated in the option text too ("No school"), so this is
+   emphasis rather than the only signal. */
+.weekday--closed select {
+  color: var(--fg-soft);
+}
+
+.addoverride {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-2);
+}
+
+.addoverride__field {
+  display: flex;
+  min-width: 0;
+}
+
+.overrides {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.override {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-2) var(--s-3);
+  padding: var(--s-2) var(--s-3);
+  border: var(--border-passive);
+  border-radius: var(--r-md);
+}
+
+.override__date {
+  font-family: var(--font-mono);
+  font-size: 0.875rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.override__schedule {
+  flex: 1;
+  font-size: 0.9375rem;
+  color: var(--fg-soft);
+}
+
+.override__remove {
+  min-height: 44px;
+  padding: 0 var(--s-2);
+  font-family: var(--font-body);
+  font-size: 0.875rem;
+  color: var(--fg-soft);
+  background: none;
+  border: 1.5px solid transparent;
+  border-radius: var(--r-md);
+  cursor: pointer;
+}
+
+.override__remove:hover {
+  color: var(--danger);
+  border-color: var(--danger);
+}
