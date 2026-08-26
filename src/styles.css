@@ -236,6 +236,16 @@ body {
   color: var(--fg-soft);
 }
 
+/* Names the units of the number above. Mono and tracked out so it reads as a
+   label rather than as more of the clock. */
+.countdown__units {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  letter-spacing: 0.08em;
+  color: var(--fg-soft);
+  text-transform: lowercase;
+}
+
 /* The "until X" line the Now view used to carry lives in the strip now: the
    next cell is what is coming, and the current cell's fill is the progress. */
 
@@ -1345,4 +1355,61 @@ body.is-settings .viewswitch {
 .override__remove:hover {
   color: var(--danger);
   border-color: var(--danger);
+}
+
+/* ============================================================
+   18. ICONS AND THE CONFIRM DIALOG
+   ============================================================ */
+
+/* Inline SVG rather than glyphs: ⚙ and × render at wildly different weights
+   and baselines across platforms, and some fall back to a box. `currentColor`
+   means an icon inherits whatever the button already decided. */
+.icon {
+  width: 1.25em;
+  height: 1.25em;
+  display: block;
+}
+
+.confirm {
+  max-width: min(28rem, calc(100vw - 2 * var(--s-4)));
+  padding: var(--s-6);
+  color: var(--fg);
+  background: var(--surface);
+  border: var(--border-interactive);
+  border-radius: var(--r-lg);
+}
+
+/* The backdrop is a pseudo-element of the dialog, not a separate node - one of
+   the things showModal() handles that a hand-rolled overlay has to fake. */
+.confirm::backdrop {
+  background: rgb(0 0 0 / 55%);
+}
+
+.confirm__form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+}
+
+.confirm__title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 1.25rem;
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+.confirm__body {
+  margin: 0;
+  font-size: 0.9375rem;
+  color: var(--fg-soft);
+  /* Schedule names are user input and can be one long unbroken string. */
+  overflow-wrap: break-word;
+}
+
+.confirm__actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--s-2);
 }

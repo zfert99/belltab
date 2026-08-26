@@ -30,6 +30,16 @@
   </head>
 
   <body>
+    <!--
+      The ONLY live region in the app, and it fires only when the period
+      actually changes - never on the ticking value. A per-second live region
+      would make a screen reader read the countdown aloud once a second, which
+      is why the design system forbids wrapping the title or the number in one.
+      The tab title is not an accessible surface either, so this is how a
+      screen-reader user learns the bell rang.
+    -->
+    <p class="visually-hidden" id="period-announcer" role="status" aria-live="polite"></p>
+
     <main class="screen">
       <header class="screen__bar">
         <h1 class="screen__schedule" id="schedule-name">Regular day</h1>
@@ -37,6 +47,14 @@
           <!-- Every time value starts as a placeholder and is filled in by JS,
                so the page never shows a stale clock before the script runs. -->
           <time class="screen__clock" id="wall-clock">--:--</time>
+          <!--
+            Two icons, one shown at a time, rather than swapping innerHTML.
+            Period names and schedule names are user input, so innerHTML is
+            banned throughout this codebase; toggling `hidden` keeps that rule
+            intact and costs nothing. The accessible name changes with the
+            glyph - a back arrow still announcing "Settings" is the mismatch
+            that makes icon-only buttons hostile to anyone not looking.
+          -->
           <button
             class="icon-button"
             type="button"
@@ -44,7 +62,39 @@
             aria-label="Settings"
             aria-expanded="false"
           >
-            &#9881;
+            <svg
+              class="icon"
+              id="icon-gear"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+              focusable="false"
+            >
+              <circle cx="12" cy="12" r="3" />
+              <path
+                d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"
+              />
+            </svg>
+            <svg
+              class="icon"
+              id="icon-back"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+              focusable="false"
+              hidden
+            >
+              <path d="M19 12H5" />
+              <path d="m12 19-7-7 7-7" />
+            </svg>
           </button>
         </div>
       </header>
@@ -62,6 +112,15 @@
             ><span class="countdown__colon">:</span
             ><span class="countdown__seconds" id="countdown-seconds">--</span>
           </p>
+
+          <!--
+            Which units the number above is in. Under an hour it counts
+            minutes and seconds; over one it flips to hours and minutes, and
+            the two are visually identical - "3:38" could be either. Small and
+            quiet, but it is the difference between a readable clock and a
+            confidently wrong one.
+          -->
+          <p class="countdown__units" id="countdown-units">min : sec</p>
         </div>
 
         <!--
@@ -312,6 +371,26 @@
     </main>
 
     <!--
+      A native <dialog>, not window.confirm and not a hand-rolled overlay.
+      showModal() gives focus trapping, Escape-to-close, an inert background,
+      and correct role="dialog" semantics for free - all the parts a custom
+      modal gets wrong. The cost is a `closedby` caveat: clicking the backdrop
+      does not dismiss it, which is fine for a destructive confirmation.
+    -->
+    <dialog class="confirm" id="confirm-dialog" aria-labelledby="confirm-title">
+      <form method="dialog" class="confirm__form">
+        <h2 class="confirm__title" id="confirm-title">Delete this schedule?</h2>
+        <p class="confirm__body" id="confirm-body"></p>
+        <div class="confirm__actions">
+          <button class="minibutton" type="submit" value="cancel">Cancel</button>
+          <button class="minibutton minibutton--danger" type="submit" value="confirm" id="confirm-ok">
+            Delete
+          </button>
+        </div>
+      </form>
+    </dialog>
+
+    <!--
       One strip cell. JS clones it once per period and adds the modifier that
       makes it a square or a connector, so both shapes share one piece of
       markup and one fill element.
@@ -363,7 +442,19 @@
           </label>
 
           <button class="editrow__delete" type="button" data-field="delete">
-            <span aria-hidden="true">&times;</span>
+            <svg
+              class="icon"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              aria-hidden="true"
+              focusable="false"
+            >
+              <path d="M18 6 6 18" />
+              <path d="m6 6 12 12" />
+            </svg>
             <span class="visually-hidden" data-field="label-delete">Delete period</span>
           </button>
         </div>

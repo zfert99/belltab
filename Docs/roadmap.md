@@ -8,9 +8,20 @@ evidence behind the technical decisions is
 **Status legend:** ✅ Done · 🚧 In progress · 📋 Planned · ⛔ Blocked (prereq)
 **Tracks:** 🏗️ Setup · ⚙️ Engine · 🎨 UI · 🔀 Infra · 🔗 Integration
 
-**Status (2026-08-25):** docs phase complete — plan, agent rules, design system,
-and the research corpus are in place. Nothing is built. The repo has no commits
-and no remote yet. Next action is Phase 0.
+**Status (2026-08-26):** a working plain HTML/CSS/JS build exists on `main`,
+deliberately ahead of Phase 0 — see `Docs/build-log.md` for the running
+narrative and the reasoning behind each decision. Shipped so far: the countdown
+and period strip, the day list, big/projector mode, a schedule editor with
+validation, a calendar, and preferences. The schedule engine is pure and covered
+by 120 Vitest tests.
+
+The repo is at `github.com/zfert99/belltab`, with `main` protected by GitHub
+Flow (one PR per change, squash-merged).
+
+**The phase table below still describes the Next.js track**, which is the
+destination rather than the current state: Phase 0's scaffold, CI, and a11y
+gate are genuinely not started, and Phases 1–4 exist only in their plain-JS
+form. Reconciling the two is owed once the port begins.
 
 ## At a glance
 
