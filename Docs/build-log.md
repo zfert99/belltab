@@ -150,6 +150,7 @@ modules over `file://` because there is no content type without HTTP.
 | 2026-08-26 | `openApp` asserts the browser's wall clock matches the fixture | A timezone skew is silent by construction: the suite still boots, renders and asserts, just against a different hour. One assertion at the boundary converts that into a single failure that names the cause, instead of three failures that each look like a separate bug. |
 | 2026-08-26 | Period names get `overflow-wrap: anywhere`, not `break-word` | `break-word` wraps a long word but does **not** shrink the element's min-content contribution, so an intrinsically-sized ancestor — here a `1fr` grid column, then `main`, then the body grid track — keeps reserving the unbroken word's full width. `anywhere` is the only value that shrinks min-content too. The global `break-word` on `<body>` stays: it is right for prose, and wrong only where untrusted input meets an intrinsic size. |
 | 2026-08-26 | The reflow gate now runs in two clock states, not one | The 60-character-name test passed for a day while the bug it was written to catch was live, because it only ever looked at 09:30. A gate that sees one hour of the school day measures that hour, not the app. |
+| 2026-08-26 | Dependabot groups **major** action bumps, but only minor/patch for npm | The asymmetry is the point. A first-party GitHub action pinned by major tag has a blast radius of one red CI run — visible immediately, reverted with one commit — so batching majors costs nothing and saves three CI runs answering one question. An npm major can change runtime behaviour in ways a green suite does not catch, so those stay ungrouped and individually revertible. |
 | 2026-08-26 | Branch protection leaves **admin enforcement off** | Checked, the rules would apply to the owner too, and there would be no way to unwedge a broken `main` without first going back into settings to switch it off - which is the same bypass, with extra steps and worse timing. Unchecked, the status checks still gate the merge button on every PR; what stays possible is a deliberate direct push by the one person in the repo. The protection that matters here is against a bad merge, not against the author. |
 | 2026-08-26 | "Require branches to be up to date" is **off** | It forces a rebase and a full CI re-run every time `main` moves under an open PR. That is correct insurance in a repo with concurrent authors and semantic conflicts; with one author and one PR at a time it buys nothing and spends a browser install per merge. Revisit the moment a second person opens a PR here. |
 | 2026-08-26 | The required check list names the four CI jobs plus `Analyze JavaScript`, not the aggregate `CodeQL` check | A required check that does not report on some PR blocks that PR forever. The five named are job names from workflow files in this repo, so they report on every pull request by construction. The aggregate `CodeQL` run is produced by the action rather than by a job we declare, so it is the one most likely to change shape and wedge a merge. |
@@ -1695,3 +1696,59 @@ will look arbitrary in six weeks.
 This entry is also the first change to go through the gate it describes: a
 branch, a pull request, five green checks, and a squash merge. Nothing has been
 pushed to `main` directly since it was turned on.
+
+### 2026-08-26 16:45 — Dependabot's first batch, and a green check that proved nothing
+
+Three PRs within a minute of the config landing: `actions/setup-node`,
+`actions/checkout` and `actions/upload-artifact`, each 4 → 7. Three majors in
+one hop is the shape that deserves reading rather than rubber-stamping.
+
+**They are one change wearing three hats.** Every one of those majors is the
+action moving its runtime to Node 24 and then to ESM. That also explains a
+warning in the first CI run that went unchased at the time:
+
+```text
+Node.js 20 is deprecated. The following actions target Node.js 20 but are
+being forced to run on Node.js 24: actions/checkout@v4, actions/setup-node@v4,
+actions/upload-artifact@v4
+```
+
+The v4 pins were running on a compatibility shim. The bumps remove it.
+
+Release notes for every major in between were read rather than skimmed, and
+the breaking changes were checked against what this repo actually does:
+
+| Breaking change | Touches us? |
+| --- | --- |
+| `setup-node` v5 auto-caches when `packageManager` is in package.json | No — no such field, and `cache: npm` is set explicitly |
+| `setup-node` v6 limits auto-caching to npm | No — already explicit |
+| `checkout` v6 persists credentials to a separate file | No — nothing reads the credential after checkout |
+| `checkout` v7 blocks fork PR checkout for `pull_request_target` / `workflow_run` | No — neither trigger is used |
+| `upload-artifact` v7 adds `archive:` for direct single-file uploads | No — unset, defaults unchanged |
+
+**The interesting finding is about the evidence, not the versions.** All three
+PRs came back with six green checks, and for two of them that means something:
+`checkout` and `setup-node` run in every job, so a green run genuinely
+exercised them.
+
+For `upload-artifact` it means nothing at all. That step is `if: failure()`.
+A passing run never executes it. The bump is therefore **unverified by
+construction**, and the first time it would be exercised is the first red run —
+exactly the moment the trace it uploads is wanted. Merged anyway, because a
+first-party action on default parameters is a low risk, but merged with that
+written down rather than hidden behind a green tick.
+
+**Lesson:** "CI is green" answers a narrower question than it appears to. A
+check only covers the code paths the run actually took, and a step guarded by
+`if: failure()` is invisible to every successful run by design.
+
+**The config gap the batch exposed.** Three pull requests, all editing the same
+handful of lines in one file, each invalidating the other two on merge. The
+`groups` block written yesterday covered only the npm ecosystem; the
+`github-actions` entry had none. Now grouped — and grouped for **majors** too,
+which the npm block deliberately does not do. The reasoning is in Decisions.
+
+One operational note: two `gh pr merge` calls returned
+`GraphQL: Something went wrong` and the merges had in fact succeeded on the
+server. Reading the PR state back is the only reliable confirmation; the exit
+code of the merge command is not.
