@@ -127,7 +127,7 @@ describe("boot", () => {
   });
 
   it("sets a tab title in one of the known shapes", () => {
-    expect(document.title).toMatch(/^(\d+m - .+|Done - BellTab|BellTab)$/);
+    expect(document.title).toMatch(/^(\d+m · .+|Done · BellTab|BellTab)$/);
   });
 
   it("fills the editor from the selected schedule", () => {
