@@ -1,0 +1,401 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <!-- No user-scalable=no / maximum-scale: pinch-zoom must stay available (WCAG 1.4.4). -->
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="light dark" />
+    <title>BellTab</title>
+
+    <!--
+      The one inline, render-blocking script in the app, and it is here on
+      purpose. app.js is a module, so it is deferred until after the HTML is
+      parsed - by which time the page has already painted in the system theme.
+      A user who chose light on a dark-mode machine would see a dark flash on
+      every load. Reading the stored theme before first paint is the only way
+      to avoid it.
+    -->
+    <script>
+      try {
+        var storedTheme = localStorage.getItem("belltab:theme");
+        if (storedTheme === "light" || storedTheme === "dark") {
+          document.documentElement.dataset.theme = storedTheme;
+        }
+      } catch (error) {
+        /* Site data blocked. The system theme is a fine answer. */
+      }
+    </script>
+
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+
+  <body>
+    <main class="screen">
+      <header class="screen__bar">
+        <h1 class="screen__schedule" id="schedule-name">Regular day</h1>
+        <div class="screen__meta">
+          <!-- Every time value starts as a placeholder and is filled in by JS,
+               so the page never shows a stale clock before the script runs. -->
+          <time class="screen__clock" id="wall-clock">--:--</time>
+          <button
+            class="icon-button"
+            type="button"
+            id="settings-toggle"
+            aria-label="Settings"
+            aria-expanded="false"
+          >
+            &#9881;
+          </button>
+        </div>
+      </header>
+
+      <!-- ============ NOW VIEW: the timer and the strip ============ -->
+      <section class="focus" id="focus-view" aria-label="Current period">
+        <div class="countdown">
+          <p class="countdown__period" id="period-name">&mdash;</p>
+
+          <!-- Split into spans so minutes can be styled larger than seconds.
+               Deliberately NOT an aria-live region: announcing this every second
+               would flood a screen reader. -->
+          <p class="countdown__time">
+            <span class="countdown__minutes" id="countdown-minutes">--</span
+            ><span class="countdown__colon">:</span
+            ><span class="countdown__seconds" id="countdown-seconds">--</span>
+          </p>
+        </div>
+
+        <!--
+          The period strip. Equal-width squares for the day's real blocks,
+          thin connectors for passing periods.
+
+          aria-hidden because it is a redundant visual rendering: the caption
+          below states the same position in words ("3 of 7"), and the Day view
+          is the readable, navigable version of this data. Fifteen unlabelled
+          cells announced one by one would be noise, not information.
+        -->
+        <div class="strip" id="strip" aria-hidden="true"></div>
+
+        <footer class="bounds">
+          <time class="bounds__edge bounds__edge--start" id="day-start">--:--</time>
+          <p class="bounds__next" id="day-caption">&mdash;</p>
+          <time class="bounds__edge bounds__edge--end" id="day-end">--:--</time>
+        </footer>
+      </section>
+
+      <!-- ============ DAY VIEW: the whole schedule, readable ============ -->
+      <section class="day" id="day-view" aria-label="Today's schedule" hidden>
+        <div class="day__summary">
+          <h2 class="day__label">Day progress</h2>
+          <p class="day__remaining">
+            <span class="day__remaining-value" id="day-remaining">--:--</span>
+            <span class="day__remaining-label" id="day-remaining-label">until dismissal</span>
+          </p>
+        </div>
+
+        <div class="progress" aria-hidden="true">
+          <div class="progress__fill" id="day-progress-fill"></div>
+        </div>
+
+        <!--
+          Finished periods collapse behind this so the current one sits at the
+          top of the list. A disclosure button, not a bare toggle: aria-expanded
+          tells assistive tech the content still exists and is retrievable.
+        -->
+        <button class="disclosure" type="button" id="past-toggle" aria-expanded="false" hidden>
+          <span class="disclosure__marker" aria-hidden="true"></span>
+          <span id="past-toggle-label">Earlier periods</span>
+        </button>
+
+        <!-- Filled in by JS from the schedule. Ordered, because a bell schedule
+             is a sequence and screen readers should announce it as one. -->
+        <ol class="periods" id="period-list"></ol>
+      </section>
+
+      <!-- ============ SETTINGS ============ -->
+      <section class="settings" id="settings-view" aria-label="Settings" hidden>
+        <div class="settings__layout">
+          <nav class="settings__nav" aria-label="Settings sections">
+            <p class="settings__navlabel">Settings</p>
+            <button class="settings__tab" type="button" id="tab-schedules" aria-pressed="false">
+              Schedules
+            </button>
+            <button class="settings__tab" type="button" id="tab-calendar" aria-pressed="false">
+              Calendar
+            </button>
+            <button class="settings__tab" type="button" id="tab-preferences" aria-pressed="true">
+              Preferences
+            </button>
+          </nav>
+
+          <div class="settings__panels">
+            <div class="panel" id="panel-schedules" hidden>
+              <h2 class="panel__title">Schedules</h2>
+
+              <div class="schedpicker" role="group" aria-label="Choose a schedule to edit">
+                <div class="schedpicker__list" id="schedule-list"></div>
+                <button class="schedpicker__new" type="button" id="schedule-new">
+                  + New schedule
+                </button>
+              </div>
+
+              <div class="editor" id="editor">
+                <div class="editor__toolbar">
+                  <label class="editor__name">
+                    <span class="visually-hidden">Schedule name</span>
+                    <input type="text" id="schedule-name-input" maxlength="60" />
+                  </label>
+
+                  <div class="editor__actions">
+                    <button class="minibutton" type="button" id="schedule-duplicate">
+                      Duplicate
+                    </button>
+                    <button class="minibutton minibutton--danger" type="button" id="schedule-delete">
+                      Delete
+                    </button>
+                  </div>
+                </div>
+
+                <!--
+                  Shift all: nudges every period by the same number of minutes.
+                  This is how a school actually announces a delay ("everything
+                  runs 30 minutes late"), so it beats retyping eleven rows.
+                -->
+                <div class="shiftall">
+                  <label class="shiftall__field">
+                    <span class="shiftall__label">Shift all by</span>
+                    <input
+                      type="number"
+                      id="shift-minutes"
+                      value="5"
+                      min="-720"
+                      max="720"
+                      step="5"
+                      inputmode="numeric"
+                    />
+                    <span class="shiftall__unit">min</span>
+                  </label>
+                  <button class="minibutton" type="button" id="shift-apply">Apply</button>
+                </div>
+
+                <!-- Column headers for sighted users. Each input carries its own
+                     visually-hidden label as well, because a column header is
+                     not programmatically tied to a control inside a list. -->
+                <div class="editrow__head" aria-hidden="true">
+                  <span>Name</span>
+                  <span>Kind</span>
+                  <span>Start</span>
+                  <span>Length</span>
+                  <span></span>
+                </div>
+
+                <ol class="editlist" id="period-editor"></ol>
+
+                <p class="editor__error" id="schedule-error" role="alert" hidden></p>
+
+                <button class="minibutton" type="button" id="period-add">+ Add period</button>
+              </div>
+            </div>
+
+            <div class="panel" id="panel-calendar" hidden>
+              <h2 class="panel__title">Calendar</h2>
+
+              <p class="panel__note" id="calendar-today">&mdash;</p>
+
+              <section class="calsection" aria-labelledby="weekday-heading">
+                <h3 class="calsection__title" id="weekday-heading">Normal week</h3>
+                <p class="field__hint">
+                  Which schedule runs on an ordinary day. Choose &ldquo;No
+                  school&rdquo; for days you are closed.
+                </p>
+                <div class="weekdays" id="weekday-map"></div>
+              </section>
+
+              <section class="calsection" aria-labelledby="override-heading">
+                <h3 class="calsection__title" id="override-heading">Exceptions</h3>
+                <p class="field__hint">
+                  One-off days that beat the normal week &mdash; an assembly, a
+                  snow day, a half day before a holiday.
+                </p>
+
+                <div class="addoverride">
+                  <label class="addoverride__field">
+                    <span class="visually-hidden">Date</span>
+                    <input type="date" id="override-date" />
+                  </label>
+                  <label class="addoverride__field">
+                    <span class="visually-hidden">Schedule for that date</span>
+                    <select id="override-schedule"></select>
+                  </label>
+                  <button class="minibutton" type="button" id="override-add">Add</button>
+                </div>
+
+                <p class="editor__error" id="override-error" role="alert" hidden></p>
+
+                <ul class="overrides" id="override-list"></ul>
+                <p class="panel__note" id="override-empty">No exceptions yet.</p>
+              </section>
+            </div>
+
+            <div class="panel" id="panel-preferences">
+              <h2 class="panel__title">Preferences</h2>
+
+              <!--
+                fieldset + legend is the correct grouping for a set of mutually
+                exclusive choices: a screen reader announces "Theme, System,
+                radio button, 1 of 3". Real radios also give arrow-key
+                navigation for free, which a set of styled buttons would not.
+              -->
+              <fieldset class="field">
+                <legend class="field__legend">Theme</legend>
+                <p class="field__hint" id="theme-hint">
+                  System follows your device setting.
+                </p>
+                <div class="field__options" aria-describedby="theme-hint">
+                  <label class="option">
+                    <input type="radio" name="theme" value="system" checked />
+                    <span>System</span>
+                  </label>
+                  <label class="option">
+                    <input type="radio" name="theme" value="light" />
+                    <span>Light</span>
+                  </label>
+                  <label class="option">
+                    <input type="radio" name="theme" value="dark" />
+                    <span>Dark</span>
+                  </label>
+                </div>
+              </fieldset>
+
+              <fieldset class="field">
+                <legend class="field__legend">Clock</legend>
+                <p class="field__hint" id="clock-hint">
+                  Changes how every time is displayed. It does not change the
+                  schedule.
+                </p>
+                <div class="field__options" aria-describedby="clock-hint">
+                  <label class="option">
+                    <input type="radio" name="clock" value="12" checked />
+                    <span>12-hour</span>
+                  </label>
+                  <label class="option">
+                    <input type="radio" name="clock" value="24" />
+                    <span>24-hour</span>
+                  </label>
+                </div>
+              </fieldset>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Two buttons rather than a tablist: aria-pressed needs no arrow-key
+           handling, and a half-implemented tab widget is worse than none. -->
+      <nav class="viewswitch" aria-label="View">
+        <button class="viewswitch__btn" type="button" id="view-now" aria-pressed="true">
+          Now
+        </button>
+        <button class="viewswitch__btn" type="button" id="view-day" aria-pressed="false">
+          Day
+        </button>
+        <button class="viewswitch__btn" type="button" id="view-big" aria-pressed="false">
+          Big
+        </button>
+      </nav>
+
+      <!--
+        Big mode hides the switcher, so this is the way back out. It is always
+        in the DOM and always focusable while big mode is on - dimmed rather
+        than hidden, because a mode you can only leave by guessing a keyboard
+        shortcut is a trap. Escape works too.
+      -->
+      <button class="bigexit" type="button" id="big-exit" hidden>Exit big mode</button>
+    </main>
+
+    <!--
+      One strip cell. JS clones it once per period and adds the modifier that
+      makes it a square or a connector, so both shapes share one piece of
+      markup and one fill element.
+    -->
+    <template id="strip-cell">
+      <span class="strip__cell">
+        <span class="strip__fill" data-field="fill"></span>
+      </span>
+    </template>
+
+    <!--
+      One editable period row.
+
+      Each control is wrapped in its own <label>, which associates them without
+      needing an id - and ids would collide across cloned rows anyway. The
+      label text is visually hidden and rewritten per row by JS ("Name of
+      period 3"), so a screen reader user tabbing the list always knows which
+      row they are in; the visible column headers do that job for everyone else.
+
+      Start is a native <input type="time"> so it gets the platform's own time
+      picker and locale formatting for free. Length is minutes rather than an
+      end time because that is how bell schedules are actually written down.
+    -->
+    <template id="period-edit-row">
+      <li class="editrow">
+        <div class="editrow__grid">
+          <label class="editrow__field">
+            <span class="visually-hidden editrow__labeltext" data-field="label-name">Name</span>
+            <input type="text" data-field="name" maxlength="60" />
+          </label>
+
+          <label class="editrow__field">
+            <span class="visually-hidden editrow__labeltext" data-field="label-kind">Kind</span>
+            <select data-field="kind">
+              <option value="class">Class</option>
+              <option value="lunch">Lunch</option>
+              <option value="passing">Passing</option>
+            </select>
+          </label>
+
+          <label class="editrow__field">
+            <span class="visually-hidden editrow__labeltext" data-field="label-start">Start</span>
+            <input type="time" data-field="start" />
+          </label>
+
+          <label class="editrow__field">
+            <span class="visually-hidden editrow__labeltext" data-field="label-length">Length</span>
+            <input type="number" data-field="length" min="1" max="1440" inputmode="numeric" />
+          </label>
+
+          <button class="editrow__delete" type="button" data-field="delete">
+            <span aria-hidden="true">&times;</span>
+            <span class="visually-hidden" data-field="label-delete">Delete period</span>
+          </button>
+        </div>
+
+        <p class="editrow__error" data-field="error" hidden></p>
+      </li>
+    </template>
+
+    <!--
+      The row markup for one period in the Day view, cloned once per period.
+
+      Note these use data-field, NOT id. A template is cloned eleven times, and
+      eleven copies of the same id is invalid HTML - getElementById would only
+      ever find the first one. data-field is queried relative to each row.
+
+      Living in a <template> keeps the markup in the HTML file where it can be
+      read, and lets JS build rows with cloneNode + textContent instead of
+      concatenating strings into innerHTML.
+    -->
+    <template id="period-row">
+      <li class="period">
+        <div class="period__row">
+          <time class="period__time" data-field="start"></time>
+          <span class="period__name" data-field="name"></span>
+          <span class="period__aside" data-field="aside"></span>
+        </div>
+        <div class="period__track" aria-hidden="true">
+          <div class="period__fill" data-field="fill"></div>
+        </div>
+      </li>
+    </template>
+
+    <script src="app.js" type="module"></script>
+  </body>
+</html>

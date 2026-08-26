@@ -1,0 +1,25 @@
+# Dependencies
+node_modules/
+
+# Environment. .env.example is committed; every real one is not.
+.env
+.env.*
+!.env.example
+
+# Next.js build output (arrives with the Phase 0 scaffold)
+.next/
+out/
+next-env.d.ts
+
+# Test artifacts
+coverage/
+test-results/
+playwright-report/
+
+# Vercel
+.vercel
+
+# Editor and OS
+.DS_Store
+Thumbs.db
+*.code-workspace
