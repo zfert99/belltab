@@ -54,7 +54,16 @@ src/
     schedule.js  engine.js  parse.js  format.js
   ui/           everything that touches the document
     dom.js  views.js  editor.js
+e2e/            Playwright, top-level by rule, not colocated
+  helpers.js  reflow.spec.js  confirm-dialog.spec.js  announcer.spec.js
+scripts/
+  serve.js      the dev server, no dependencies
 ```
+
+`e2e/` is top-level because `AGENTS.md` exempts E2E from colocation: it tests
+the assembled app in a browser, not any one module. It covers the two things
+jsdom structurally cannot — real layout, for the WCAG reflow gate, and real
+`<dialog>` lifecycle, which jsdom does not implement at all.
 
 `store.js` sits at the root rather than in either folder: it is not pure
 (localStorage, `document`) but it is not UI either, and a `state/` folder
@@ -72,7 +81,7 @@ holding one file would be worse than the ambiguity.
 | `src/store.js` | Mutable state on one `store` object, plus persistence. | lib/schedule, lib/parse |
 | `src/ui/views.js` | All painting, view switching, and the single `tick`. | lib/engine, lib/format, dom, store |
 | `src/ui/editor.js` | Settings: the schedule editor, calendar, preferences. | lib/parse, dom, store, views |
-| `src/app.js` | Wiring and startup. 110 lines, no logic. | dom, store, views, editor |
+| `src/app.js` | Wiring and startup. 119 lines, no logic. | dom, store, views, editor |
 
 Unit tests are colocated with what they validate: `lib/engine.test.js`,
 `lib/parse.test.js`, `lib/format.test.js`, and `src/app.test.js` (the jsdom
@@ -81,8 +90,10 @@ boot test).
 ### Running it
 
 ```bash
-npm test          # vitest run - 115 tests
+npm test          # vitest run - 153 unit tests
 npm run watch     # vitest in watch mode
+npm run e2e       # playwright - 32 browser tests, starts its own server
+npm run e2e:ui    # playwright in UI mode
 npm run serve     # http://localhost:3000
 npm run lint:md   # markdownlint
 ```
@@ -114,12 +125,47 @@ modules over `file://` because there is no content type without HTTP.
 | 2026-08-26 | This log is maintained per-change, and the rule lives in `AGENTS.md` | A convention that exists only in conversation dies with the session. Encoded as a checked-in rule so it survives context loss and applies to anyone working the repo. |
 | 2026-08-26 | **Overlapping periods stay blocked.** The `AGENTS.md` invariant is upheld; the editor mockup's warn-and-allow banner is not built | Allowing overlap means answering "which of two simultaneous periods does the big number count down" — a product question with no obvious answer, for a capability the plan explicitly disclaims. Cost accepted: BellTab cannot represent concurrent lunches. |
 | 2026-08-26 | The header gear becomes a back arrow inside settings, and its accessible name changes with it | An icon-only button whose glyph says "back" while its label still says "Settings" is precisely the mismatch that makes icon buttons hostile to anyone not looking at the screen. |
+| 2026-08-26 | "The period changed" means a different **block of the day**, keyed on `startMin`/`endMin` — never the rendered name | A half-typed name is a new string on every keystroke, and two periods in one day may legitimately share a name, in which case a name-keyed guard is silent at exactly the boundary the live region exists for. Start/end are unique because periods may not overlap, so they are the only stable identity a period has. |
+| 2026-08-26 | Edits are silenced at `refreshResolved`, not by checking `paused` | The bell is *most* useful to a screen-reader user who has settings open and cannot see the countdown — that is why `announce()` sits outside `tick()`'s paused branch. `refreshResolved` is the one entry point every edit funnels through, so the flag suppresses *edits* rather than *settings*. |
+| 2026-08-26 | The `showModal` fallback is `window.confirm`, not an unconditional delete | The button's entire contract is that it asks first. Falling through to the action means an irreversible operation loses its only guard on exactly the platforms least able to recover from it — and it made the whole delete flow untestable, since jsdom takes that branch. |
+| 2026-08-26 | `#schedule-error` is `role="status"`; `#override-error` stays `role="alert"` | The distinction is *what writes to it*, not what it says. The schedule slot is refilled by `validateDraft` on every keystroke, and an assertive region churned per character interrupts the user mid-word. The override slot is written once, in answer to pressing Add — which is what assertive is for. |
+| 2026-08-26 | Error slots are written only when the message actually changes | A no-op write mutates nothing, so a live region announces nothing. This is what makes a polite region survive per-keystroke revalidation: a sentence that stays true across ten keystrokes is announced once. |
+| 2026-08-26 | The Day view's running row spells its countdown out — `50m 00s`, not `50:00` | It renders directly beneath siblings `formatDuration` writes as `55m` and `1h`. A units caption fixes the *summary* number, where there is room for one; in a table row the only form that survives the neighbourhood is the one carrying its own units. |
+| 2026-08-26 | The DOM wiring test may freeze the clock; the pure engine still must not need to | `tick()` reads the system clock directly — it has to, that is recompute-never-decrement — so a test that asserts a rendered number has to decide what time it is. Only `Date` is faked, never `setInterval`. The engine's own suite keeps taking the time as an argument. |
+| 2026-08-26 | Playwright drives the **installed** Chrome via `channel: "chrome"` rather than a downloaded Chromium | Zero browser binaries, and it is the same engine the code review measured in, so the E2E results are directly comparable to the numbers already in this log. The cost is that WebKit — the engine most likely to differ on `<dialog>` — is still uncovered, which is now an open gap rather than an unstated assumption. |
+| 2026-08-26 | The dev server is forty lines of Node in `scripts/serve.js`, not a package | A server is required only because browsers refuse ES modules over `file://`. `AGENTS.md` wants this app at 1.0 with approximately zero dependencies and treats every proposed addition as suspect; a static file server is small enough to own. It also fixes `npm run serve`, which pointed at a `serve` package that was never installed. |
+| 2026-08-26 | The E2E browser timezone is pinned to `America/New_York` in `playwright.config.js` | A fixed instant has to mean the same wall-clock time on every machine, or a suite that pins the clock to 09:30 tests a different period depending on who runs it. This is a property of the harness, not the app — BellTab deliberately has no timezone plumbing and reads local wall-clock minutes, which is exactly what pinning makes reproducible. |
 
 ---
 
 ## Deviations from the plan docs
 
 Recorded so they get folded back in rather than quietly diverging.
+
+### The tab title separator — the code says `-`, four documents say `·`
+
+Found 2026-08-26 15:30 while making the README accurate, not by a test.
+
+`formatTabTitle` emits `43m - Period 2`. The plan, the roadmap, the README and
+the design system all specify `43m · Period 2`, and the design system is the
+document that chose it:
+
+```text
+Docs/belltab-plan.md:14        43m · Period 2
+Docs/belltab-plan.md:160       **Number first:** `43m · Period 2`
+Docs/roadmap.md:82             number first: `43m · Period 2`
+Docs/design/design-system.md:159   `43m · Period 2` — number first
+README.md:9                    43m · Period 2
+```
+
+Four documents agreeing is not an ambiguous spec; the code is simply behind it.
+Recorded rather than fixed here because it changes user-visible output, and this
+branch is about closing code-review findings — a one-character behaviour change
+riding along in that squash commit is how a diff stops being reviewable.
+
+**Owed:** one character in `src/lib/format.js`, plus the two tests that pin the
+string — `format.test.js` (`"43m - Period 2"`) and `app.test.js`'s title-shape
+regex. The docs stay as written, because they are the spec.
 
 ### Overlapping periods — RESOLVED 2026-08-26, invariant upheld
 
@@ -191,6 +237,9 @@ until the plain version has taught us the shape.
 | 2026-08-26 | No `clearInterval` anywhere | Harmless for a page that lives until closed. Becomes a timer leak on every remount once this is a React component — needs a `useEffect` cleanup at the port. |
 | 2026-08-26 | The inline theme script needs a CSP hash at the Next port | `AGENTS.md` requires baseline security headers. An inline `<script>` is fine today with no CSP, but becomes a violation the moment one ships. |
 | 2026-08-26 | Overlap errors are attributed by sort order, not edit order | On an exact `startMin` tie the error lands on the row that sorts second, which is usually but not always the row being edited. Fixing it means threading edit state into a pure function. |
+| 2026-08-26 | WebKit and Firefox are not covered | The E2E suite runs one project, `chrome`, against the browser already installed on the machine — no engine binaries were downloaded. `AGENTS.md` asks for real WebKit coverage, which is where `<dialog>`, `:modal` and `inert` behaviour is most likely to differ. Add the projects and `npx playwright install webkit firefox` when the download is worth it. |
+| 2026-08-26 | The E2E suite is not wired into CI | It passes locally and `playwright.config.js` already branches on `process.env.CI` for retries, reporter and `forbidOnly`. There is no workflow file in the repo yet, so the reflow gate is a blocking check in principle and a local one in practice. |
+| 2026-08-26 | `README.md` documents the Next.js destination, not the current app | It tells a reader to run `npm run dev` and visit `localhost:3000/bell`. Neither exists: this is the plain HTML/CSS/JS build, served by `npm run serve` at `localhost:3000`. Consistent with the deliberate plain-JS-first detour, but a reader has no way to know that from the README. |
 
 ## Closed
 
@@ -199,14 +248,21 @@ until the plain version has taught us the shape.
 | 2026-08-26 | 2026-08-26 | `splitCountdown` ambiguity — the countdown now carries a `min : sec` / `hr : min` label, and `splitCountdown` returns the unit alongside the numbers. |
 | 2026-08-26 | 2026-08-26 | Glyph icons — `⚙`, `←` and `×` replaced with inline SVG. |
 | 2026-08-26 | 2026-08-26 | `els` staleness — no longer reachable: every rebuild uses `replaceChildren()` on a container, so no reference in `dom.js` is ever replaced. The invariant is now documented in the file. |
-| 2026-08-26 | 2026-08-26 | No period-change announcement — added a single `aria-live="polite"` region that fires only at period boundaries and is silent on first paint. |
+| 2026-08-26 | 2026-08-26 | ~~No period-change announcement — added a single `aria-live="polite"` region that fires only at period boundaries and is silent on first paint.~~ **Superseded 2026-08-26 14:40:** the region exists and is silent on first paint, but it does *not* fire only at period boundaries — see the reopened gap above. |
 | 2026-08-26 | 2026-08-26 | Day view scroll-into-view — the running row is revealed on entry and on each period change, `block: "nearest"`, reduced-motion aware. |
-| 2026-08-26 | 2026-08-26 | `window.confirm` on delete — replaced with a native `<dialog>`; `showModal()` supplies focus trapping, Escape, and an inert background. |
+| 2026-08-26 | 2026-08-26 | ~~`window.confirm` on delete — replaced with a native `<dialog>`; `showModal()` supplies focus trapping, Escape, and an inert background.~~ **Superseded 2026-08-26 14:40:** focus trapping and the inert background hold, but Escape does not, and the unsupported-`showModal` path deletes without asking — see the two reopened gaps above. |
 | 2026-08-26 | 2026-08-26 | `Docs/roadmap.md` status line — rewritten to describe reality, with the phase table explicitly flagged as describing the Next.js destination rather than the current state. |
 | 2026-08-26 | 2026-08-26 | `src/belltab.code-workspace` — decided rather than fixed: editor-personal, stays ignored. |
 | 2026-08-26 | 2026-08-26 | Schedule list view not built — shipped as the day view (mockup 1): day progress bar, eleven period rows, past/current/future states, per-row countdown, and a Now/Day switcher. |
 | 2026-08-26 | 2026-08-26 | Settings: Schedules panel was a placeholder — now a full editor with live validation bound to `parseSchedule`. |
 | 2026-08-26 | 2026-08-26 | Settings: Calendar panel was a placeholder — now the weekday map plus dated exceptions, resolving per day. |
+| 2026-08-26 | 2026-08-26 | Escape closes settings out from under the confirm dialog — the handler now bails while `dialog[open]` matches, and `setSettingsOpen` closes the dialog with `"cancel"`. Review finding 1. |
+| 2026-08-26 | 2026-08-26 | The announcer fires on editor keystrokes — keyed on the period's `startMin`/`endMin` instead of its name, with a one-shot resync flag raised by `refreshResolved`. Review finding 2. |
+| 2026-08-26 | 2026-08-26 | The `showModal` fallback deletes without asking — falls back to `window.confirm`, which also made the delete flow testable for the first time. Review finding 3. |
+| 2026-08-26 | 2026-08-26 | The "only live region" test does not test that — the selector now covers the implicit roles too, the three regions are enumerated by id, and `#schedule-error` became polite and idempotent. Review finding 4. |
+| 2026-08-26 | 2026-08-26 | The Day view countdown has no units — a `#day-remaining-units` caption on the summary, and `formatRemaining` on the running row. Review finding 5. |
+| 2026-08-26 | 2026-08-26 | The `<dialog>` fixes were verified against a stub, not a browser — now covered by an `e2e/` Playwright suite running in the installed Chrome. Escape, focus trapping, inertness, Cancel, Delete and the backdrop caveat are all asserted against a real modal. |
+| 2026-08-26 | 2026-08-26 | The 320 px reflow check had not been re-run — now a Playwright suite at 320/375/768/1024/1440 over every view, every settings panel, the open dialog, and a 60-character unbroken period name. Measured at 320: `scrollWidth === clientWidth === 320` in all four states. |
 
 ---
 
@@ -315,6 +371,130 @@ Mockup 2 shows `43:12` remaining in "Period 2" while mockup 1 lists Period 2 as
 art as a visual reference, not a specification.
 
 ---
+
+### 2026-08-26 — a `<dialog>` is part of the page, and `confirm()` never was
+
+The delete confirmation was upgraded from `window.confirm` to
+`dialog.showModal()` for focus trapping and Escape-to-close. Escape stopped
+meaning what it used to mean:
+
+```js
+document.addEventListener("keydown", (event) => {
+  if (event.key !== "Escape") return;
+  if (settingsOpen) setSettingsOpen(false);
+  ...
+});
+```
+
+That handler predates the dialog and was correct for years' worth of `confirm()`
+calls, because a browser modal dispatches no key events to the document at all.
+A modal `<dialog>` is an ordinary element in an ordinary document: its Escape
+keydown bubbles to `document`, and the dialog's own close is only the *default
+action*, so the page's listener runs first. One Escape now hides the settings
+view, drops `is-settings`, paints the countdown underneath, and moves focus —
+while the delete modal is still open on top of it.
+
+**Lesson:** replacing a browser-level primitive with a page-level one hands you
+the behaviour *and* the event stream. Grep for existing global key handlers
+before adopting `<dialog>`, `popover`, or anything else that participates in
+close requests. The tell is that the old code needed no `dialog`-awareness
+because there was no dialog in the page to be aware of.
+
+### 2026-08-26 — the review's "any route" was one route, and the modal closed the rest
+
+Not a bug in the app — a bug in what the previous entry believed about it, found
+by writing the browser test that was supposed to confirm it.
+
+The review said `setSettingsOpen(false)` never calls `dialog.close()`, "so
+leaving settings by any route strands the dialog open." The E2E test written to
+prove that in Chrome timed out instead:
+
+```text
+attempting click action
+  <dialog open class="confirm" id="confirm-dialog"> intercepts pointer events
+retrying click action ... (55 times)
+```
+
+A modal `<dialog>` makes everything behind it **inert**. The settings toggle is
+behind it, so no click can reach it. The Escape handler was the only route that
+ever reached `setSettingsOpen(false)` with the dialog open, and that is fixed at
+the source. The defensive `close("cancel")` stays — it costs one condition and
+covers a non-modal `show()`, or a browser where `showModal` threw — but it is
+belt-and-braces, not the fix, and the code comment now says so.
+
+**Lesson:** a finding measured *through* a bug inherits that bug's reach. The
+Escape collision was the vehicle for "any route", and once it was gone the other
+routes turned out never to have existed. Worth re-deriving the blast radius of a
+finding after fixing its cause, rather than fixing the symptom list as written.
+
+### 2026-08-26 — Chrome's modal tab cycle passes through `<body>`
+
+The focus-trap assertion started as "`#confirm-dialog` contains
+`document.activeElement` after every Tab" and failed on the second press.
+Measured, in Chrome, tabbing from the freshly-opened dialog:
+
+```text
+0 BUTTON  Cancel      inDialog=true
+1 BUTTON  Delete      inDialog=true
+2 BODY                inDialog=false
+3 BUTTON  Cancel      inDialog=true
+```
+
+The wrap point of a modal's tab cycle parks focus on the document body. Nothing
+*behind* the dialog ever takes focus, so the trap holds exactly as intended —
+`contains()` was simply the wrong shape for the assertion. It now asserts the
+set of places focus is allowed to be, and the observed cycle is recorded in the
+test so the next person does not re-derive it from a red run.
+
+**Lesson:** `AGENTS.md` requires browser-behaviour claims to carry a citation or
+a test, and "focus is trapped" is a browser-behaviour claim. The intuitive
+encoding of it was wrong about a real engine in a way no amount of reading the
+spec summary would have caught.
+
+### 2026-08-26 — a name is not an identity
+
+Fixing the announcer's keystroke spam surfaced a second bug in the same three
+lines, pointing the other way. The guard was:
+
+```js
+if (label === lastAnnounced) return;
+```
+
+where `label` is the period's *name*. Two consecutive periods that share a name
+— a school with "Study Hall" twice in a row, or two back-to-back "Advisory"
+blocks — produce the same `label` on either side of the bell, so the guard reads
+"nothing changed" and says nothing at exactly the moment the region exists for.
+
+Nothing in the suite could have caught it, and nothing in a browser would look
+wrong: both spellings of the bug render identically, and the failure is silence.
+It was only visible because fixing the *other* direction forced the question of
+what "the period changed" actually means.
+
+**Lesson:** a guard keyed on what is *displayed* is keyed on the wrong thing.
+The display is a projection — lossy by construction, and here two distinct
+periods projected onto the same string. Key on identity, and if the domain does
+not obviously supply one, that is worth stopping over: this domain does, and it
+is the invariant that periods may not overlap, which makes `startMin`/`endMin` a
+primary key.
+
+### 2026-08-26 — `role="alert"` is not free, and `[aria-live]` does not find it
+
+Two bugs that only look like one. `#schedule-error` carried `role="alert"`,
+whose implicit `aria-live` is `assertive`, and `clearErrors()` blanked it while
+`showErrors()` refilled it on every `validateDraft()` — that is, on every
+keystroke in the editor. An assertive region, churned per character.
+
+The test written to prevent exactly this selected `[aria-live]` and asserted a
+length of one. `role="alert"` and `role="status"` have no literal `aria-live`
+attribute, so the selector matched neither error slot: the page had three live
+regions while a green test said one.
+
+**Lesson:** ARIA roles carry implicit properties, and attribute selectors see
+only explicit ones. Any test that means "find the live regions" has to spell out
+`[role="alert"], [role="status"], [role="log"]` alongside `[aria-live]`.
+Enumerating them by id rather than counting them is the second half — a count of
+one passes forever, whereas a list fails the moment somebody adds a fourth,
+which is the whole point of writing it down.
 
 ## Session log
 
@@ -912,3 +1092,230 @@ state. The open questions in that block were left alone — they are the user's.
 the *only* live region on the page and that neither the countdown nor the period
 name sits inside one — the rule is easy to break later with a well-meaning
 addition, and cheap to guard now.
+
+### 2026-08-26 14:40 — code review of `437ef54`
+
+A `/code-review` pass over the previous commit, written up in full as
+`Docs/code-review-2026-08-26.md`. Five findings, all open; each has a row in
+**Open gaps** above, and the two closed-gap rows the review contradicts are
+marked superseded rather than deleted.
+
+The three serious ones share a shape worth naming: the commit traded two
+**browser-level** primitives for **page-level** ones — `window.confirm` for
+`<dialog>.showModal()`, and a glyph for an `aria-live` region — and inherited
+the page's problems along with its control. `window.confirm` dispatched no
+keydown to the page, so the global Escape handler never saw it; a `<dialog>`
+does, so Escape now closes settings out from under the modal. Nothing announced
+before, so `tick()` running on every editor keystroke was harmless; now it makes
+the announcer speak once per character typed.
+
+Everything interactive was verified in a real Chrome against a static server
+rather than argued from the source, because none of it is visible to the Vitest
+suite: the announcer spam needs a period to actually be running, and the Escape
+collision needs a real key event and a real `<dialog>`. jsdom 30 does not even
+implement `showModal`, which is how finding 3 surfaced — the tests have been
+taking the "delete without asking" branch all along.
+
+The review also confirmed four things the commit got right, recorded so they are
+not re-litigated: the SVG `hidden` swap really works (`[hidden] !important`
+outranks `.icon { display: block }` and matches on an `SVGElement`), 320px
+reflow holds with the dialog open, the rebuilt delete buttons keep their
+accessible names, and the `els`-staleness invariant is genuinely true.
+
+**No code changed.** The findings are recorded, not fixed.
+
+### 2026-08-26 15:10 — closing the five code-review findings
+
+Branch `fix/code-review-437ef54`. Everything in `Docs/code-review-2026-08-26.md`
+is fixed; that document gained a **What was changed** section and its status
+line now says so. Tests 120 → 153.
+
+**Finding 3, the silent delete.** `confirmDelete` fell through to `onConfirm()`
+where `showModal` is missing. Now it calls `window.confirm` and obeys the
+answer. Taken first, as the review recommended: it is three lines, it removes a
+data-loss path, and it is what made every test below possible — jsdom is one of
+the environments without `showModal`, so the suite had been taking the silent
+branch on every run and the delete flow had no test at all.
+
+**Finding 1, Escape.** The document's keydown handler now returns early while
+`document.querySelector("dialog[open]")` matches. Queried generically rather
+than checking `els.confirmDialog.open`, so a second dialog added later inherits
+the rule instead of quietly reintroducing the bug. Separately,
+`setSettingsOpen` closes the dialog with an explicit `"cancel"` — leaving
+settings by *any* route (the header button, Escape, a view switch) has to take
+the modal with it, because the dialog is a sibling of the settings view rather
+than a child.
+
+**Finding 2, the announcer.** Two changes. The guard is keyed on
+`during:<startMin>-<endMin>` instead of the rendered name, and `refreshResolved`
+raises a one-shot `announcerNeedsResync` flag that makes the next tick adopt the
+new value without speaking it. Neither alone is enough: identity-keying stops
+the per-keystroke spam from renames but not from an edit that moves the running
+period, and the flag stops edits but leaves the same-name boundary silent. The
+name-keying half turned out to be a live bug of its own — see **Bugs found**.
+
+Suppressing announcements while `paused` was the obvious cheap fix and is
+wrong: `announce()` is deliberately outside `tick()`'s paused branch because a
+screen-reader user with settings open is precisely the person who cannot see the
+countdown and most needs the bell.
+
+**Finding 4, the live regions.** `#schedule-error` is `role="status"` now, not
+`role="alert"` — it is refilled per keystroke, and assertive interrupts the user
+mid-word. `#override-error` keeps `role="alert"`, which is correct for a
+one-shot answer to pressing Add. A new `setMessage()` writes an error slot only
+when the message actually changed, so a sentence that stays true across ten
+keystrokes is announced once instead of ten times; `clearErrors()` no longer
+blanks the schedule slot, since blank-then-refill is itself two mutations. The
+name field also finally gets an `aria-describedby` pointing at the message that
+explains its `aria-invalid`, which `AGENTS.md` has required all along.
+
+**Finding 5, the Day view units.** `paintDay` carries `unit` into a new
+`#day-remaining-units` caption styled to match the Now view's. The running row's
+countdown became `formatRemaining` — `50m 00s`, `1h 20m` — rather than a units
+caption, because that number renders inside a list whose other rows read `55m`
+and `1h`; in that neighbourhood the only readable form is the one carrying its
+own units. The minor part stays zero-padded even though `formatDuration` would
+not pad it, because this string ticks and an unpadded seconds place changes its
+width every ten seconds.
+
+**Testing.** 33 new tests. The three lifecycle findings needed things the suite
+could not previously do:
+
+- **A frozen clock.** `vi.useFakeTimers({ toFake: ["Date"] })`, with a
+  `freezeAt(hours, minutes)` helper that keeps today's date so `tick()`'s
+  midnight-rollover check does not re-resolve the schedule mid-test. Only `Date`
+  is faked — `app.js`'s `setInterval` is already running by then and replacing
+  it would prove nothing. The pure engine suites are untouched and still take
+  the time as an argument.
+- **A `<dialog>` stub.** jsdom implements the `open` attribute but neither
+  `showModal` nor `close`, so both are stubbed on the element for the supported
+  path. That is a mock at a boundary — the platform — and it is the only way the
+  supported path is reachable at all.
+- **Mutation counting.** "Written once per message" is invisible in the rendered
+  text, so that test observes the region with a `MutationObserver` and asserts
+  one record across three keystrokes.
+
+Every fix was then checked by re-breaking it and confirming a *named* test
+fails. That caught three tests that were green for the wrong reason: with the
+real clock sitting at 14:57 the school day was already over, so the Day view
+assertions had no current row to be wrong about and the announcer tests had no
+running period to mistake an edit for. Those are the tests the frozen clock
+exists for — the first versions asserted shape only, and shape is exactly what
+both bugs preserved.
+
+**Not done:** none of this was re-verified in a real browser. The original
+review measured all three lifecycle findings in Chrome and this session had no
+browser to drive; the supported-`<dialog>` path and the 320 px reflow gate are
+both owed a real run. Two rows added to **Open gaps** rather than a claim
+implied by a green suite.
+
+### 2026-08-26 15:14 — a browser, and the two gaps that needed one
+
+The previous entry closed the five review findings and then owed two things it
+could not do: verify the supported-`<dialog>` path outside jsdom, and re-measure
+the 320 px reflow gate after the Day view's summary line gained a third element.
+Both are now covered by a real Playwright suite.
+
+**Tooling.** `@playwright/test` only, driving the Chrome already installed on
+the machine via `channel: "chrome"`. No engine binaries were downloaded — three
+packages, no `npx playwright install`. That is the same engine the code review
+measured in, so the numbers below are directly comparable to the ones already in
+this log. `AGENTS.md` names Playwright as this repo's E2E tool, so this is an
+owed item arriving rather than a dependency argument.
+
+**The dev server.** `npm run serve` pointed at a `serve` package that was never
+installed, so the documented way to run the app did not work and Playwright had
+nothing to serve from. Replaced with `scripts/serve.js`: forty lines of Node,
+zero dependencies, `src/` only, with the traversal guard a file server should
+have even on a developer's own machine. Probed with `..%2f`, `..%5c`, `....//`
+and `%2e%2e%2f` variants — all 404, contained inside `src/`.
+
+**What the suite covers.** 32 tests, three files.
+
+- `reflow.spec.js` — the blocking gate, at 320/375/768/1024/1440, over the Now
+  view, the Day view (collapsed and expanded), Big mode, all three settings
+  panels, the open confirm dialog, and a 60-character unbroken period name.
+- `confirm-dialog.spec.js` — findings 1 and 3: Escape, focus trapping,
+  inertness, Cancel, Delete cascading into the calendar, and the documented
+  backdrop caveat.
+- `announcer.spec.js` — finding 2, including the review's own repro, plus the
+  other half: that the bell still rings when the clock crosses a boundary.
+
+**Measured at 320 CSS px**, 09:30 on a Wednesday:
+
+```text
+Now view          scrollWidth=320 clientWidth=320
+Day view          scrollWidth=320 clientWidth=320
+Big mode          scrollWidth=320 clientWidth=320
+Settings          scrollWidth=320 clientWidth=320
+dialog open       scrollWidth=320 clientWidth=320
+dialog box        288x226 at x=16
+```
+
+The gate holds, and the dialog is the same 288 px the review measured. The
+suite was then checked against a deliberate `min-width: 900px` on
+`.day__remaining`: it fails with `950 > 320` and names the five widest
+offenders, so it is a measurement rather than a formality.
+
+**Finding 5, visible in Chrome:** the Day countdown reads `5:00` with
+`units="hr : min"` beside it, and the running row's aside reads `35m 00s`.
+
+**Finding 2, visible in Chrome:** typing `Chem` into the running period's name
+now writes `[]` to the announcer. The review measured
+`["C has started.", "Ch has started.", "Che has started.", "Chem has started."]`
+at the same keystrokes.
+
+**Every fix was re-broken and re-run.** Removing the Escape bail-out fails
+`Escape dismisses the dialog and leaves settings standing` in Chrome — settings
+hidden after one press, exactly the review's repro. Restoring the original
+`announce()` fails two announcer tests including the typing one. Keying the
+announcer on the name alone passes the E2E suite, because the default schedules
+have no two adjacent periods sharing a name; that case is the unit suite's
+`Twins` fixture, and it fails there.
+
+**Two things the browser corrected**, both written up under **Bugs found**: the
+review's "leaving settings by any route strands the dialog" turned out to be one
+route, because a modal's inert background blocks the others; and Chrome's modal
+tab cycle passes through `<body>` at its wrap point, which is not a focus escape
+but does break the obvious `contains()` assertion.
+
+**Still owed**, and now stated rather than assumed: WebKit and Firefox are
+uncovered, nothing runs this in CI, and `README.md` still documents the Next.js
+destination rather than the app that exists. Three rows in **Open gaps**.
+
+### 2026-08-26 15:30 — the docs catch up to the app
+
+`README.md` and `Docs/roadmap.md` both described the Next.js destination as
+though it were the current state. That was harmless while only one person was
+reading them and actively misleading to anyone else: the README's Local
+development section told a reader to run `npm run dev` and open
+`localhost:3000/bell`, and its "before calling any change done" line named
+`npm run lint`, `npm run typecheck` and `npm run test:e2e`. **None of those five
+things exist.** A reader following the README could not have started the app.
+
+- **README, Stack:** now says plainly that today is plain HTML/CSS/ES modules
+  with no build step and no runtime dependencies, and that Next/TypeScript/
+  Tailwind is the destination. Vitest and Playwright are called out as already
+  here and carrying over.
+- **README, Local development:** `npm run serve`, with the reason a server is
+  required at all (ES modules over `file://`), and the real check commands.
+  Notes there is no `/bell` base path yet.
+- **README, Docs table:** adds the build log and this review, and states the
+  division of labour — the plan and roadmap describe the destination, the build
+  log describes the app that exists, and **Deviations** is where they are
+  reconciled.
+- **Roadmap, status:** 120 tests → 153 unit plus 32 E2E, and an explicit note
+  that two Phase 0 items (the test harness, the reflow gate) have arrived early
+  in plain-JS form and carry over — while the scaffold, `basePath`, security
+  headers, the `jsx-a11y` rule and GitHub Actions have not.
+- **Roadmap, open questions:** the repo-and-remote question is resolved and
+  struck through rather than deleted.
+
+**One deviation found, recorded, not fixed:** the tab title separator. See
+**Deviations** above. Four documents specify `43m · Period 2` and the code emits
+`43m - Period 2`; the fix is one character and two test strings, and it does not
+belong in a squash commit about code-review findings.
+
+**Not touched:** the phase table itself. It still describes the Next.js track,
+which the roadmap already says in as many words, and rewriting it is the port's
+job rather than this branch's.

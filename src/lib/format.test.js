@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   formatClock,
   formatDuration,
+  formatRemaining,
   splitCountdown,
   formatDayCaption,
   formatPeriodLabel,
@@ -154,5 +155,49 @@ describe("formatTabTitle", () => {
   it("has an end state and an empty state", () => {
     expect(formatTabTitle({ phase: "after", remainingSec: 0 })).toBe("Done - BellTab");
     expect(formatTabTitle({ phase: "empty", remainingSec: 0 })).toBe("BellTab");
+  });
+});
+
+describe("formatRemaining", () => {
+  // The Day view prints this directly beneath rows formatted by
+  // formatDuration ("55m", "1h 30m"), where a bare "1:20" reads as one minute
+  // twenty. Spelling the units out is the whole point of the function.
+  it("never produces a bare colon form", () => {
+    for (const seconds of [0, 1, 59, 60, 3599, 3600, 3601, 12 * 3600]) {
+      expect(formatRemaining(seconds)).not.toMatch(/^\d+:\d{2}$/);
+    }
+  });
+
+  it.each([
+    [0, "0m 00s"],
+    [59, "0m 59s"],
+    [60, "1m 00s"],
+    [49 * 60 + 16, "49m 16s"],
+    [59 * 60 + 59, "59m 59s"],
+  ])("spells minutes and seconds under an hour: %i -> %s", (seconds, expected) => {
+    expect(formatRemaining(seconds)).toBe(expected);
+  });
+
+  it.each([
+    [3600, "1h 00m"],
+    [3600 + 5 * 60, "1h 05m"],
+    [3600 + 20 * 60 + 59, "1h 20m"],
+    [6 * 3600 + 24 * 60, "6h 24m"],
+  ])("flips to hours and minutes at an hour: %i -> %s", (seconds, expected) => {
+    expect(formatRemaining(seconds)).toBe(expected);
+  });
+
+  // The minor part stays padded even though formatDuration would not pad it:
+  // this string ticks once a second, and an unpadded seconds place changes its
+  // width every ten seconds.
+  it("pads the minor part so a ticking value keeps its width", () => {
+    expect(formatRemaining(65)).toBe("1m 05s");
+    expect(formatRemaining(3600 + 60)).toBe("1h 01m");
+  });
+
+  // Same floor as splitCountdown: a countdown that has run out shows zero, not
+  // a negative number, if a repaint lands a moment late.
+  it("floors at zero rather than going negative", () => {
+    expect(formatRemaining(-30)).toBe("0m 00s");
   });
 });

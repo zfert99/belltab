@@ -407,6 +407,9 @@ body {
 .day__remaining {
   display: flex;
   align-items: baseline;
+  /* Wraps rather than forcing a horizontal scroll: value, units and label are
+     three strings on one line, and the reflow floor is 320 CSS px. */
+  flex-wrap: wrap;
   gap: var(--s-2);
 }
 
@@ -416,6 +419,16 @@ body {
   font-weight: 600;
   line-height: 1;
   font-variant-numeric: tabular-nums;
+}
+
+/* Names the units of the number beside it, matching .countdown__units in the
+   Now view so the same job looks the same in both places. */
+.day__remaining-units {
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  letter-spacing: 0.08em;
+  color: var(--fg-soft);
+  text-transform: lowercase;
 }
 
 .day__remaining-label {

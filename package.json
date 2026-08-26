@@ -5,8 +5,10 @@
   "scripts": {
     "test": "vitest run",
     "watch": "vitest",
-    "serve": "serve src --listen 3000",
-    "lint:md": "markdownlint-cli **/*.md"
+    "serve": "node scripts/serve.js",
+    "lint:md": "markdownlint-cli **/*.md",
+    "e2e": "playwright test",
+    "e2e:ui": "playwright test --ui"
   },
   "repository": {
     "type": "git",
@@ -22,6 +24,7 @@
   "homepage": "https://github.com/zfert99/belltab#readme",
   "private": "true",
   "devDependencies": {
+    "@playwright/test": "^1.62.1",
     "jsdom": "^30.0.1",
     "vitest": "^4.1.11"
   }

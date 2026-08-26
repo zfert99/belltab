@@ -2,6 +2,7 @@ import { stateAt, daySummaryAt, periodStatusAt, blockPositionAt } from "../lib/e
 import {
   formatClock,
   formatDuration,
+  formatRemaining,
   splitCountdown,
   formatDayCaption,
   formatPeriodLabel,
@@ -29,40 +30,75 @@ export function setViewsPaused(value) {
 }
 
 /**
- * What the announcer last said, and which row the Day view last scrolled to.
+ * Which period the announcer last spoke for, and which row the Day view last
+ * scrolled to.
  *
  * Both exist so their effect fires on a CHANGE rather than on every tick. An
  * announcement repeated once a second would make a screen reader unusable, and
  * a scrollIntoView every second would fight the user for control of the page.
  */
-let lastAnnounced = null;
+let lastAnnouncedKey = null;
 let lastScrolledTo = null;
+
+/**
+ * Set when the schedule under the clock was replaced by an EDIT rather than by
+ * time passing, so the next announce() takes the new value silently.
+ *
+ * The editor validates on every keystroke, and every draft that parses runs
+ * refreshResolved -> tick. Without this, typing a period name announces once
+ * per character - precisely the assistive-technology flood the single live
+ * region exists to avoid. An edit is not a bell.
+ */
+let announcerNeedsResync = false;
+
+/**
+ * Identifies the running period by its place on the clock, not by its name.
+ *
+ * A name is the wrong key twice over: a half-typed one is a different string
+ * on every keystroke, and two periods in a day may legitimately share a name
+ * ("Study Hall" twice), in which case the boundary between them would never
+ * announce at all. Periods may not overlap, so start and end minutes are the
+ * only stable identity a period has.
+ */
+function announcementKey(state) {
+  return state.phase === "during"
+    ? `during:${state.current.startMin}-${state.current.endMin}`
+    : state.phase;
+}
 
 /**
  * Announces the period change, and only the period change.
  *
- * This is the app's one live region. The countdown itself must never become
- * one: a per-second aria-live would read the number aloud sixty times a
- * minute. The tab title is not an accessible surface either - changing
- * document.title announces nothing - so for a screen-reader user this is how
- * the bell rings.
+ * This is the app's one live region driven by the clock. The countdown itself
+ * must never become one: a per-second aria-live would read the number aloud
+ * sixty times a minute. The tab title is not an accessible surface either -
+ * changing document.title announces nothing - so for a screen-reader user this
+ * is how the bell rings.
  */
 function announce(state) {
+  // Consumed on every call, including the ones that change nothing, so a
+  // pending resync can never leak forward onto a later real period change.
+  const resync = announcerNeedsResync;
+  announcerNeedsResync = false;
+
+  const key = announcementKey(state);
+  if (key === lastAnnouncedKey) return;
+
+  const firstPaint = lastAnnouncedKey === null;
+  lastAnnouncedKey = key;
+
+  // Silent on the very first paint - describing the current period the instant
+  // the page loads is noise, not news - and silent when the change came from
+  // an edit rather than from the clock.
+  if (firstPaint || resync) return;
+
   const label =
     state.phase === "during"
       ? state.current.name
       : (NO_PERIOD_NAME[state.phase] ?? "No schedule");
 
-  if (label === lastAnnounced) return;
-
-  // Skipped on the very first paint: describing the current period the instant
-  // the page loads is noise, not news.
-  if (lastAnnounced !== null) {
-    els.announcer.textContent =
-      state.phase === "during" ? `${label} has started.` : `${label}.`;
-  }
-
-  lastAnnounced = label;
+  els.announcer.textContent =
+    state.phase === "during" ? `${label} has started.` : `${label}.`;
 }
 
 /**
@@ -260,12 +296,19 @@ function paintFocus(state, nowSec) {
 
 function paintDay(nowSec) {
   const day = daySummaryAt(store.schedule, nowSec);
-  const { major, minor } = splitCountdown(day.remainingSec);
+  const { major, minor, unit } = splitCountdown(day.remainingSec);
 
   // Once the last bell has rung there is nothing left to count, and "0:00"
   // reads like a stopped clock rather than a finished day.
   const counting = day.phase === "before" || day.phase === "during";
   els.dayRemaining.textContent = counting ? `${major}:${minor}` : "--:--";
+
+  // The same ambiguity the Now view carries a caption for, and worse here:
+  // this is the largest number on the screen, and "6:24 until dismissal" is
+  // six hours or six minutes depending on a scale nothing else states.
+  els.dayRemainingUnits.textContent = counting ? unit : "";
+  els.dayRemainingUnits.hidden = !counting;
+
   els.dayRemainingLabel.textContent = DAY_LABEL[day.phase];
   els.dayProgressFill.style.width = `${(day.progress * 100).toFixed(2)}%`;
 
@@ -289,8 +332,10 @@ function paintDay(nowSec) {
       // times" - the accessible equivalent of the butterscotch highlight.
       row.setAttribute("aria-current", "time");
 
-      const left = splitCountdown(period.endMin * 60 - nowSec);
-      fields.aside.textContent = `${left.major}:${left.minor}`;
+      // Spelled out rather than "1:20", because the rows above and below are
+      // formatDuration's "55m" and "1h" - a bare colon form directly beneath
+      // "1h" reads as one minute twenty.
+      fields.aside.textContent = formatRemaining(period.endMin * 60 - nowSec);
 
       const elapsed = nowSec - period.startMin * 60;
       const length = (period.endMin - period.startMin) * 60;
@@ -310,6 +355,13 @@ function paintDay(nowSec) {
 /** Re-resolves today's schedule and repaints, after any edit that could change it. */
 export function refreshResolved() {
   store.schedule = scheduleFor(new Date());
+
+  // Everything that reaches here is an edit: a keystroke in the period editor,
+  // a weekday remapped, an exception added, a schedule deleted. The period
+  // under the clock may well be different afterwards, but no bell rang - so
+  // the announcer takes the new value without speaking it.
+  announcerNeedsResync = true;
+
   rebuildViews();
   tick();
 }

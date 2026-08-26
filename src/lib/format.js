@@ -35,6 +35,18 @@ export function formatDuration(totalMinutes) {
 }
 
 /**
+ * The two scales a countdown can be on, spelled the way the UI captions them.
+ *
+ * Exported so nothing has to compare against the literal string: splitCountdown
+ * decides the scale, and every caller that needs to know which one it got reads
+ * the answer from here.
+ */
+export const COUNTDOWN_UNITS = {
+  hoursMinutes: "hr : min",
+  minutesSeconds: "min : sec",
+};
+
+/**
  * Splits a duration into the two numbers the display shows, and says what they
  * mean.
  *
@@ -54,14 +66,14 @@ export function splitCountdown(totalSeconds) {
     return {
       major: String(Math.floor(safeSeconds / 3600)),
       minor: String(Math.floor((safeSeconds % 3600) / 60)).padStart(2, "0"),
-      unit: "hr : min",
+      unit: COUNTDOWN_UNITS.hoursMinutes,
     };
   }
 
   return {
     major: String(Math.floor(safeSeconds / 60)),
     minor: String(safeSeconds % 60).padStart(2, "0"),
-    unit: "min : sec",
+    unit: COUNTDOWN_UNITS.minutesSeconds,
   };
 }
 
@@ -88,4 +100,25 @@ export function formatTabTitle(state) {
   const label = state.phase === "during" ? state.current.name : state.next.name;
   const minutes = Math.ceil(state.remainingSec / 60);
   return `${minutes}m - ${label}`;
+}
+
+/**
+ * A live countdown in the same vocabulary the period list already uses for
+ * fixed lengths: "49m 06s", "1h 05m".
+ *
+ * The Day view shows this number directly beneath siblings formatted by
+ * formatDuration ("10m", "1h"), where a bare "1:20" reads as one minute twenty
+ * rather than one hour twenty. Spelling the units into the string is the only
+ * form that survives being read next to those.
+ *
+ * The minor part keeps its zero padding even though formatDuration would not:
+ * this one ticks, and an unpadded seconds place changes the string's width
+ * every ten seconds.
+ */
+export function formatRemaining(totalSeconds) {
+  const { major, minor, unit } = splitCountdown(totalSeconds);
+
+  return unit === COUNTDOWN_UNITS.hoursMinutes
+    ? `${major}h ${minor}m`
+    : `${major}m ${minor}s`;
 }

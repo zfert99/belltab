@@ -66,6 +66,18 @@ export function setSettingsPanel(panel) {
 export function setSettingsOpen(open) {
   settingsOpen = open;
 
+  // Defence in depth, not the fix. The dialog is a sibling of the settings
+  // view rather than a child, so hiding settings would leave an open modal
+  // floating over the countdown - but showModal makes the page behind it
+  // inert, so in a supporting browser no click can reach the toggle to get
+  // here in the first place (measured in Chrome; see the build log). This
+  // covers what inertness does not: a non-modal show(), or a browser where
+  // showModal threw. Closing with an explicit "cancel" keeps the close
+  // listener from reading it as a confirmation.
+  if (els.confirmDialog.open && typeof els.confirmDialog.close === "function") {
+    els.confirmDialog.close("cancel");
+  }
+
   // views.js owns the painting and cannot see this module's state, so it keeps
   // its own "is anything of mine on screen" flag and we drive it from here.
   // Reaching the other way would make these two modules import each other.
@@ -319,10 +331,28 @@ export function selectSchedule(id) {
   renderEditor();
 }
 
+/**
+ * Writes a message into an error slot, and only when it actually changed.
+ *
+ * #schedule-error is a live region and validateDraft runs on every keystroke.
+ * Blanking the slot and refilling it with the same sentence per character
+ * would announce that sentence per character; a no-op write announces nothing,
+ * because nothing in the region changed. Toggling `hidden` is not a text
+ * mutation, so it is safe to set every time.
+ */
+function setMessage(element, message) {
+  if (element.textContent !== message) element.textContent = message;
+  element.hidden = message === "";
+}
+
+/**
+ * Drops the per-field error state. Deliberately does NOT touch
+ * #schedule-error: that slot gets exactly one write per validation pass, at
+ * the end of showErrors, for the reason on setMessage above.
+ */
 function clearErrors() {
-  els.scheduleError.hidden = true;
-  els.scheduleError.textContent = "";
   els.scheduleNameInput.removeAttribute("aria-invalid");
+  els.scheduleNameInput.removeAttribute("aria-describedby");
 
   for (const row of draftRows) {
     row.error.hidden = true;
@@ -350,7 +380,13 @@ function showErrors(errors) {
   for (const error of errors) {
     if (error.index === null) {
       scheduleLevel.push(error.message);
-      if (error.field === "name") els.scheduleNameInput.setAttribute("aria-invalid", "true");
+      if (error.field === "name") {
+        els.scheduleNameInput.setAttribute("aria-invalid", "true");
+        // Bound to the field, not merely painted near it - the same rule the
+        // per-row errors follow. #schedule-error is the only slot a
+        // schedule-level message can land in, so the id is fixed.
+        els.scheduleNameInput.setAttribute("aria-describedby", els.scheduleError.id);
+      }
       continue;
     }
 
@@ -374,10 +410,7 @@ function showErrors(errors) {
     }
   }
 
-  if (scheduleLevel.length > 0) {
-    els.scheduleError.textContent = scheduleLevel.join(" ");
-    els.scheduleError.hidden = false;
-  }
+  setMessage(els.scheduleError, scheduleLevel.join(" "));
 }
 
 /**
@@ -446,8 +479,7 @@ export function shiftAll() {
   // Refuse the whole shift rather than clamping. Clamping would silently
   // collapse the periods at the edge into each other and call it an overlap.
   if (Math.min(...starts) + delta < 0 || Math.max(...ends, 0) + delta > 1440) {
-    els.scheduleError.textContent = "That shift would push the day past midnight.";
-    els.scheduleError.hidden = false;
+    setMessage(els.scheduleError, "That shift would push the day past midnight.");
     return;
   }
 
@@ -463,8 +495,7 @@ export function duplicateSchedule() {
 
   const result = parseSchedule(draftToSchedule(draft));
   if (!result.ok) {
-    els.scheduleError.textContent = "Fix the errors below before duplicating.";
-    els.scheduleError.hidden = false;
+    setMessage(els.scheduleError, "Fix the errors below before duplicating.");
     return;
   }
 
@@ -497,17 +528,27 @@ export function newSchedule() {
 /**
  * Asks before destroying something, using a real <dialog>.
  *
- * showModal() supplies focus trapping, Escape-to-close, an inert background,
- * and dialog semantics - every part a hand-rolled overlay gets wrong. Where it
- * is unsupported (or in a jsdom test), the fall-through returns true rather
- * than silently refusing the delete the user asked for.
+ * showModal() supplies focus trapping, an inert background, and dialog
+ * semantics - every part a hand-rolled overlay gets wrong. It does NOT supply
+ * Escape for free here: a modal <dialog> is part of the page, so its Escape
+ * keydown reaches the document's own handler first (see app.js).
+ *
+ * Where showModal is unsupported - Safari before 15.4, and jsdom, which is
+ * this repo's test environment - the fallback is window.confirm, not an
+ * unconditional delete. The button's entire contract is that it asks first,
+ * and an irreversible action must not lose its only guard on exactly the
+ * platforms least able to recover from it.
  */
 function confirmDelete(name, onConfirm) {
   const dialog = els.confirmDialog;
-  els.confirmBody.textContent = `"${name}" will be removed, along with any days that use it. This cannot be undone.`;
+  const message = `"${name}" will be removed, along with any days that use it. This cannot be undone.`;
+  els.confirmBody.textContent = message;
 
   if (typeof dialog.showModal !== "function") {
-    onConfirm();
+    // The <dialog>'s heading is markup the fallback cannot borrow, so the
+    // question and the consequence are both spelled into the one string
+    // window.confirm gets to show.
+    if (window.confirm(`Delete this schedule?\n\n${message}`)) onConfirm();
     return;
   }
 

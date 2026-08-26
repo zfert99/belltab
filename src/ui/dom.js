@@ -35,6 +35,7 @@ export const els = {
 
   dayView: document.getElementById("day-view"),
   dayRemaining: document.getElementById("day-remaining"),
+  dayRemainingUnits: document.getElementById("day-remaining-units"),
   dayRemainingLabel: document.getElementById("day-remaining-label"),
   dayProgressFill: document.getElementById("day-progress-fill"),
   pastToggle: document.getElementById("past-toggle"),

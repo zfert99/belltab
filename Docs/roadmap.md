@@ -12,16 +12,26 @@ evidence behind the technical decisions is
 deliberately ahead of Phase 0 — see `Docs/build-log.md` for the running
 narrative and the reasoning behind each decision. Shipped so far: the countdown
 and period strip, the day list, big/projector mode, a schedule editor with
-validation, a calendar, and preferences. The schedule engine is pure and covered
-by 120 Vitest tests.
+validation, a calendar, and preferences.
+
+**Testing:** 153 Vitest tests over the pure engine, the parser, the formatters
+and the jsdom wiring, plus 32 Playwright tests in `e2e/` running in a real
+Chrome. The reflow gate that Phase 0 calls for is among them and passes at
+320/375/768/1024/1440.
 
 The repo is at `github.com/zfert99/belltab`, with `main` protected by GitHub
 Flow (one PR per change, squash-merged).
 
 **The phase table below still describes the Next.js track**, which is the
-destination rather than the current state: Phase 0's scaffold, CI, and a11y
-gate are genuinely not started, and Phases 1–4 exist only in their plain-JS
-form. Reconciling the two is owed once the port begins.
+destination rather than the current state: Phase 0's scaffold, security headers,
+CI and lint gate are genuinely not started, and Phases 1–4 exist only in their
+plain-JS form. Reconciling the two is owed once the port begins.
+
+Two Phase 0 items have arrived early, in plain-JS form, and carry over
+unchanged: the **Vitest + Playwright harness**, and the **reflow gate**. What
+Phase 0 still owes on top of them is the Next scaffold, `basePath`, security
+headers, the `jsx-a11y` lint rule, and GitHub Actions — there is no workflow
+file in the repo yet, so every gate here is a local one in practice.
 
 ## At a glance
 
@@ -167,7 +177,7 @@ still locked to direct traffic.
 
 ## Open questions
 
-- **Repo name and remote.** The folder is `belltab`; the repo has no remote yet.
+- ~~**Repo name and remote.**~~ Resolved: `github.com/zfert99/belltab`.
 - **Does the hub's project index need a card before Phase 7**, or does BellTab
   stay unlisted until cutover?
 - **Is `/bell` final**, or does it become `/belltab` to match the repo name?

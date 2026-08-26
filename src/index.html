@@ -31,12 +31,19 @@
 
   <body>
     <!--
-      The ONLY live region in the app, and it fires only when the period
-      actually changes - never on the ticking value. A per-second live region
+      The bell. It fires only when the period actually changes - never on the
+      ticking value, and never on an editor keystroke. A per-second live region
       would make a screen reader read the countdown aloud once a second, which
       is why the design system forbids wrapping the title or the number in one.
       The tab title is not an accessible surface either, so this is how a
       screen-reader user learns the bell rang.
+
+      This is one of exactly three live regions in the app, and the only one
+      driven by the clock. The other two are the form error slots below:
+      #schedule-error (role="status", polite - it revalidates as you type) and
+      #override-error (role="alert", assertive - it answers a button press).
+      Anything added to that list is a decision, not an implementation detail;
+      the wiring test enumerates all three by id.
     -->
     <p class="visually-hidden" id="period-announcer" role="status" aria-live="polite"></p>
 
@@ -145,8 +152,15 @@
       <section class="day" id="day-view" aria-label="Today's schedule" hidden>
         <div class="day__summary">
           <h2 class="day__label">Day progress</h2>
+          <!--
+            The units belong beside the number, not in the reader's head. Under
+            an hour this counts minutes and seconds; over one it flips to hours
+            and minutes, and the two render identically - "6:24" is six hours
+            or six minutes with nothing on screen to say which.
+          -->
           <p class="day__remaining">
             <span class="day__remaining-value" id="day-remaining">--:--</span>
+            <span class="day__remaining-units" id="day-remaining-units" hidden></span>
             <span class="day__remaining-label" id="day-remaining-label">until dismissal</span>
           </p>
         </div>
@@ -249,7 +263,15 @@
 
                 <ol class="editlist" id="period-editor"></ol>
 
-                <p class="editor__error" id="schedule-error" role="alert" hidden></p>
+                <!--
+                  role="status" (polite), NOT role="alert". This slot is
+                  refilled by validateDraft on every keystroke, and an
+                  assertive region churned per character interrupts whatever
+                  the user is being read mid-word. JS also writes it only when
+                  the message actually changes, so a sentence that stays true
+                  across ten keystrokes is announced once.
+                -->
+                <p class="editor__error" id="schedule-error" role="status" hidden></p>
 
                 <button class="minibutton" type="button" id="period-add">+ Add period</button>
               </div>
@@ -288,6 +310,12 @@
                   <button class="minibutton" type="button" id="override-add">Add</button>
                 </div>
 
+                <!--
+                  role="alert" is right here and wrong for #schedule-error:
+                  this one is written once, in direct response to pressing Add,
+                  and never on a keystroke. That is the case assertive exists
+                  for.
+                -->
                 <p class="editor__error" id="override-error" role="alert" hidden></p>
 
                 <ul class="overrides" id="override-list"></ul>
@@ -371,11 +399,19 @@
     </main>
 
     <!--
-      A native <dialog>, not window.confirm and not a hand-rolled overlay.
-      showModal() gives focus trapping, Escape-to-close, an inert background,
-      and correct role="dialog" semantics for free - all the parts a custom
-      modal gets wrong. The cost is a `closedby` caveat: clicking the backdrop
-      does not dismiss it, which is fine for a destructive confirmation.
+      A native <dialog>, not a hand-rolled overlay. showModal() gives focus
+      trapping, an inert background, and correct role="dialog" semantics for
+      free - all the parts a custom modal gets wrong.
+
+      Escape is NOT free, whatever the platform docs imply: a modal <dialog>
+      lives in the page, so its Escape keydown reaches the document's own
+      handler before the dialog's close runs as the event's default action.
+      app.js bails out of that handler while a dialog is open. There is also a
+      `closedby` caveat - clicking the backdrop does not dismiss it - which is
+      fine for a destructive confirmation.
+
+      Where showModal is unsupported (Safari before 15.4, jsdom), editor.js
+      falls back to window.confirm rather than deleting unasked.
     -->
     <dialog class="confirm" id="confirm-dialog" aria-labelledby="confirm-title">
       <form method="dialog" class="confirm__form">
