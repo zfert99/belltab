@@ -1,0 +1,42 @@
+# Static analysis (SAST). AGENTS.md asks for CodeQL, Dependabot and npm audit
+# from the first commit; this is the first of the three.
+#
+# There is no build step to configure: CodeQL analyses JavaScript by reading
+# the source, so the `autobuild` step other languages need does not apply.
+name: CodeQL
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    # Weekly, so a newly-published query pattern finds old code too. A repo
+    # that only ever scans on push stops being scanned the moment it goes quiet.
+    - cron: "0 7 * * 1"
+
+concurrency:
+  group: codeql-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  analyze:
+    name: Analyze JavaScript
+    runs-on: ubuntu-latest
+
+    permissions:
+      security-events: write
+      contents: read
+      actions: read
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: javascript-typescript
+          queries: security-and-quality
+
+      - name: Analyze
+        uses: github/codeql-action/analyze@v3

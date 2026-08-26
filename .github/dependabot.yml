@@ -1,0 +1,32 @@
+# Dependency updates (SCA half of the security baseline in AGENTS.md).
+#
+# Note the gotcha that file records: a top-level bump does not always reach a
+# nested copy a tool bundles internally. After any security bump, confirm with
+# `npm ls <pkg>` and add a package.json `overrides` entry if a vulnerable
+# nested copy survives.
+version: 2
+
+updates:
+  - package-ecosystem: npm
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    # Everything here is a devDependency, so a routine bump is a chore, not a
+    # release. One grouped PR per week keeps CI cheap and the log readable;
+    # security fixes still arrive on their own, ungrouped and immediately.
+    groups:
+      dev-dependencies:
+        patterns: ["*"]
+        update-types: [minor, patch]
+    commit-message:
+      prefix: "chore(deps)"
+
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+    commit-message:
+      prefix: "chore(ci)"
