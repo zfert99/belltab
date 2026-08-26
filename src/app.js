@@ -77,6 +77,15 @@ els.pastToggle.addEventListener("click", togglePastPeriods);
 // browser-level exit of its own.
 document.addEventListener("keydown", (event) => {
   if (event.key !== "Escape") return;
+
+  // A modal <dialog> is an ordinary element in an ordinary document: its
+  // Escape keydown bubbles to here, and the dialog's own close is only the
+  // DEFAULT ACTION of that same event, so this listener runs first.
+  // window.confirm never had this problem - a browser-level modal dispatches
+  // no key events to the page at all. Without this bail-out, dismissing the
+  // delete confirmation also tears down the settings view underneath it.
+  if (document.querySelector("dialog[open]")) return;
+
   if (settingsOpen) {
     setSettingsOpen(false);
     els.settingsToggle.focus();
