@@ -41,6 +41,44 @@ jobs:
       - name: markdownlint
         run: npm run lint:md
 
+  typecheck:
+    name: Typecheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - run: npm ci
+
+      # `next build` type-checks too, but only after compiling, so a type
+      # error costs a full build before it is reported. This answers the same
+      # question in seconds and names itself in the checks list.
+      - name: tsc --noEmit
+        run: npm run typecheck
+
+  build:
+    name: Next build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - run: npm ci
+
+      # The Phase 0 gate is "CI green on an empty page". This job is that gate:
+      # it proves the scaffold compiles, that `basePath` is applied, and that
+      # every route still prerenders as static.
+      - name: Build
+        run: npm run build
+
   unit:
     name: Unit tests
     runs-on: ubuntu-latest
