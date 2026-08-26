@@ -37,22 +37,58 @@ wake lock, chime, PWA, and the entire Next.js/TypeScript port.
 
 ### Files
 
-| File | What it is |
-| --- | --- |
-| `src/index.html` | Markup and four `<template>`s. One inline script sets the theme before first paint. |
-| `src/styles.css` | Design tokens (palette → semantic layer), light + dark, 17 sections. |
-| `src/schedule.js` | Seed data only — four schedules and the default calendar. No logic. |
-| `src/app.js` | Pure half (engine, parsers, formatters) + impure half (store, DOM, clock). |
+Imports flow strictly one way, top to bottom. Nothing below imports anything
+above it, so the graph is a DAG and no module is half-initialised when another
+reads it.
+
+Organised by **layer, not by feature** — `AGENTS.md` calls a `src/features/`
+domain split premature fragmentation at this size, and names `src/lib/` as the
+home for the pure engine.
+
+```text
+src/
+  index.html  styles.css
+  app.js        entry point, wiring only        + app.test.js
+  store.js      mutable state and persistence
+  lib/          pure: no DOM, no Date           + colocated tests
+    schedule.js  engine.js  parse.js  format.js
+  ui/           everything that touches the document
+    dom.js  views.js  editor.js
+```
+
+`store.js` sits at the root rather than in either folder: it is not pure
+(localStorage, `document`) but it is not UI either, and a `state/` folder
+holding one file would be worse than the ambiguity.
+
+| File | What it is | Imports |
+| --- | --- | --- |
+| `src/index.html` | Markup and four `<template>`s. One inline script sets the theme before first paint. | — |
+| `src/styles.css` | Design tokens (palette → semantic layer), light + dark, 17 sections. | — |
+| `src/lib/schedule.js` | Seed data — four schedules, the default calendar, `PERIOD_KINDS`. No logic. | nothing |
+| `src/lib/engine.js` | What is true at a given moment. Pure; time is always an argument. | schedule |
+| `src/lib/parse.js` | The boundary. Untrusted input → validated data or structured errors. Pure. | schedule |
+| `src/lib/format.js` | Every user-visible string derived from a number. Pure. | **nothing** |
+| `src/ui/dom.js` | Every element the app writes to, looked up once. | — |
+| `src/store.js` | Mutable state on one `store` object, plus persistence. | lib/schedule, lib/parse |
+| `src/ui/views.js` | All painting, view switching, and the single `tick`. | lib/engine, lib/format, dom, store |
+| `src/ui/editor.js` | Settings: the schedule editor, calendar, preferences. | lib/parse, dom, store, views |
+| `src/app.js` | Wiring and startup. 110 lines, no logic. | dom, store, views, editor |
+
+Unit tests are colocated with what they validate: `lib/engine.test.js`,
+`lib/parse.test.js`, `lib/format.test.js`, and `src/app.test.js` (the jsdom
+boot test).
 
 ### Running it
 
 ```bash
-npx serve src --listen 3000
-# → http://localhost:3000
+npm test          # vitest run - 115 tests
+npm run watch     # vitest in watch mode
+npm run serve     # http://localhost:3000
+npm run lint:md   # markdownlint
 ```
 
-A server is **required** — `src/app.js` uses ES modules, and browsers refuse to
-load modules over `file://` because there is no content type without HTTP.
+A server is **required** — the app uses ES modules, and browsers refuse to load
+modules over `file://` because there is no content type without HTTP.
 
 ---
 
@@ -72,7 +108,9 @@ load modules over `file://` because there is no content type without HTTP.
 | 2026-08-26 | Dark mode declared twice — media query *and* `[data-theme]` | `:root:not([data-theme="light"])` inside the media query lets a future toggle override the OS in both directions. |
 | 2026-08-26 | Tab title uses `Math.ceil` on remaining minutes | `floor` shows `0m` for the last 59 seconds of a period, which reads as "it is over" when it is not. |
 | 2026-08-26 | Every DOM write is `textContent`; `innerHTML` banned in this codebase | Period names will arrive from share links, i.e. from strangers. `innerHTML` here is an XSS hole triggered by sending someone a URL. |
-| 2026-08-26 | Pure engine kept inside `app.js` for now, clearly sectioned | Readable in one sitting while learning. The friction of testing it (see 11:15 entry) is the signal for when to extract. |
+| 2026-08-26 | ~~Pure engine kept inside `app.js` for now, clearly sectioned~~ | ~~Readable in one sitting while learning.~~ **Superseded 2026-08-26 14:00** — split into eight modules once the file hit 1,710 lines and the pure half had been hand-copied five times. |
+| 2026-08-26 | Shared mutable state lives on one exported `store` object, not exported `let` bindings | An ES module import is a read-only live binding, so the editor cannot assign to an imported `let`. The values genuinely get replaced, so they have to be fields on something; one object beat four setter functions. |
+| 2026-08-26 | `tick` lives in `views.js` rather than the entry point | The editor requests a repaint after every edit. With `tick` in `app.js` that is a cycle — legal in ES modules, and a reliable source of temporal-dead-zone bugs at module init. |
 | 2026-08-26 | This log is maintained per-change, and the rule lives in `AGENTS.md` | A convention that exists only in conversation dies with the session. Encoded as a checked-in rule so it survives context loss and applies to anyone working the repo. |
 | 2026-08-26 | **Overlapping periods stay blocked.** The `AGENTS.md` invariant is upheld; the editor mockup's warn-and-allow banner is not built | Allowing overlap means answering "which of two simultaneous periods does the big number count down" — a product question with no obvious answer, for a capability the plan explicitly disclaims. Cost accepted: BellTab cannot represent concurrent lunches. |
 | 2026-08-26 | The header gear becomes a back arrow inside settings, and its accessible name changes with it | An icon-only button whose glyph says "back" while its label still says "Settings" is precisely the mismatch that makes icon buttons hostile to anyone not looking at the screen. |
@@ -151,13 +189,14 @@ until the plain version has taught us the shape.
 | 2026-08-26 | `splitCountdown` is ambiguous over an hour | Under 60 min it renders `43:12` (min:sec); over, it flips to `3:38` (hr:min). Identical shape, different units. Needs a unit label, which needs a slot in the markup. Flagged in-code as `KNOWN GAP`. |
 | 2026-08-26 | Fonts are not real | Fredoka / Manrope / Space Mono are named in the CSS stack but nothing loads them — "no network at runtime" rules out Google Fonts. Self-host at the Next port via `next/font`. Currently rendering system fallbacks. |
 | 2026-08-26 | Header button uses `⚙` / `←` characters, not icons | Labeled and functional, but both render differently per platform. Replace with inline SVG. |
-| 2026-08-26 | Pure engine not extracted; no test runner | Verified by hand-copying functions into a scratch file. Needs `src/engine.js` + Vitest. |
 | 2026-08-26 | 12-hour clock has no am/pm | Matches the mockups and is unambiguous for a school day. Revisit if a schedule ever crosses noon ambiguously. |
 | 2026-08-26 | No `clearInterval` anywhere | Harmless for a page that lives until closed. Becomes a timer leak on every remount once this is a React component — needs a `useEffect` cleanup at the port. |
 | 2026-08-26 | `els` is a one-time DOM snapshot | If the DOM is ever rebuilt (the editor will do this), those cached references point at detached nodes and paints silently go nowhere. |
 | 2026-08-26 | The inline theme script needs a CSP hash at the Next port | `AGENTS.md` requires baseline security headers. An inline `<script>` is fine today with no CSP, but becomes a violation the moment one ships. |
 | 2026-08-26 | No period-change announcement for screen readers | The design system permits an `aria-live="polite"` region that fires **only at period boundaries**. Not built. The countdown itself must never become one. |
 | 2026-08-26 | Day view has no "scroll the current period into view" | With eleven periods on a short viewport the current row can sit off-screen when the view is opened. |
+| 2026-08-26 | Overlap errors are attributed by sort order, not edit order | On an exact `startMin` tie the error lands on the row that sorts second, which is usually but not always the row being edited. Fixing it means threading edit state into a pure function. |
+| 2026-08-26 | Deleting a schedule uses `window.confirm` | Blunt, but keyboard- and screen-reader-accessible for free. A custom dialog is a focus-trap problem for later. |
 | 2026-08-26 | `Docs/roadmap.md` status line is stale | It says "The repo has no commits and no remote yet." Both are now false — `origin` is `github.com/zfert99/belltab.git` and `main` has a commit. Left for the user to reword, since the same block carries the open questions about repo name and the `/bell` path. |
 | 2026-08-26 | `src/belltab.code-workspace` is ignored, not committed | Editor-personal file, and `src/` is the wrong home for it either way. `.gitignore` carries `*.code-workspace`; reverse that line if the workspace config is meant to be shared. |
 
@@ -187,6 +226,43 @@ wrong assertions, not wrong code:
 **Lesson:** a failing assertion is a claim that two things disagree, not proof
 that the code is the wrong one. Both were resolved by computing the expected
 value by hand rather than by editing the engine until it agreed.
+
+### 2026-08-26 — a refactor script rewrote code inside string literals
+
+Moving module state onto a shared `store` object was done with a blanket
+regex — `/\bschedules\b/g → "store.schedules"` and four more like it. It also
+rewrote every occurrence inside **string literals and comments**:
+
+```js
+const SETTINGS_PANELS = ["store.schedules", "store.calendar", "preferences"];
+const name = "New store.schedule";
+.replace(/^-+|-+$/g, "") || "store.schedule";
+```
+
+The first one broke settings outright — `els.settingsTabs["store.schedules"]`
+is `undefined`. Caught by the jsdom boot test on its first run, which is
+precisely the class of failure that test was written for: every pure test still
+passed, because none of them touch `SETTINGS_PANELS`.
+
+Fixed by replacing the regex with a small scanner that tracks quote and comment
+state and only rewrites bare identifiers.
+
+**Lesson:** a regex does not know what a string is. Any codemod over source has
+to be at least token-aware, and the damage it does is invisible to a syntax
+check — `"New store.schedule"` parses perfectly.
+
+### 2026-08-26 — overlap errors are attributed by sort order, not edit order
+
+Writing the jsdom test for the overlap message, an assertion failed that looked
+like a bug and was not. When two periods share a `startMin`, `parseSchedule`
+tie-breaks on `endMin`, so the shorter one sorts first and the error is
+attributed to the *other* row — not the one just edited.
+
+Correct as specified, and only reachable on an exact tie, but worth knowing:
+the error lands on the row that sorts second, which is usually but not always
+the row the cursor is in. Logged under **Open gaps** rather than changed,
+because the alternative — attributing by edit recency — means threading edit
+state into a pure function.
 
 ### 2026-08-26 — the test harness corrupted the file it was testing
 
@@ -692,3 +768,75 @@ actually resolves to.
 parser and resolver, which did not change. Static cross-checks: 55 ids declared
 / 51 queried / none missing, and all 13 `data-field` names match between the
 templates and the queries.
+
+### 2026-08-26 14:00 — `app.js` split into eight modules, and Vitest
+
+PR #1 merged to `main` first; this is `refactor/split-app-js`. `app.js` was
+1,710 lines with five hand-copies of its pure half living in a scratch
+directory. Both problems solved together.
+
+**The graph, strictly one-directional:**
+
+```text
+schedule.js  →  engine.js / parse.js / format.js  →  dom.js / store.js
+             →  views.js  →  editor.js  →  app.js
+```
+
+Verified as a DAG by a script that resolves every named import against the
+exporting module — no cycles, no unresolved names.
+
+- **`tick` lives in `views.js`, not `app.js`.** The editor requests a repaint
+  after every edit; if `tick` were in the entry point that is
+  `editor.js ⇄ app.js`. Legal in ES modules and a reliable source of
+  temporal-dead-zone bugs at module init. Putting `tick` with the things it
+  paints removes the cycle without a callback indirection.
+- **State lives on one exported `store` object, not exported `let` bindings.**
+  An ES module import is a read-only live binding, so `import { schedules }`
+  cannot be assigned to. Since the editor genuinely replaces those values they
+  have to be fields on something. One object beat four setter functions.
+- **`views.js` owns a `paused` flag rather than reading the editor's
+  `settingsOpen`.** Same cycle problem, same shape of fix: the editor pushes
+  the flag down, nothing reaches up.
+- **`format.js` imports nothing.** The 12/24-hour preference was already a
+  parameter, so it stayed a leaf. That decision paid for itself here.
+- **`app.js` is now 110 lines** of wiring and startup with no logic.
+
+**Vitest.** `environment: "node"` globally with a `// @vitest-environment
+jsdom` pragma on the one file that needs a document, per `AGENTS.md`. Tests are
+colocated. 115 tests across four files, replacing all five scratch suites —
+which are now deleted, along with the hand-copy step that produced the encoding
+bug logged above.
+
+`src/app.test.js` is the one that earns its keep for a refactor like this: it
+loads the real `index.html` into jsdom and boots the whole graph. A dangling
+reference or a bad import passes every pure test and dies on load; this catches
+it. It asserts shape, never specific numbers, because the countdown reads the
+real clock.
+
+**Bugs found during the split** — see **Bugs found** for both. One would have
+shipped silently.
+
+### 2026-08-26 14:13 — `src/` organised by layer
+
+Eleven flat files became three tiers. `AGENTS.md` names `src/lib/` as the home
+for the pure engine and warns off a `src/features/` domain split as premature
+fragmentation at this size, so the division is **by layer, not by feature**:
+`lib/` is pure, `ui/` touches the document, and `app.js` + `store.js` sit
+between them at the root.
+
+Moved with `git mv` so history follows each file rather than reading as
+delete-plus-add.
+
+- **`lib/` turned out to be self-contained.** Its four files only ever import
+  each other, so not one import path inside it needed rewriting. That is the
+  test of whether a layer boundary is real: if extracting it requires editing
+  its contents, it was not a boundary.
+- **`store.js` deliberately sits at the root.** It is not pure — localStorage
+  and `document.documentElement` — but it is not UI either. A `state/` folder
+  holding a single file would be worse than the ambiguity.
+- **No `@/` alias.** `AGENTS.md` prescribes one, but that needs a bundler; with
+  plain ES modules in a browser the paths have to be real. Two `../` hops is the
+  worst it gets. This is owed at the Next port.
+
+**Verification:** all 115 tests still pass, and every module returns 200 at its
+new URL.

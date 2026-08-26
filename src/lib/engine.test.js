@@ -1,0 +1,167 @@
+import { describe, it, expect } from "vitest";
+import { stateAt, daySummaryAt, periodStatusAt, blockPositionAt } from "./engine.js";
+import { DEFAULT_SCHEDULES } from "./schedule.js";
+
+const regular = DEFAULT_SCHEDULES[0];
+
+/** Seconds since local midnight. No fake timers anywhere in this file: the
+ *  engine takes the current time as an argument, so there is no clock to fake. */
+const at = (hours, minutes, seconds = 0) => hours * 3600 + minutes * 60 + seconds;
+
+const EMPTY = { name: "None", periods: [] };
+const SOLO = { name: "Solo", periods: [{ name: "Only", kind: "class", startMin: 600, endMin: 660 }] };
+const GAPPY = {
+  name: "Gappy",
+  periods: [
+    { name: "A", kind: "class", startMin: 480, endMin: 540 },
+    { name: "B", kind: "class", startMin: 600, endMin: 660 },
+  ],
+};
+
+describe("stateAt", () => {
+  it("counts down to the first bell before school", () => {
+    const state = stateAt(regular, at(7, 59, 59));
+    expect(state.phase).toBe("before");
+    expect(state.current).toBeNull();
+    expect(state.next.name).toBe("Period 1");
+    expect(state.remainingSec).toBe(1);
+  });
+
+  it("is inside Period 1 at exactly 8:00:00", () => {
+    const state = stateAt(regular, at(8, 0, 0));
+    expect(state.phase).toBe("during");
+    expect(state.current.name).toBe("Period 1");
+    expect(state.remainingSec).toBe(55 * 60);
+    expect(state.progress).toBe(0);
+  });
+
+  it("is still inside Period 1 one second before it ends", () => {
+    const state = stateAt(regular, at(8, 54, 59));
+    expect(state.current.name).toBe("Period 1");
+    expect(state.remainingSec).toBe(1);
+  });
+
+  // The boundary that matters most: with <= on both ends, two back-to-back
+  // periods both claim this second and the display flickers between them.
+  it("hands off to the next period at exactly the bell", () => {
+    const state = stateAt(regular, at(8, 55, 0));
+    expect(state.current.name).toBe("Passing");
+    expect(state.next.name).toBe("Period 2");
+    expect(state.progress).toBe(0);
+  });
+
+  it("has no next period during the last one", () => {
+    const state = stateAt(regular, at(14, 29, 59));
+    expect(state.current.name).toBe("Period 6");
+    expect(state.next).toBeNull();
+  });
+
+  it("is over at exactly the last bell", () => {
+    const state = stateAt(regular, at(14, 30, 0));
+    expect(state.phase).toBe("after");
+    expect(state.current).toBeNull();
+    expect(state.progress).toBe(1);
+  });
+
+  it("reports a gap in a schedule that does not tile the day", () => {
+    const state = stateAt(GAPPY, at(9, 30));
+    expect(state.phase).toBe("gap");
+    expect(state.current).toBeNull();
+    expect(state.next.name).toBe("B");
+    expect(state.remainingSec).toBe(1800);
+    expect(state.progress).toBeCloseTo(0.5);
+  });
+
+  it("handles an empty schedule without throwing", () => {
+    expect(stateAt(EMPTY, at(10, 0)).phase).toBe("empty");
+  });
+
+  it("handles a single-period schedule", () => {
+    const state = stateAt(SOLO, at(10, 30));
+    expect(state.remainingSec).toBe(1800);
+    expect(state.next).toBeNull();
+  });
+
+  // No rollover code exists, and none is needed: nowSec goes 86399 -> 0 and
+  // the phase falls out of the same comparisons.
+  it("crosses midnight without special handling", () => {
+    expect(stateAt(regular, at(23, 59, 59)).phase).toBe("after");
+    expect(stateAt(regular, at(0, 0, 0)).phase).toBe("before");
+  });
+});
+
+describe("daySummaryAt", () => {
+  it("spans first bell to last bell", () => {
+    expect(daySummaryAt(regular, at(8, 0)).remainingSec).toBe(390 * 60);
+    expect(daySummaryAt(regular, at(11, 15)).progress).toBeCloseTo(0.5);
+  });
+
+  it("counts the whole day, holes included", () => {
+    const day = daySummaryAt(GAPPY, at(9, 30));
+    expect(day.phase).toBe("during");
+    expect(day.remainingSec).toBe(5400);
+    expect(day.progress).toBeCloseTo(0.5);
+  });
+
+  it("is before school at midnight and after it at the last bell", () => {
+    expect(daySummaryAt(regular, at(0, 0)).phase).toBe("before");
+    expect(daySummaryAt(regular, at(14, 30)).phase).toBe("after");
+  });
+
+  it("handles an empty schedule", () => {
+    expect(daySummaryAt(EMPTY, at(10, 0)).phase).toBe("empty");
+  });
+});
+
+describe("periodStatusAt", () => {
+  const period2 = regular.periods[2]; // 9:05 - 10:05
+
+  it("uses the same half-open rule as stateAt", () => {
+    expect(periodStatusAt(period2, at(9, 4, 59))).toBe("future");
+    expect(periodStatusAt(period2, at(9, 5, 0))).toBe("current");
+    expect(periodStatusAt(period2, at(10, 4, 59))).toBe("current");
+    expect(periodStatusAt(period2, at(10, 5, 0))).toBe("past");
+  });
+
+  // If the list and the countdown ever disagreed about which period is running,
+  // this is the assertion that would have caught it.
+  it("never marks two periods current at the same second", () => {
+    for (let second = 0; second < 86400; second += 7) {
+      const current = regular.periods.filter((p) => periodStatusAt(p, second) === "current");
+      expect(current.length).toBeLessThanOrEqual(1);
+    }
+  });
+
+  it("leaves no second of the school day unaccounted for", () => {
+    for (let second = at(8, 0); second < at(14, 30); second += 11) {
+      const current = regular.periods.filter((p) => periodStatusAt(p, second) === "current");
+      expect(current).toHaveLength(1);
+    }
+  });
+});
+
+describe("blockPositionAt", () => {
+  it("excludes passing periods from the count", () => {
+    expect(blockPositionAt(regular, at(10, 0)).total).toBe(7);
+  });
+
+  it("counts blocks that have started, not blocks finished", () => {
+    expect(blockPositionAt(regular, at(7, 0)).index).toBe(0);
+    expect(blockPositionAt(regular, at(8, 0)).index).toBe(1);
+    expect(blockPositionAt(regular, at(9, 5)).index).toBe(2);
+  });
+
+  // Mid-passing the number holds at the block just finished rather than
+  // jumping ahead to one that has not begun.
+  it("holds steady while in a passing period", () => {
+    expect(blockPositionAt(regular, at(8, 57)).index).toBe(1);
+  });
+
+  it("counts lunch as a block", () => {
+    expect(blockPositionAt(regular, at(11, 5)).index).toBe(4);
+  });
+
+  it("reaches the total after the last bell", () => {
+    expect(blockPositionAt(regular, at(14, 30))).toEqual({ index: 7, total: 7 });
+  });
+});
