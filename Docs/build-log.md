@@ -142,7 +142,7 @@ modules over `file://` because there is no content type without HTTP.
 
 Recorded so they get folded back in rather than quietly diverging.
 
-### The tab title separator — the code says `-`, four documents say `·`
+### The tab title separator — RESOLVED 2026-08-26 15:38, code moved to the spec
 
 Found 2026-08-26 15:30 while making the README accurate, not by a test.
 
@@ -163,9 +163,24 @@ Recorded rather than fixed here because it changes user-visible output, and this
 branch is about closing code-review findings — a one-character behaviour change
 riding along in that squash commit is how a diff stops being reviewable.
 
-**Owed:** one character in `src/lib/format.js`, plus the two tests that pin the
-string — `format.test.js` (`"43m - Period 2"`) and `app.test.js`'s title-shape
-regex. The docs stay as written, because they are the spec.
+**Resolved 2026-08-26 15:38.** `formatTabTitle` now emits `43m · Period 2`, and
+`Done · BellTab` with it — the empty-state title is not specified anywhere, but
+leaving it on a hyphen would have put both separators inside one function.
+
+The estimate of "one character plus two test strings" was wrong: there were
+**four** assertions pinning the hyphen, not two. `grep` for `43m - Period 2` and
+`Done - BellTab` found the two that spell the whole string; `"1m - Period 2"`
+and `"10m - Period 1"` belong to the `Math.ceil` and next-period cases and only
+turned up when the suite went red. A small lesson about scoping a change from a
+grep for the *example* rather than for the *shape*.
+
+Worth recording that `formatDayCaption` and `formatPeriodLabel` were already
+using `·`. The tab title was the only string in `format.js` that was not, which
+is what a spec violation usually looks like from the inside — locally
+consistent, globally odd.
+
+Verified in Chrome: `35m · Period 2` during a period, `60m · Period 1` before
+the first bell, `Done · BellTab` after the last.
 
 ### Overlapping periods — RESOLVED 2026-08-26, invariant upheld
 
@@ -1319,3 +1334,39 @@ belong in a squash commit about code-review findings.
 **Not touched:** the phase table itself. It still describes the Next.js track,
 which the roadmap already says in as many words, and rewriting it is the port's
 job rather than this branch's.
+
+### 2026-08-26 15:38 — the tab title separator
+
+The deviation recorded in the previous entry, closed. `formatTabTitle` emitted
+`43m - Period 2`; the design system, the plan, the roadmap and the README all
+specify `43m · Period 2`. Held back from PR #4 deliberately, because it changes
+user-visible output and had no business riding along in a squash commit about
+code-review findings. Its own branch, its own one-line diff.
+
+`Done - BellTab` became `Done · BellTab` in the same change. That string is not
+specified anywhere — but a function that emits a middot in one branch and a
+hyphen in the other is worse than either choice made consistently.
+
+**The estimate was wrong in a small, instructive way.** "One character and two
+test strings" turned out to be four assertions: `grep` had been run for
+`43m - Period 2` and `Done - BellTab`, the two places that spell out the whole
+string, which missed `"1m - Period 2"` and `"10m - Period 1"` in the `Math.ceil`
+and next-period cases. They surfaced when the suite went red rather than when
+the change was scoped. Scoping a rename from a grep for the *example* rather
+than the *shape* undercounts every time.
+
+`formatDayCaption` and `formatPeriodLabel` were already on `·`. The tab title
+was the only string in the file that was not — locally consistent, globally
+odd, which is what a spec violation usually looks like from the inside.
+
+**Verified in Chrome** rather than only in jsdom, because the separator is a
+non-ASCII character rendered by the browser chrome:
+
+```text
+during        "35m · Period 2"
+before        "60m · Period 1"
+after         "Done · BellTab"
+```
+
+153 unit tests and 32 E2E tests pass. No docs changed — they were already right,
+which was the whole point of the deviation.

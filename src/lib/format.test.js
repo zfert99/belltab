@@ -138,22 +138,22 @@ describe("formatTabTitle", () => {
   // tab strip.
   it("puts the number first", () => {
     const state = { phase: "during", current: { name: "Period 2" }, remainingSec: 43 * 60 };
-    expect(formatTabTitle(state)).toBe("43m - Period 2");
+    expect(formatTabTitle(state)).toBe("43m · Period 2");
   });
 
   // ceil, not floor: with 30 seconds left, "0m" reads as "it is over".
   it("rounds up, so it never reads 0m while a period is running", () => {
     const state = { phase: "during", current: { name: "Period 2" }, remainingSec: 30 };
-    expect(formatTabTitle(state)).toBe("1m - Period 2");
+    expect(formatTabTitle(state)).toBe("1m · Period 2");
   });
 
   it("names the next period when none is running", () => {
     const state = { phase: "before", next: { name: "Period 1" }, remainingSec: 600 };
-    expect(formatTabTitle(state)).toBe("10m - Period 1");
+    expect(formatTabTitle(state)).toBe("10m · Period 1");
   });
 
   it("has an end state and an empty state", () => {
-    expect(formatTabTitle({ phase: "after", remainingSec: 0 })).toBe("Done - BellTab");
+    expect(formatTabTitle({ phase: "after", remainingSec: 0 })).toBe("Done · BellTab");
     expect(formatTabTitle({ phase: "empty", remainingSec: 0 })).toBe("BellTab");
   });
 });

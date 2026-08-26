@@ -92,14 +92,21 @@ export function formatPeriodLabel(period, options) {
   return `${period.name} · ${formatClock(period.startMin, options)}–${formatClock(period.endMin, options)}`;
 }
 
-/** The tab title: number first, so it survives truncation to a few characters. */
+/**
+ * The tab title: number first, so it survives truncation to a few characters.
+ *
+ * The separator is U+00B7 MIDDLE DOT, not a hyphen. That is what the design
+ * system, the plan, the roadmap and the README all specify - a hyphen reads as
+ * a range or a minus sign next to a number, which is the one thing this string
+ * is mostly made of.
+ */
 export function formatTabTitle(state) {
-  if (state.phase === "after") return "Done - BellTab";
+  if (state.phase === "after") return "Done · BellTab";
   if (state.phase === "empty") return "BellTab";
 
   const label = state.phase === "during" ? state.current.name : state.next.name;
   const minutes = Math.ceil(state.remainingSec / 60);
-  return `${minutes}m - ${label}`;
+  return `${minutes}m · ${label}`;
 }
 
 /**
