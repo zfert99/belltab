@@ -61,25 +61,42 @@ the browser throttled the timer that rendered it.
 
 ## Stack
 
-Next.js (App Router) · TypeScript · Tailwind · Playwright · Vercel. Deployed as
-its own zone and proxied to `biscuitlab.net/bell` by the Biscuit Lab hub, the
-same way Puzzle Lab is served at `/puzzles`.
+**Today: plain HTML, CSS, and ES modules. No build step, no framework, no
+runtime dependencies.** That is a deliberate detour — the app was built without
+a framework first so the wiring is visible, and the schedule engine is pure and
+framework-free precisely so the port is mechanical. `Docs/build-log.md` records
+the reasoning.
+
+**The destination:** Next.js (App Router) · TypeScript · Tailwind · Vercel,
+deployed as its own zone and proxied to `biscuitlab.net/bell` by the Biscuit Lab
+hub, the same way Puzzle Lab is served at `/puzzles`. Vitest and Playwright are
+already here and carry over unchanged.
 
 ## Local development
 
 ```bash
 npm install
-npm run dev
+npm run serve     # http://localhost:3000
 ```
 
-The app is served under the `/bell` base path, so local dev lives at
-`http://localhost:3000/bell`.
+A server is **required** even though there is no backend: `app.js` is an ES
+module, and browsers refuse to load modules over `file://`. `npm run serve` is
+forty lines of Node in `scripts/serve.js`, not a dependency.
+
+There is no `/bell` base path yet — that arrives with `next.config.ts` at the
+port, and local dev becomes `localhost:3000/bell` then.
 
 Before calling any change done:
 
 ```bash
-npm run lint && npm run typecheck && npm run test:e2e
+npm test          # vitest - the engine, the parser, the formatters, the wiring
+npm run e2e       # playwright - reflow, the dialog, the announcer
+npm run lint:md   # markdownlint
 ```
+
+`npm run e2e` starts its own server and drives the Chrome already installed on
+the machine, so it needs no browser download. WebKit and Firefox are not covered
+yet; see **Open gaps** in `Docs/build-log.md`.
 
 ## Docs
 
@@ -87,6 +104,12 @@ npm run lint && npm run typecheck && npm run test:e2e
 | --- | --- |
 | `Docs/belltab-plan.md` | Authoritative scope, non-goals, data model, phases |
 | `Docs/roadmap.md` | What is being built now, next, and later |
+| `Docs/build-log.md` | What was actually built, what was decided and why, what broke, and what is still owed |
 | `Docs/design/design-system.md` | Visual language, inherited from the hub |
 | `Docs/research/background-timers-and-schedule-modeling.md` | The research this whole design rests on |
+| `Docs/code-review-2026-08-26.md` | A full review of `437ef54`, its five findings, and how each was fixed and verified |
 | `AGENTS.md` | Rules for AI agents working in this repo |
+
+The plan and the roadmap describe the destination; the build log describes the
+app that exists. Where the two disagree, the build log's **Deviations** section
+says so explicitly and what is owed to reconcile them.
