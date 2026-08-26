@@ -1,0 +1,118 @@
+# The gate for every change. AGENTS.md names four commands that must pass
+# before a change is called done; this file is those four commands, run on a
+# machine that is not the author's.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# A second push supersedes the first: the older run's answer is about code
+# nobody will merge.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+# Read-only by default. Nothing here writes to the repo.
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - run: npm ci
+
+      # This build has no compiler, so `no-undef` is standing in for a type
+      # checker: it is the only thing that catches a name that does not exist
+      # before a browser does.
+      - name: ESLint
+        run: npm run lint
+
+      - name: markdownlint
+        run: npm run lint:md
+
+  unit:
+    name: Unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - run: npm ci
+
+      # No fake timers anywhere in here: the engine takes the current time as
+      # an argument, so the suite is pure arithmetic and needs no clock.
+      - name: Vitest
+        run: npm test
+
+  e2e:
+    name: E2E (reflow gate)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - run: npm ci
+
+      # `channel: "chrome"` in playwright.config.js means real Google Chrome,
+      # not the bundled Chromium, so the runner has to install it. WebKit and
+      # Firefox are still owed - see Open gaps in Docs/build-log.md.
+      - name: Install Chrome
+        run: npx playwright install --with-deps chrome
+
+      # This is the WCAG 2.2 SC 1.4.10 reflow check at 320/375/768/1024/1440,
+      # which AGENTS.md calls a blocking gate rather than optional polish.
+      - name: Playwright
+        run: npm run e2e
+
+      # Both paths, because they hold different things: the html report is the
+      # readable summary, and test-results/ is where trace.zip lands for
+      # `npx playwright show-trace`. A red run that hands back neither costs a
+      # full debugging round trip.
+      - name: Upload report and traces on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 7
+
+  audit:
+    name: npm audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - run: npm ci
+
+      # Every dependency in this repo is a devDependency - nothing here reaches
+      # a user's browser. The gate is set at `high` so a moderate advisory in a
+      # test tool does not block a schedule bugfix, while something genuinely
+      # bad still does.
+      - name: Audit
+        run: npm audit --audit-level=high

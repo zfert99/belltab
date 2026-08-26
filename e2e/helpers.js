@@ -10,13 +10,28 @@ import { expect } from "@playwright/test";
  */
 
 /**
+ * The UTC offset on these fixtures is load-bearing, not decoration.
+ *
+ * `new Date("2026-09-02T09:30:00")` - no offset - parses in the timezone of
+ * the NODE PROCESS, while the browser is pinned to America/New_York by
+ * playwright.config.js. On a machine in New York the two agree and the suite is
+ * green; on a UTC CI runner they are four hours apart, so every test here ran
+ * against 05:30 while every comment in the file said 09:30. Three tests failed
+ * for what looked like three unrelated reasons.
+ *
+ * Both fixtures are EDT (UTC-4). A fixture landing between November and March
+ * needs -05:00 - which is the whole reason the app itself stores wall-clock
+ * minutes and never a `Date`.
+ */
+
+/**
  * Wednesday 2 September 2026, 09:30 - inside Period 2 of the Regular day
  * (09:05-10:05), on a weekday the default calendar points at "regular".
  */
-export const MID_PERIOD = "2026-09-02T09:30:00";
+export const MID_PERIOD = "2026-09-02T09:30:00-04:00";
 
 /** The same Wednesday at 07:00, before the 08:00 first bell. */
-export const BEFORE_SCHOOL = "2026-09-02T07:00:00";
+export const BEFORE_SCHOOL = "2026-09-02T07:00:00-04:00";
 
 /**
  * Loads the app with the clock frozen at `at`.
@@ -32,6 +47,27 @@ export async function openApp(page, at = MID_PERIOD) {
   // The markup ships placeholders and JS fills them in. Waiting for one to be
   // replaced is the app's own signal that it booted.
   await expect(page.locator("#wall-clock")).not.toHaveText("--:--");
+
+  // Then check the browser actually believes the time the fixture names.
+  //
+  // A timezone skew between the Node process and the pinned browser does not
+  // announce itself: the suite still runs, still renders, and still asserts -
+  // just against a different hour of the school day. Comparing the wall clock
+  // the page believes in against the one the fixture spells out turns that into
+  // one failure with an obvious message, instead of scattered ones that each
+  // look like a separate bug.
+  // Characters 11-15 of an ISO local-time string are its HH:MM. The fixtures
+  // are literals in this file, so the shape is guaranteed.
+  const expectedWallClock = at.slice(11, 16);
+  const browserWallClock = await page.evaluate(() => {
+    const now = new Date();
+    return `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
+  });
+
+  expect(
+    browserWallClock,
+    `clock skew: the fixture names ${expectedWallClock} in America/New_York, but the browser believes ${browserWallClock}. Check the UTC offset on the fixture.`,
+  ).toBe(expectedWallClock);
 }
 
 /**

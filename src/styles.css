@@ -471,6 +471,24 @@ body {
   font-variant-numeric: tabular-nums;
 }
 
+/* Every element below renders a PERIOD NAME, which is untrusted user input and
+   may be one unbroken 60-character word.
+
+   `overflow-wrap: break-word` on <body> is not enough, and the difference is
+   the whole bug: break-word lets a long word wrap, but it does NOT reduce the
+   element's min-content contribution. That intrinsic width keeps propagating up
+   - here through the 1fr column of .period__row, through <main>, and into the
+   body grid track, which sized itself to 811px inside a 768px viewport and
+   scrolled the page sideways. `anywhere` is the one value that shrinks
+   min-content too, which is what an intrinsically-sized ancestor actually reads.
+
+   Found by the reflow gate on its first CI run, in the before-school state.
+   See Docs/build-log.md. */
+.period__name,
+.countdown__period {
+  overflow-wrap: anywhere;
+}
+
 .period__name {
   font-size: 1rem;
 }

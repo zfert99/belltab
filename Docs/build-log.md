@@ -90,13 +90,17 @@ boot test).
 ### Running it
 
 ```bash
+npm run lint      # eslint - the whole repo
+npm run lint:md   # markdownlint
 npm test          # vitest run - 153 unit tests
 npm run watch     # vitest in watch mode
-npm run e2e       # playwright - 32 browser tests, starts its own server
+npm run e2e       # playwright - 37 browser tests, starts its own server
 npm run e2e:ui    # playwright in UI mode
 npm run serve     # http://localhost:3000
-npm run lint:md   # markdownlint
 ```
+
+The first four are what CI runs, in that order, plus `npm audit`. There is no
+`npm run typecheck` - it needs a type checker, which arrives with the port.
 
 A server is **required** — the app uses ES modules, and browsers refuse to load
 modules over `file://` because there is no content type without HTTP.
@@ -135,6 +139,19 @@ modules over `file://` because there is no content type without HTTP.
 | 2026-08-26 | Playwright drives the **installed** Chrome via `channel: "chrome"` rather than a downloaded Chromium | Zero browser binaries, and it is the same engine the code review measured in, so the E2E results are directly comparable to the numbers already in this log. The cost is that WebKit — the engine most likely to differ on `<dialog>` — is still uncovered, which is now an open gap rather than an unstated assumption. |
 | 2026-08-26 | The dev server is forty lines of Node in `scripts/serve.js`, not a package | A server is required only because browsers refuse ES modules over `file://`. `AGENTS.md` wants this app at 1.0 with approximately zero dependencies and treats every proposed addition as suspect; a static file server is small enough to own. It also fixes `npm run serve`, which pointed at a `serve` package that was never installed. |
 | 2026-08-26 | The E2E browser timezone is pinned to `America/New_York` in `playwright.config.js` | A fixed instant has to mean the same wall-clock time on every machine, or a suite that pins the clock to 09:30 tests a different period depending on who runs it. This is a property of the harness, not the app — BellTab deliberately has no timezone plumbing and reads local wall-clock minutes, which is exactly what pinning makes reproducible. |
+| 2026-08-26 | ESLint ships now; `eslint-plugin-jsx-a11y` does not | `AGENTS.md` requires the a11y plugin as a blocking check, but it lints JSX and there is no JSX in this build — enabling it would gate on zero files while reading as covered. What ESLint is actually here for is `no-undef`: this build has no compiler, so nothing catches a name that does not exist until a browser reaches it. The a11y half is owed at the port, as a gap rather than a silent omission. |
+| 2026-08-26 | `npm audit` gates at `high`, not `moderate` | Every dependency in this repo is a devDependency; nothing here is shipped to a browser. A moderate advisory in a test runner blocking a schedule bugfix trains people to merge past a red check, which is worse than the advisory. |
+| 2026-08-26 | Security headers ship in `vercel.json`, not `next.config.ts` | `AGENTS.md` names `next.config.ts` `headers()` because it assumes the Next scaffold. The headers are a property of the **deploy**, not of the framework, and the app is static files today. The file moves at the port; the header list does not. |
+| 2026-08-26 | CSP ships with `frame-ancestors 'none'` and nothing else | A CSP carrying only `frame-ancestors` places no restriction on scripts, so it ships the modern half of the clickjacking defence without breaking `index.html`'s inline theme script — the one that has to run before first paint to avoid a flash. A real `script-src` still needs that script's hash, which stays an open gap. |
+| 2026-08-26 | `Permissions-Policy` allows `screen-wake-lock=(self)` and `autoplay=(self)` | A blanket deny is the tempting default and would break Phase 6 twice over — the wake lock toggle and the opt-in chime — in the way that is hardest to debug: feature detection succeeds, the call rejects, and the header is nowhere near the code. Denying what the app will never use is free; denying what it has already planned to use is a trap set for a future session. |
+| 2026-08-26 | `Referrer-Policy: no-referrer` rather than the browser default | Browsers already strip the fragment from `Referer`, so this changes nothing about the shared schedule today. It costs nothing, and this app is one `fetch` away from leaking a URL designed to carry the user's whole schedule. |
+| 2026-08-26 | The Node version lives in `.nvmrc`, read by CI via `node-version-file` | A version pinned inside a workflow is invisible to anyone running commands locally, and drifts from the machine that actually wrote the code. One file, both readers. |
+| 2026-08-26 | E2E clock fixtures carry an explicit UTC offset; CI does **not** pin `TZ` | Pinning `TZ=America/New_York` on the runner would also have made CI green, and would have been the wrong fix: it hides the defect instead of removing it, and the next machine that runs the suite — a contributor's laptop, a container, a phone-tethered runner — reintroduces it. An offset on the literal makes the fixture mean one instant everywhere. Leaving the runner on UTC keeps proving that. |
+| 2026-08-26 | `openApp` asserts the browser's wall clock matches the fixture | A timezone skew is silent by construction: the suite still boots, renders and asserts, just against a different hour. One assertion at the boundary converts that into a single failure that names the cause, instead of three failures that each look like a separate bug. |
+| 2026-08-26 | Period names get `overflow-wrap: anywhere`, not `break-word` | `break-word` wraps a long word but does **not** shrink the element's min-content contribution, so an intrinsically-sized ancestor — here a `1fr` grid column, then `main`, then the body grid track — keeps reserving the unbroken word's full width. `anywhere` is the only value that shrinks min-content too. The global `break-word` on `<body>` stays: it is right for prose, and wrong only where untrusted input meets an intrinsic size. |
+| 2026-08-26 | The reflow gate now runs in two clock states, not one | The 60-character-name test passed for a day while the bug it was written to catch was live, because it only ever looked at 09:30. A gate that sees one hour of the school day measures that hour, not the app. |
+| 2026-08-26 | CI pairs the `github` reporter with `html` | `github` annotates the failing line in the PR diff but writes nothing to disk, so the workflow's `upload-artifact` step found nothing on the one run where a trace would have saved a round trip. |
+| 2026-08-26 | CI is four parallel jobs, not one sequential script | `npm ci` runs four times instead of once, which is the cost. The gain is that a failure names itself in the checks list — "E2E (reflow gate)" is a different conversation from "Lint" — and a slow browser install never delays the answer to "did the unit tests pass". |
 
 ---
 
@@ -253,7 +270,11 @@ until the plain version has taught us the shape.
 | 2026-08-26 | The inline theme script needs a CSP hash at the Next port | `AGENTS.md` requires baseline security headers. An inline `<script>` is fine today with no CSP, but becomes a violation the moment one ships. |
 | 2026-08-26 | Overlap errors are attributed by sort order, not edit order | On an exact `startMin` tie the error lands on the row that sorts second, which is usually but not always the row being edited. Fixing it means threading edit state into a pure function. |
 | 2026-08-26 | WebKit and Firefox are not covered | The E2E suite runs one project, `chrome`, against the browser already installed on the machine — no engine binaries were downloaded. `AGENTS.md` asks for real WebKit coverage, which is where `<dialog>`, `:modal` and `inert` behaviour is most likely to differ. Add the projects and `npx playwright install webkit firefox` when the download is worth it. |
-| 2026-08-26 | The E2E suite is not wired into CI | It passes locally and `playwright.config.js` already branches on `process.env.CI` for retries, reporter and `forbidOnly`. There is no workflow file in the repo yet, so the reflow gate is a blocking check in principle and a local one in practice. |
+| 2026-08-26 | `eslint-plugin-jsx-a11y` is not installed | `AGENTS.md` names it as a blocking check. It lints JSX and this build has none, so it would gate on zero files. Add it with the Next scaffold, at `recommended`, in the same change that introduces the first component. |
+| 2026-08-26 | There is no `npm run typecheck` | `AGENTS.md` lists it among the four commands that must pass. It needs a type checker; the closest thing available today is `tsc --checkJs` over plain JS, which is a different project from the port and would be thrown away by it. CI runs the other three. |
+| 2026-08-26 | `vercel.json` is unverified — no Vercel project exists yet | The header list is right and the JSON parses, but `outputDirectory: "src"` with `framework: null` has never served a request. Confirm the headers land, with `curl -I`, on the first deploy in Phase 7 — and again through the hub's rewrite, which is a second hop that can drop them. |
+| 2026-08-26 | Only `.period__name` and `.countdown__period` are hardened against intrinsic-width blowout | Those are the two elements that render a period name today. The schedule name (`#schedule-name`) and the editor's own rows are equally user-controlled and have not been measured with a 60-character unbroken value. The reflow suite covers the editor panel, but with the seeded names, not a hostile one. |
+| 2026-08-26 | Branch protection is still configured by hand | The workflows exist, but a required-status-check rule is a GitHub setting, not a file in the repo. Nothing in this branch enforces that CI must pass before merge; that has to be set in the repo settings once the checks have run once and appear in the list. |
 | 2026-08-26 | `README.md` documents the Next.js destination, not the current app | It tells a reader to run `npm run dev` and visit `localhost:3000/bell`. Neither exists: this is the plain HTML/CSS/JS build, served by `npm run serve` at `localhost:3000`. Consistent with the deliberate plain-JS-first detour, but a reader has no way to know that from the README. |
 
 ## Closed
@@ -277,6 +298,8 @@ until the plain version has taught us the shape.
 | 2026-08-26 | 2026-08-26 | The "only live region" test does not test that — the selector now covers the implicit roles too, the three regions are enumerated by id, and `#schedule-error` became polite and idempotent. Review finding 4. |
 | 2026-08-26 | 2026-08-26 | The Day view countdown has no units — a `#day-remaining-units` caption on the summary, and `formatRemaining` on the running row. Review finding 5. |
 | 2026-08-26 | 2026-08-26 | The `<dialog>` fixes were verified against a stub, not a browser — now covered by an `e2e/` Playwright suite running in the installed Chrome. Escape, focus trapping, inertness, Cancel, Delete and the backdrop caveat are all asserted against a real modal. |
+| 2026-08-26 | 2026-08-26 | The Day view scrolled sideways at 768px before the first bell with a 60-character period name — `overflow-wrap: anywhere` on the two elements that render a period name. Found by the reflow gate on its first CI run. |
+| 2026-08-26 | 2026-08-26 | The E2E suite is not wired into CI — `.github/workflows/ci.yml` runs lint, markdownlint, unit and E2E on every push and PR. The reflow gate is a blocking check in practice now, not only in principle. |
 | 2026-08-26 | 2026-08-26 | The 320 px reflow check had not been re-run — now a Playwright suite at 320/375/768/1024/1440 over every view, every settings panel, the open dialog, and a 60-character unbroken period name. Measured at 320: `scrollWidth === clientWidth === 320` in all four states. |
 
 ---
@@ -510,6 +533,130 @@ only explicit ones. Any test that means "find the live regions" has to spell out
 Enumerating them by id rather than counting them is the second half — a count of
 one passes forever, whereas a list fails the moment somebody adds a fourth,
 which is the whole point of writing it down.
+
+### 2026-08-26 — the `lint:md` script had never once been run
+
+`package.json` had shipped `"lint:md": "markdownlint-cli **/*.md"` since the
+toolchain went in. It is wrong twice: the `markdownlint-cli` package installs a
+binary called **`markdownlint`**, not one matching its own package name — and
+the glob is unquoted, so on a shell that expands it the script lints whatever
+happens to sit in the working directory rather than the tree. It also never
+could have run: `markdownlint-cli` was not in `devDependencies` at all.
+
+It went unnoticed because `AGENTS.md` tells you to run
+`npx markdownlint-cli "**/*.md"`, and that works — `npx` resolves a *package*
+and runs whatever single binary it declares, so the name mismatch is invisible
+from the command line. Every markdown lint in this repo's history went through
+`npx`. The npm script was decoration.
+
+**Lesson:** an npm script nobody runs is not a shortcut, it is an untested
+claim. This is exactly the class of thing CI catches — and it was found *by*
+writing the CI job that would have to run it, before that job ever ran.
+
+---
+
+### 2026-08-26 — the E2E clock was four hours off, and only on other people's machines
+
+The first CI run of the new workflow went red: three failures, apparently
+unrelated. Two in `announcer.spec.js` — one live region empty when it should
+have said "Period 1 has started.", one saying "Period 3 has started." when it
+should have said "School is out." — and one in `reflow.spec.js`, the Day view
+scrolling sideways at 768px. All three passed locally, and `--repeat-each=6`
+locally passed 36 of 36.
+
+The cause is one line in `e2e/helpers.js`:
+
+```js
+await page.clock.install({ time: new Date(at) });   // at = "2026-09-02T09:30:00"
+```
+
+An ISO string with **no offset** is parsed in the timezone of the **Node
+process**. The browser is separately pinned to `America/New_York` by
+`playwright.config.js`. On a machine already in New York the two agree and the
+suite is green. A GitHub runner is UTC, so `09:30` became 09:30 UTC — **05:30
+in the browser**. Every test in the file ran four hours earlier than every
+comment in the file said it did.
+
+That explains all three failures exactly, which is how it was confirmed rather
+than guessed:
+
+| Test | Intended | Actually ran at | Result |
+| --- | --- | --- | --- |
+| bell at a boundary | 07:00 → 08:10, into Period 1 | 03:00 → 04:10 | still before school, so silence |
+| end of day | 09:30 → 14:40, past last bell | 05:30 → 10:40 | mid-Period 3, so "Period 3 has started." |
+| 60-char name at 768px | Day view mid-period | Day view before first bell | a different layout, which overflowed |
+
+Reproduced in one command — `TZ=UTC npx playwright test` on Windows produced the
+same three failures — and fixed by putting the offset on the fixtures
+(`2026-09-02T09:30:00-04:00`).
+
+**The tempting fix was `TZ: America/New_York` in the workflow env.** It would
+have turned CI green in one line and left the defect in place for the next
+machine — a container, a contributor, a self-hosted runner. Fixing the fixture
+removes it everywhere; leaving CI on UTC keeps proving it is gone.
+
+`openApp` now also asserts that the browser's own wall clock matches the hour
+the fixture spells out. A clock skew is invisible by construction — the suite
+boots, renders and asserts perfectly well against the wrong hour — so it needed
+an assertion whose whole job is to be loud about it.
+
+**Lesson:** a test fixture that reads as a wall-clock time is not one until it
+says which wall. And "passes on my machine, fails on CI" was, for once, not
+flakiness or a slow runner: it was a real, deterministic, reproducible
+difference between two machines, and the five minutes spent reproducing it with
+`TZ=UTC` was worth more than an hour of re-running the job.
+
+### 2026-08-26 — `overflow-wrap: break-word` does not do what the rule comment claimed
+
+Hidden underneath the timezone bug was a real one. Once the clock was fixed the
+reflow failure disappeared — which is the point at which it would have been easy
+to move on. It was worth ten minutes to ask whether the *state* the broken clock
+had accidentally wandered into was a state a real user can reach.
+
+It is: **before the first bell**, at **768px**, with a 60-character period name,
+the page scrolled sideways — 827px inside a 768px viewport. Measured directly
+rather than reasoned about:
+
+```text
+[before school] scrollWidth=827 clientWidth=768
+[mid period]    scrollWidth=768 clientWidth=768
+```
+
+Bisected in the browser by mutating the live DOM: blanking the "until first
+bell" label changed nothing; shortening the 60-character name took 827 → 768.
+
+`styles.css` sets `overflow-wrap: break-word` on `<body>`, with a comment
+saying it exists so "a hostile label" cannot "force horizontal page scroll and
+fail the 320px reflow gate". The comment describes an intention the property
+does not implement. **`break-word` allows a long word to wrap, but it does not
+reduce the element's min-content contribution.** Every intrinsically-sized
+ancestor still reserves the unbroken word's full width — here the `1fr` column
+of `.period__row`, then `<main>`, then `body`'s grid track, which sized itself
+to 811px inside a 768px viewport:
+
+```text
+parent=BODY display=grid gridTemplateColumns=811.266px justify=center
+period__row  display=grid gridTemplateColumns=4.5rem 1fr auto
+period__name overflowWrap=break-word wordBreak=normal minWidth=auto
+```
+
+`overflow-wrap: anywhere` is the value that shrinks min-content as well, applied
+to the two elements that render a period name. The global `break-word` stays —
+it is the right default for prose, and wrong only where untrusted input meets an
+intrinsic size.
+
+**Why the gate missed it for a day:** the test only ever opened the app at
+09:30. It now runs in both clock states, and the new case was watched fail
+against the old CSS before the fix went back in — a test that has never been
+seen red is an assumption, not a gate.
+
+**Lesson:** two of them. A CSS property whose name sounds like the requirement
+is not evidence that it implements the requirement — `break-word` vs `anywhere`
+differs on exactly the axis that mattered. And when a red test turns green for
+an unrelated reason, check what it was accidentally covering before deleting the
+accident.
+
+---
 
 ## Session log
 
@@ -1370,3 +1517,133 @@ after         "Done · BellTab"
 
 153 unit tests and 32 E2E tests pass. No docs changed — they were already right,
 which was the whole point of the deviation.
+
+### 2026-08-26 15:47 — Phase 0, part 1: CI and the security baseline
+
+Branch `feat/phase-0-scaffold`. Phase 0 in `Docs/roadmap.md` bundles two
+unrelated things — a Next.js scaffold, and the gates that scaffold was going to
+be checked by. This entry is the second half only. The scaffold stays deferred,
+per the plain-JS-first decision at the top of the Decisions table; the gates do
+not need it and the repo has been running without them for a full day of
+changes.
+
+**What the repo had:** 153 Vitest tests, 32 Playwright tests, a markdownlint
+config — and no way for any of them to fail anything. No workflow file existed,
+so every gate `AGENTS.md` calls blocking was blocking only if the author
+remembered to run it.
+
+Added:
+
+- `.github/workflows/ci.yml` — four jobs, in parallel: **Lint** (ESLint +
+  markdownlint), **Unit tests**, **E2E (reflow gate)**, **npm audit**. Push to
+  `main` and every pull request. `concurrency` cancels a superseded run.
+- `.github/workflows/codeql.yml` — SAST on push, PR, and weekly on a cron. The
+  cron matters: a repo that only scans on push stops being scanned the moment it
+  goes quiet, which is precisely when a new query pattern lands.
+- `.github/dependabot.yml` — npm and github-actions, weekly, minor/patch
+  grouped into one PR. Security fixes still arrive ungrouped and immediately.
+- `eslint.config.js` — flat config, `js.configs.recommended` plus `eqeqeq`,
+  `no-var`, `prefer-const`, and `reportUnusedDisableDirectives`.
+- `vercel.json` — the four baseline headers plus `frame-ancestors`.
+- `.nvmrc` — Node 24, read by CI through `node-version-file`.
+
+**ESLint needed four global scopes, not one.** The obvious config — browser
+globals everywhere — fails immediately, and the failure is informative:
+`src/app.test.js` reads the real `index.html` off disk with `node:fs` and
+`process.cwd()`, because under the jsdom environment `import.meta.url` is the
+`http` URL Vite serves the module from, not a file path. So a file that lives
+under `src/` by the colocation rule runs under Node, not in a page. The scopes
+ended up: `src/**/*.js` browser; `src/**/*.test.js` browser + Node;
+`scripts/**` and `*.config.js` Node; `e2e/**` both, because a
+`page.evaluate` callback is serialised and runs inside the page while the spec
+around it runs in Node.
+
+**`jsx-a11y` is not here, deliberately.** `AGENTS.md` requires it as a blocking
+check. It lints JSX; there is no JSX. Installing it would produce a green check
+over zero files, which is worse than an honest gap — so it is logged as one. The
+real reason ESLint earns its place in a plain-JS repo is `no-undef`: with no
+compiler, nothing catches a name that does not exist until a browser reaches it.
+
+**One bug fell out of writing the CI job**, before the job ever ran: the
+`lint:md` script in `package.json` was broken and had never been executed. See
+Bugs found.
+
+**Headers.** `X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy` and
+`Permissions-Policy`, plus `Content-Security-Policy: frame-ancestors 'none'`.
+The CSP is deliberately partial: a policy carrying only `frame-ancestors` does
+not restrict scripts, so it ships the modern half of the clickjacking defence
+without breaking the inline theme script that has to run before first paint. A
+real `script-src` needs that script's hash and stays an open gap.
+
+The `Permissions-Policy` is the one that took thought. The reflex is to deny
+everything; that would break Phase 6's wake lock and chime in the worst possible
+way — feature detection passes, the call rejects, and the cause is in a config
+file nowhere near the code. `screen-wake-lock=(self)` and `autoplay=(self)` are
+allowed on purpose, and now that reason is written down.
+
+**Verified locally, all four CI commands:**
+
+```text
+npm run lint      0 problems
+npm run lint:md   0 problems
+npm test          153 passed (4 files)
+npm run e2e       32 passed
+npm audit         0 vulnerabilities
+npm ci --dry-run  lockfile in sync
+```
+
+The three YAML files were parsed with `js-yaml` rather than eyeballed — a
+workflow with a syntax error does not fail loudly, it simply never runs, which
+looks identical to a repo with no CI.
+
+**Still owed by Phase 0:** the Next scaffold and `basePath`, `jsx-a11y`,
+`npm run typecheck`, and branch protection — which is a GitHub setting, not a
+file, and cannot be committed. All four are in Open gaps.
+
+### 2026-08-26 16:15 — the first CI run, and the two bugs it found
+
+PR #6. The workflows from the previous entry ran for the first time. Five checks
+green — Lint, Unit tests, npm audit, CodeQL, Analyze JavaScript — and **E2E red
+with three failures**, which is the outcome the whole phase was for.
+
+The prediction in the previous entry was wrong, usefully. The expected failure
+was `playwright install --with-deps chrome` on an Ubuntu runner, the one step
+that could only be verified by reasoning. It worked first time. What broke was
+the thing nobody thought to doubt: what time the tests believed it was.
+
+Both bugs are written up under **Bugs found**. In short:
+
+1. **The harness bug.** `new Date("2026-09-02T09:30:00")` parses in the Node
+   process's timezone while the browser is pinned to `America/New_York`. On a
+   UTC runner the suite ran four hours early. Fixed on the fixtures, not in the
+   workflow env — see the Decisions row for why the one-line `TZ` fix was the
+   wrong one.
+2. **A real app bug the harness bug exposed.** Before the first bell, at 768px,
+   a 60-character period name scrolled the page sideways.
+   `overflow-wrap: break-word` does not shrink min-content;
+   `overflow-wrap: anywhere` does.
+
+**A third bug, in the new CI itself:** the `upload-artifact` step reported "No
+files were found with the provided path: playwright-report/". CI's reporter was
+`"github"`, which annotates the PR diff but writes nothing to disk — so the run
+that most needed a trace produced none. Now `[["github"], ["html", …]]`, and the
+step uploads `test-results/` too, where `trace.zip` actually lands.
+
+**Verification.** `TZ=UTC` on Windows reproduced all three CI failures exactly,
+which is what turned this from "flaky on CI" into a diagnosis. After the fixes,
+37 E2E tests (up from 32) pass under both `TZ=UTC` and local time, and 153 unit
+tests pass. The new reflow case was watched fail against the old CSS before the
+fix was restored.
+
+```text
+TZ=UTC   37 passed
+local    37 passed
+vitest   153 passed
+eslint   0    markdownlint 0
+```
+
+**What this says about the phase.** The gates justified themselves on their
+first run, and not in the way that was expected: the value was not that CI ran
+the tests, it was that CI ran them *on a machine with different assumptions*. A
+suite that has only ever executed on its author's laptop is testing the laptop
+as much as the app.

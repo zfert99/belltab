@@ -15,7 +15,7 @@ and period strip, the day list, big/projector mode, a schedule editor with
 validation, a calendar, and preferences.
 
 **Testing:** 153 Vitest tests over the pure engine, the parser, the formatters
-and the jsdom wiring, plus 32 Playwright tests in `e2e/` running in a real
+and the jsdom wiring, plus 37 Playwright tests in `e2e/` running in a real
 Chrome. The reflow gate that Phase 0 calls for is among them and passes at
 320/375/768/1024/1440.
 
@@ -27,18 +27,27 @@ destination rather than the current state: Phase 0's scaffold, security headers,
 CI and lint gate are genuinely not started, and Phases 1–4 exist only in their
 plain-JS form. Reconciling the two is owed once the port begins.
 
-Two Phase 0 items have arrived early, in plain-JS form, and carry over
-unchanged: the **Vitest + Playwright harness**, and the **reflow gate**. What
-Phase 0 still owes on top of them is the Next scaffold, `basePath`, security
-headers, the `jsx-a11y` lint rule, and GitHub Actions — there is no workflow
-file in the repo yet, so every gate here is a local one in practice.
+**Phase 0 update (2026-08-26 15:47, `feat/phase-0-scaffold`):** the phase splits
+cleanly into a Next.js scaffold and the gates that scaffold would be checked by,
+and the gates landed first, against the plain-JS build. GitHub Actions now runs
+ESLint, markdownlint, Vitest, Playwright and `npm audit` on every push and pull
+request; CodeQL and Dependabot are configured; the baseline security headers
+ship in `vercel.json` rather than `next.config.ts`, since the app is static
+files and the headers belong to the deploy rather than to the framework.
+
+Three Phase 0 items had already arrived early, in plain-JS form, and carry over
+unchanged: the **Vitest + Playwright harness**, the **reflow gate**, and now
+**CI**. What Phase 0 still owes is the Next scaffold and `basePath`, the
+`jsx-a11y` lint rule — which lints JSX and would gate on zero files today — an
+`npm run typecheck`, and branch protection, which is a GitHub setting rather
+than a file in the repo.
 
 ## At a glance
 
 | Phase | What | Track | Status |
 | :---: | --- | :---: | :---: |
 | **D** | Docs & planning — plan, agent rules, design system, research | 🏗️ | ✅ Done |
-| **0** | Scaffold — Next.js, `basePath`, CI, test harness, a11y gate | 🏗️ | 📋 Planned |
+| **0** | Scaffold — Next.js, `basePath`, CI, test harness, a11y gate | 🏗️ | 🚧 In progress |
 | **1** | The schedule engine — pure, typed, fully tested | ⚙️ | 📋 Planned |
 | **2** | The countdown — one clock, the display, the tab title | 🎨 | 📋 Planned |
 | **3** | The editor — build and edit a schedule, overlap blocking | 🎨 | 📋 Planned |
@@ -53,18 +62,32 @@ file in the repo yet, so every gate here is a local one in practice.
 
 Next.js App Router + TypeScript + Tailwind, `src/` from the first commit.
 
-- `basePath: '/bell'` in `next.config.ts` (local dev becomes
-  `localhost:3000/bell` — expect this to be briefly confusing).
-- Baseline security headers via `headers()`.
-- ESLint with `eslint-plugin-jsx-a11y` at `recommended`, blocking.
-- Vitest (global environment `node`) and Playwright.
-- The reflow gate: `scrollWidth <= clientWidth + 1` at 320 / 375 / 768 / 1024 /
-  1440.
-- GitHub Actions running lint, typecheck, unit, and E2E. Dependabot, CodeQL.
-- Branch protection: status checks + linear history, approvals off.
+Done, against the plain-JS build:
+
+- ✅ Vitest (global environment `node`) and Playwright.
+- ✅ The reflow gate: `scrollWidth <= clientWidth + 1` at 320 / 375 / 768 /
+  1024 / 1440.
+- ✅ ESLint, blocking — flat config, four global scopes. Without `jsx-a11y`;
+  see below.
+- ✅ GitHub Actions running lint, markdownlint, unit and E2E, plus `npm audit`.
+  Dependabot and CodeQL configured.
+- ✅ Baseline security headers — in `vercel.json`, not `next.config.ts`, since
+  there is no Next yet and the headers belong to the deploy.
+
+Still owed:
+
+- 📋 The Next.js scaffold itself, and `basePath: '/bell'` in `next.config.ts`
+  (local dev becomes `localhost:3000/bell` — expect this to be briefly
+  confusing). The header list moves from `vercel.json` into `headers()` here.
+- 📋 `eslint-plugin-jsx-a11y` at `recommended`, blocking. It lints JSX, so it
+  arrives with the first component rather than gating zero files now.
+- 📋 `npm run typecheck` — it needs a type checker, which the port brings.
+- 📋 Branch protection: status checks + linear history, approvals off. A GitHub
+  setting, configured by hand once the checks appear in the list.
 
 **Gate:** CI green on an empty page. `npm run lint`, `npm run typecheck`,
-`npx vitest run`, `npx markdownlint-cli "**/*.md"` all pass.
+`npx vitest run`, `npx markdownlint-cli "**/*.md"` all pass. Three of those four
+pass in CI today; `typecheck` arrives with the scaffold.
 
 ## Phase 1 — The schedule engine ⚙️
 
