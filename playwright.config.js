@@ -19,7 +19,11 @@ export default defineConfig({
 
   forbidOnly: Boolean(process.env.CI),
   retries: process.env.CI ? 1 : 0,
-  reporter: process.env.CI ? "github" : "list",
+  // "github" annotates the failing line in the PR diff but writes nothing to
+  // disk. Pairing it with the html reporter is what makes the workflow's
+  // upload-artifact step able to hand back a trace - without it the first red
+  // run produced "No files were found with the provided path".
+  reporter: process.env.CI ? [["github"], ["html", { open: "never" }]] : "list",
 
   use: {
     baseURL: `http://localhost:${PORT}`,

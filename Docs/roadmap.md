@@ -15,7 +15,7 @@ and period strip, the day list, big/projector mode, a schedule editor with
 validation, a calendar, and preferences.
 
 **Testing:** 153 Vitest tests over the pure engine, the parser, the formatters
-and the jsdom wiring, plus 32 Playwright tests in `e2e/` running in a real
+and the jsdom wiring, plus 37 Playwright tests in `e2e/` running in a real
 Chrome. The reflow gate that Phase 0 calls for is among them and passes at
 320/375/768/1024/1440.
 

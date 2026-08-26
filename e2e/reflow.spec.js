@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { openApp, openSettings, expectNoHorizontalScroll, MID_PERIOD } from "./helpers.js";
+import { openApp, openSettings, expectNoHorizontalScroll, MID_PERIOD, BEFORE_SCHOOL } from "./helpers.js";
 
 /**
  * The reflow gate (WCAG 2.2 SC 1.4.10).
@@ -76,19 +76,32 @@ for (const width of WIDTHS) {
      * unbroken word is the shape that finds out. Sixty characters is the real
      * worst case: both the input maxlength and SCHEDULE_LIMITS.nameChars cap
      * a period name there, so nothing longer can reach the view.
+     *
+     * Run in TWO states, because the first version of this test ran only in
+     * MID_PERIOD and passed over a live bug: before the first bell, the Day
+     * view's first row is upcoming rather than past, and the layout it takes
+     * then overflowed at 768px. A gate that only ever sees one hour of the
+     * school day is not measuring the app, it is measuring that hour.
      */
-    test("an absurd period name wraps instead of widening the page", async ({ page }) => {
-      await openApp(page, MID_PERIOD);
-      await openSettings(page, "schedules");
+    for (const [state, at] of [["mid-period", MID_PERIOD], ["before school", BEFORE_SCHOOL]]) {
+      test(`an absurd period name wraps instead of widening the page (${state})`, async ({ page }) => {
+        await openApp(page, at);
+        await openSettings(page, "schedules");
 
-      const firstName = page.locator("#period-editor .editrow").first().locator('[data-field="name"]');
-      await firstName.fill("A".repeat(60));
+        const firstName = page.locator("#period-editor .editrow").first().locator('[data-field="name"]');
+        await firstName.fill("A".repeat(60));
 
-      await page.locator("#settings-toggle").click();
-      await page.locator("#view-day").click();
-      await expect(page.locator("#day-view")).toBeVisible();
+        await page.locator("#settings-toggle").click();
 
-      await expectNoHorizontalScroll(page, `${width}px Day view with a 60-character unbroken name`);
-    });
+        // The Now view renders the running period's name too, through a
+        // different element, so it needs the same guarantee.
+        await expectNoHorizontalScroll(page, `${width}px Now view, ${state}, 60-character unbroken name`);
+
+        await page.locator("#view-day").click();
+        await expect(page.locator("#day-view")).toBeVisible();
+
+        await expectNoHorizontalScroll(page, `${width}px Day view, ${state}, 60-character unbroken name`);
+      });
+    }
   });
 }
