@@ -23,33 +23,114 @@
         </div>
       </header>
 
-      <div class="countdown">
-        <p class="countdown__period" id="period-name">&mdash;</p>
+      <!-- ============ NOW VIEW: the timer and the strip ============ -->
+      <section class="focus" id="focus-view" aria-label="Current period">
+        <div class="countdown">
+          <p class="countdown__period" id="period-name">&mdash;</p>
 
-        <!-- Split into spans so minutes can be styled larger than seconds.
-             Deliberately NOT an aria-live region: announcing this every second
-             would flood a screen reader. -->
-        <p class="countdown__time">
-          <span class="countdown__minutes" id="countdown-minutes">--</span
-          ><span class="countdown__colon">:</span
-          ><span class="countdown__seconds" id="countdown-seconds">--</span>
-        </p>
+          <!-- Split into spans so minutes can be styled larger than seconds.
+               Deliberately NOT an aria-live region: announcing this every second
+               would flood a screen reader. -->
+          <p class="countdown__time">
+            <span class="countdown__minutes" id="countdown-minutes">--</span
+            ><span class="countdown__colon">:</span
+            ><span class="countdown__seconds" id="countdown-seconds">--</span>
+          </p>
+        </div>
 
-        <p class="countdown__until">until <span id="next-name">&mdash;</span></p>
-      </div>
+        <!--
+          The period strip. Equal-width squares for the day's real blocks,
+          thin connectors for passing periods.
 
-      <!-- Decorative: the same numbers are stated as text above and below it,
-           so it needs no accessible name and no role. -->
-      <div class="progress" aria-hidden="true">
-        <div class="progress__fill" id="progress-fill"></div>
-      </div>
+          aria-hidden because it is a redundant visual rendering: the caption
+          below states the same position in words ("3 of 7"), and the Day view
+          is the readable, navigable version of this data. Fifteen unlabelled
+          cells announced one by one would be noise, not information.
+        -->
+        <div class="strip" id="strip" aria-hidden="true"></div>
 
-      <footer class="bounds">
-        <time class="bounds__edge bounds__edge--start" id="period-start">--:--</time>
-        <p class="bounds__next" id="next-up">&mdash;</p>
-        <time class="bounds__edge bounds__edge--end" id="period-end">--:--</time>
-      </footer>
+        <footer class="bounds">
+          <time class="bounds__edge bounds__edge--start" id="day-start">--:--</time>
+          <p class="bounds__next" id="day-caption">&mdash;</p>
+          <time class="bounds__edge bounds__edge--end" id="day-end">--:--</time>
+        </footer>
+      </section>
+
+      <!-- ============ DAY VIEW: the whole schedule, readable ============ -->
+      <section class="day" id="day-view" aria-label="Today's schedule" hidden>
+        <div class="day__summary">
+          <h2 class="day__label">Day progress</h2>
+          <p class="day__remaining">
+            <span class="day__remaining-value" id="day-remaining">--:--</span>
+            <span class="day__remaining-label" id="day-remaining-label">until dismissal</span>
+          </p>
+        </div>
+
+        <div class="progress" aria-hidden="true">
+          <div class="progress__fill" id="day-progress-fill"></div>
+        </div>
+
+        <!--
+          Finished periods collapse behind this so the current one sits at the
+          top of the list. A disclosure button, not a bare toggle: aria-expanded
+          tells assistive tech the content still exists and is retrievable.
+        -->
+        <button class="disclosure" type="button" id="past-toggle" aria-expanded="false" hidden>
+          <span class="disclosure__marker" aria-hidden="true"></span>
+          <span id="past-toggle-label">Earlier periods</span>
+        </button>
+
+        <!-- Filled in by JS from the schedule. Ordered, because a bell schedule
+             is a sequence and screen readers should announce it as one. -->
+        <ol class="periods" id="period-list"></ol>
+      </section>
+
+      <!-- Two buttons rather than a tablist: aria-pressed needs no arrow-key
+           handling, and a half-implemented tab widget is worse than none. -->
+      <nav class="viewswitch" aria-label="View">
+        <button class="viewswitch__btn" type="button" id="view-now" aria-pressed="true">
+          Now
+        </button>
+        <button class="viewswitch__btn" type="button" id="view-day" aria-pressed="false">
+          Day
+        </button>
+      </nav>
     </main>
+
+    <!--
+      One strip cell. JS clones it once per period and adds the modifier that
+      makes it a square or a connector, so both shapes share one piece of
+      markup and one fill element.
+    -->
+    <template id="strip-cell">
+      <span class="strip__cell">
+        <span class="strip__fill" data-field="fill"></span>
+      </span>
+    </template>
+
+    <!--
+      The row markup for one period in the Day view, cloned once per period.
+
+      Note these use data-field, NOT id. A template is cloned eleven times, and
+      eleven copies of the same id is invalid HTML - getElementById would only
+      ever find the first one. data-field is queried relative to each row.
+
+      Living in a <template> keeps the markup in the HTML file where it can be
+      read, and lets JS build rows with cloneNode + textContent instead of
+      concatenating strings into innerHTML.
+    -->
+    <template id="period-row">
+      <li class="period">
+        <div class="period__row">
+          <time class="period__time" data-field="start"></time>
+          <span class="period__name" data-field="name"></span>
+          <span class="period__aside" data-field="aside"></span>
+        </div>
+        <div class="period__track" aria-hidden="true">
+          <div class="period__fill" data-field="fill"></div>
+        </div>
+      </li>
+    </template>
 
     <script src="app.js" type="module"></script>
   </body>

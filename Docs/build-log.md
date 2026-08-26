@@ -109,13 +109,16 @@ until the plain version has taught us the shape.
 | 2026-08-26 | 12-hour clock has no am/pm | Matches the mockups and is unambiguous for a school day. Revisit if a schedule ever crosses noon ambiguously. |
 | 2026-08-26 | No `clearInterval` anywhere | Harmless for a page that lives until closed. Becomes a timer leak on every remount once this is a React component — needs a `useEffect` cleanup at the port. |
 | 2026-08-26 | `els` is a one-time DOM snapshot | If the DOM is ever rebuilt (the editor will do this), those cached references point at detached nodes and paints silently go nowhere. |
-| 2026-08-26 | Schedule list view not built | Mockup 1. Day progress bar, per-period rows, current-period highlight. |
+| 2026-08-26 | No period-change announcement for screen readers | The design system permits an `aria-live="polite"` region that fires **only at period boundaries**. Not built. The countdown itself must never become one. |
+| 2026-08-26 | Day view has no "scroll the current period into view" | With eleven periods on a short viewport the current row can sit off-screen when the view is opened. |
 | 2026-08-26 | `Docs/roadmap.md` status line is stale | It says "The repo has no commits and no remote yet." Both are now false — `origin` is `github.com/zfert99/belltab.git` and `main` has a commit. Left for the user to reword, since the same block carries the open questions about repo name and the `/bell` path. |
 | 2026-08-26 | `src/belltab.code-workspace` is ignored, not committed | Editor-personal file, and `src/` is the wrong home for it either way. `.gitignore` carries `*.code-workspace`; reverse that line if the workspace config is meant to be shared. |
 
 ## Closed
 
-*Nothing yet.*
+| Opened | Closed | Item |
+| --- | --- | --- |
+| 2026-08-26 | 2026-08-26 | Schedule list view not built — shipped as the day view (mockup 1): day progress bar, eleven period rows, past/current/future states, per-row countdown, and a Now/Day switcher. |
 
 ---
 
@@ -135,6 +138,27 @@ wrong assertions, not wrong code:
 **Lesson:** a failing assertion is a claim that two things disagree, not proof
 that the code is the wrong one. Both were resolved by computing the expected
 value by hand rather than by editing the engine until it agreed.
+
+### 2026-08-26 — the test harness corrupted the file it was testing
+
+Six strip checks failed with `·` rendered as `Â·` and `–` as `â€“`. The instinct
+is to go fix the string literals in `app.js`. That would have been wrong: the
+source was already correct.
+
+The scratch harness extracts the pure half of `app.js` with PowerShell
+`Get-Content`, which in Windows PowerShell 5.1 **defaults to the system ANSI
+codepage for files with no BOM**. It read UTF-8 bytes as Windows-1252, and
+`Set-Content -Encoding UTF8` then faithfully re-encoded the mojibake — `c2 b7`
+became `c3 82 c2 b7`, double-encoded. Confirmed by hexdumping the same character
+in both files: source `c2 b7`, extracted copy `c3 82 c2 b7`.
+
+Fixed with `Get-Content -Raw -Encoding UTF8`.
+
+**Lesson:** when a test fails on something as low-level as character encoding,
+check the harness before the code. Every file this project writes is UTF-8;
+anything that reads one and does not say so is a suspect. It is also the second
+time in this repo that a red test meant the *test* was wrong — see the entry
+below.
 
 ### 2026-08-26 — the supplied mockups are internally inconsistent
 
@@ -246,3 +270,166 @@ Discovered while checking git state: **`origin` already exists** and points at
 commits and no remote. Logged as an open gap rather than silently edited — that
 same status block carries the open questions about the repo name and whether the
 path stays `/bell`, which are the user's calls.
+
+### 2026-08-26 11:47 — day view, part 1: `src/index.html`
+
+Restructured the markup for two views on one page. The existing countdown became
+`<section class="focus" id="focus-view">`; a new `<section class="day">` holds
+the day summary, a day-wide progress bar, and an empty `<ol id="period-list">`.
+
+- **One page, two views, not two pages.** The repo rule is one clock and one
+  subscriber; a second HTML file would need a second clock.
+- **Period rows live in a `<template>`,** cloned once per period. Keeps the
+  markup readable in the HTML file and lets JS build rows with `cloneNode` +
+  `textContent` rather than concatenating strings into `innerHTML`.
+- **Template fields use `data-field`, not `id`.** A template cloned eleven times
+  would otherwise produce eleven copies of each id — invalid HTML, and
+  `getElementById` only ever finds the first.
+- **View switcher is two `aria-pressed` buttons, not a tablist.** A real tab
+  widget owes arrow-key navigation and roving tabindex; two buttons are fully
+  accessible with none of that ceremony.
+
+No behaviour change yet — every id the current `app.js` writes to is preserved,
+the day view ships `hidden`, and the switcher buttons are inert.
+
+### 2026-08-26 11:52 — day view, part 2: `src/styles.css`
+
+Four new sections (9–11 plus a reflow block): view containers, the switcher,
+the day summary, and the period rows.
+
+- **`[hidden] { display: none !important; }`** is load-bearing. The `hidden`
+  attribute works via the UA stylesheet's `display: none`, which any author
+  `display` outranks — so `.day { display: flex }` would have un-hidden the
+  hidden view. This is the rare case where `!important` is the correct tool
+  rather than a smell.
+- **Three period states, marked four ways.** `--past` dims to `opacity: 0.55`
+  (mild, because a past period is still information); `--current` gets heavier
+  weight, larger type, a butterscotch time, and a visible progress track. The
+  design system forbids encoding state by color alone, and JS additionally sets
+  `aria-current`.
+- **The per-row track exists in every row but only displays on the current
+  one**, so rows do not change height as the day advances through them.
+- **Switcher uses grape**, per the design system's "grape marks navigation".
+  Pressed state is `background: var(--grape); color: var(--bg)` — because both
+  tokens flip with the theme, one declaration reads correctly in light and dark.
+- **Reflow:** below 30rem the period row's fixed `4.5rem` time column plus a
+  long name forces horizontal scroll, so the row restacks via
+  `grid-template-areas` — time and duration on one line, name beneath.
+
+### 2026-08-26 11:58 — day view, part 3: `src/app.js`
+
+Two new pure functions, a row builder, a second painter, and the view switch.
+
+- **`daySummaryAt` is separate from `stateAt`, not bolted onto its return
+  value.** They answer different questions — "which period is running" versus
+  "how far through the day are we" — and the day bar spans gaps that `stateAt`
+  reports as their own phase. Keeping them separate also meant the existing 18
+  engine checks were untouched by this feature.
+- **`periodStatusAt` reuses the same half-open rule** as `stateAt`, so a row
+  cannot read as current in the list while the countdown has already moved on.
+  Verified by sampling all 86400 seconds of the day at 7-second steps and
+  asserting no second ever has two current periods.
+- **Rows are cloned once, then only their contents change.** Rebuilding eleven
+  `<li>`s per second would discard focus, scroll position, and any in-flight CSS
+  transition sixty times a minute.
+- **Only the visible view is painted.** `tick` branches on `activeView`, so the
+  hidden view is not costing ~50 DOM writes a second. The consequence is that
+  the newly revealed view is one tick stale, which is why `setView` ends by
+  calling `tick()`.
+- **`aria-current="time"`** on the running row — the ARIA token specifically for
+  "the current one among a set of times", and the accessible counterpart to the
+  butterscotch highlight.
+- **View choice persists in `localStorage`, guarded by try/catch.** Not
+  paranoia: `localStorage` throws outright when a browser is set to block site
+  data and in some private-browsing modes, and an unguarded read at module load
+  would take the app down before the first tick. Anything unrecognised degrades
+  to `"now"` — the read is its own validation.
+
+**Verification:** 16 new checks alongside the original 18, all passing — day
+boundaries, the day bar spanning a hole in a non-tiling schedule, the four
+`periodStatusAt` boundaries around 9:05–10:05, the no-two-current-periods sweep,
+and `formatDuration`.
+
+### 2026-08-26 12:06 — the period strip, part 1: data and markup
+
+User direction: replace the day view's role as a separate screen with a **period
+strip** living permanently under the timer — equal squares for the day's real
+blocks, thin connectors for passing periods. The list view stays, as the
+readable reference rather than the live view.
+
+**`src/schedule.js`** gains a `kind` field per period (`class` / `lunch` /
+`passing`) plus a `PERIOD_KINDS` export. The strip cannot infer square-vs-
+connector from the label — a school may call passing "Transition", or name a
+class something that contains the word. `kind` is the schedule's own answer.
+This is the `{ startMin, endMin, label, kind }` shape the research doc
+recommends, arriving early because the strip needs it.
+
+**`src/index.html`**: the Now view loses its standalone period progress bar and
+its "until X" line, both of which the strip subsumes, and its footer switches
+from *period* bounds to *day* bounds with a `3 of 7 · 3:38 until dismissal`
+caption. The Day view gains a disclosure button for collapsing finished periods.
+
+- **The strip is `aria-hidden`.** It is a redundant visual rendering: the
+  caption states the same position in words, and the Day view is the readable,
+  navigable version. Fifteen unlabelled cells announced one by one would be
+  noise. This is why the list view keeps earning its place.
+- **One `<template>` for both shapes.** Square and connector share markup and a
+  fill element; JS adds the modifier class.
+- **Collapsing past periods uses a disclosure button with `aria-expanded`**,
+  not a bare hide. The finished periods still exist and are retrievable, and
+  the attribute is what tells assistive tech so.
+
+**Known intermediate breakage:** `app.js` still queries `next-name`,
+`progress-fill`, `period-start`, `period-end`, and `next-up`, which this commit
+removed. The page throws until part 3 lands.
+
+### 2026-08-26 12:11 — the period strip, part 2: `src/styles.css`
+
+Sections 12 (strip) and 13 (disclosure); removed the now-dead
+`.countdown__until` rule.
+
+- **Squares are `flex: 1 1 0` with `aspect-ratio: 1`,** clamped
+  `min-width: 18px` / `max-width: 56px`. They shrink to fit 320px and cap out
+  rather than becoming slabs on a projector, staying square throughout.
+- **The strip uses `gap`, not connector-as-spacer.** Two blocks can sit back to
+  back with no passing between them — Period 3 into A Lunch does exactly this in
+  the fixture schedule — and without a gap they fuse into one long rectangle.
+  Worth remembering: the connectors are *periods*, not separators, so they are
+  absent wherever the schedule has no passing.
+- **Past fills `--fg-soft`, current fills `--accent`.** Butterscotch marks
+  *now*, per the design system. Safe to lean on color here only because the
+  strip is `aria-hidden` and the caption plus Day view carry the same state in
+  text — the strip is never the sole carrier.
+- **Hover cue is mouse-only by design.** Cells are `aria-hidden` and not
+  focusable, so the caption swap is an extra for pointer users. The Day view is
+  where those labels live for everyone else.
+- **The disclosure marker is CSS `content` on an empty span**, rotated 90° when
+  expanded — decoration belongs in the stylesheet, not the document.
+
+### 2026-08-26 12:18 — the period strip, part 3: `src/app.js`
+
+Three new pure functions (`blockPositionAt`, `formatDayCaption`,
+`formatPeriodLabel`), a strip builder and painter, the caption swap, and the
+past-period collapse. The Now view's old `paintFocus` targets are gone.
+
+- **`blockPositionAt` counts blocks that have *started*,** so mid-passing the
+  number holds at the block just finished rather than jumping to one that has
+  not begun. Passing periods are excluded entirely: they are the seams, not the
+  units a student counts.
+- **Passing periods still get a cell.** Skipping them would leave time
+  unaccounted for; the connector fills while you are in the hallway. Verified by
+  sweeping the school day and asserting every sampled second sits in exactly one
+  cell.
+- **Hover borrows the caption instead of opening a tooltip.** No positioning
+  code, no new tab stops, and it works on a touch tap. `hoveredPeriod` is read
+  by `paintFocus`, so the swap survives ticks and reverts on `pointerleave`.
+- **Past rows collapse via `row.hidden`,** with the disclosure label counting
+  them (`3 earlier periods`). The label stays constant across states because
+  `aria-expanded` already carries open-vs-closed — putting "Show"/"Hide" in the
+  text too would make a screen reader announce the state twice.
+
+**Verification:** 22 new checks, plus a static cross-check that every one of the
+21 ids `app.js` queries exists in `index.html` and none are orphaned. That last
+one matters here specifically — this change deleted five elements the previous
+`app.js` depended on, and a missed one would have been a null-reference crash on
+load rather than a visible mistake.

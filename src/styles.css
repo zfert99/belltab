@@ -236,11 +236,8 @@ body {
   color: var(--fg-soft);
 }
 
-.countdown__until {
-  font-size: 1.125rem;
-  font-weight: 500;
-  color: var(--fg-soft);
-}
+/* The "until X" line the Now view used to carry lives in the strip now: the
+   next cell is what is coming, and the current cell's fill is the progress. */
 
 /* ============================================================
    6. PROGRESS BAR
@@ -322,4 +319,334 @@ body {
     transition-duration: 0.01ms !important;
     animation-duration: 0.01ms !important;
   }
+}
+
+/* ============================================================
+   9. VIEWS
+   ============================================================ */
+
+/* The `hidden` attribute works by setting `display: none` in the browser's
+   default stylesheet, which ANY display declaration of ours outranks. Without
+   this line, `.day { display: flex }` two rules below would make the hidden
+   view visible again. It is the one place !important is the correct tool. */
+[hidden] {
+  display: none !important;
+}
+
+.focus,
+.day {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-6);
+}
+
+.viewswitch {
+  display: flex;
+  justify-content: center;
+  gap: var(--s-2);
+}
+
+.viewswitch__btn {
+  min-height: 44px;
+  padding: 0 var(--s-4);
+  font-family: var(--font-body);
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--fg);
+  background: var(--bg);
+  border: var(--border-interactive);
+  border-radius: var(--r-md);
+  box-shadow: var(--press-shadow);
+  cursor: pointer;
+  transition: transform 90ms ease-out, box-shadow 90ms ease-out;
+}
+
+.viewswitch__btn:active {
+  transform: translate(4px, 4px);
+  box-shadow: 0 0 0 0 var(--fg);
+}
+
+/* Grape marks navigation, per the design system. The label still says which
+   view is which - the color is not carrying the state on its own, and
+   aria-pressed carries it for assistive tech. */
+.viewswitch__btn[aria-pressed="true"] {
+  color: var(--bg);
+  background: var(--grape);
+}
+
+/* ============================================================
+   10. DAY VIEW - SUMMARY
+   ============================================================ */
+
+.day__summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--s-2) var(--s-4);
+}
+
+.day__label {
+  font-family: var(--font-display);
+  font-size: 1.5rem;
+  font-weight: 600;
+  line-height: 1.2;
+  margin: 0;
+}
+
+.day__remaining {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s-2);
+}
+
+.day__remaining-value {
+  font-family: var(--font-display);
+  font-size: 1.5rem;
+  font-weight: 600;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.day__remaining-label {
+  font-family: var(--font-mono);
+  font-size: 0.875rem;
+  color: var(--fg-soft);
+}
+
+/* ============================================================
+   11. DAY VIEW - PERIOD ROWS
+   ============================================================ */
+
+.periods {
+  /* An <ol> for the semantics, but the numbers are the clock times, not 1..11. */
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.period {
+  padding: var(--s-3) 0;
+  border-top: var(--border-passive);
+}
+
+.period:last-child {
+  border-bottom: var(--border-passive);
+}
+
+.period__row {
+  display: grid;
+  grid-template-columns: 4.5rem 1fr auto;
+  align-items: baseline;
+  gap: var(--s-2) var(--s-4);
+}
+
+.period__time {
+  font-family: var(--font-mono);
+  font-size: 0.875rem;
+  color: var(--fg-soft);
+  font-variant-numeric: tabular-nums;
+}
+
+.period__name {
+  font-size: 1rem;
+}
+
+.period__aside {
+  font-family: var(--font-mono);
+  font-size: 0.875rem;
+  color: var(--fg-soft);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+/* Already over. Dimmed, but never below the 4.5:1 contrast floor - past periods
+   are still information, not decoration, so opacity stays mild. */
+.period--past .period__time,
+.period--past .period__name,
+.period--past .period__aside {
+  opacity: 0.55;
+}
+
+/* Now. Marked four ways - weight, size, the butterscotch time, and a visible
+   progress track - because the design system forbids encoding state by color
+   alone. JS also sets aria-current on this row. */
+.period--current .period__time {
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.period--current .period__name {
+  font-size: 1.125rem;
+  font-weight: 600;
+}
+
+.period--current .period__aside {
+  font-size: 1.125rem;
+  font-weight: 700;
+  color: var(--fg);
+}
+
+/* The per-row track exists in every cloned row but only the current one shows
+   it, so rows do not change height as the day moves through them. */
+.period__track {
+  display: none;
+  height: 6px;
+  margin-top: var(--s-2);
+  background: var(--bg);
+  border: var(--border-passive);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.period--current .period__track {
+  display: block;
+}
+
+.period__fill {
+  height: 100%;
+  width: 0%;
+  background: var(--accent);
+  transition: width 300ms linear;
+}
+
+/* At 320px the fixed time column plus a long period name forces a horizontal
+   scrollbar, so the row stacks: time and duration share a line, name below. */
+@media (max-width: 30rem) {
+  .period__row {
+    grid-template-columns: auto 1fr;
+    grid-template-areas:
+      "time aside"
+      "name name";
+  }
+
+  .period__time {
+    grid-area: time;
+  }
+
+  .period__name {
+    grid-area: name;
+  }
+
+  .period__aside {
+    grid-area: aside;
+  }
+}
+
+/* ============================================================
+   12. THE PERIOD STRIP
+
+   Equal-width squares for the day's real blocks, thin connectors for passing
+   periods. Equal squares deliberately misrepresent duration: a 5-minute
+   passing and a 55-minute class are not the same size in reality, but the
+   strip is answering "how many left", not "how long left" - the big number
+   above it already answers that. Proportional cells would be an accurate
+   timeline in which every passing period is an unreadable sliver.
+   ============================================================ */
+
+.strip {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  /* A gap rather than letting connectors do the spacing: two blocks can sit
+     back to back with no passing between them (Period 3 into A Lunch), and
+     without this they would fuse into one long rectangle. */
+  gap: var(--s-1);
+}
+
+.strip__cell {
+  /* Every cell clips its own fill, so one border-radius covers both. */
+  overflow: hidden;
+  background: var(--bg);
+}
+
+.strip__fill {
+  display: block;
+  width: 0%;
+  height: 100%;
+  background: var(--fg-soft);
+  transition: width 300ms linear;
+}
+
+/* --- Squares: the day's countable units --- */
+
+.strip__cell--block {
+  /* Shrinks to fit on a narrow screen, caps out so it does not become a slab
+     on a projector. aspect-ratio keeps it square at every size in between. */
+  flex: 1 1 0;
+  min-width: 18px;
+  max-width: 56px;
+  aspect-ratio: 1;
+  border: var(--border-passive);
+  border-radius: var(--r-sm);
+}
+
+/* --- Connectors: the seams between them --- */
+
+.strip__cell--link {
+  flex: 0 1 28px;
+  min-width: 8px;
+  height: 4px;
+  border-radius: 999px;
+}
+
+/* --- State ---
+   Past cells fill muted; the current cell fills butterscotch, because
+   butterscotch marks *now*. The strip is aria-hidden, so it is not carrying
+   this state alone - the caption states it in words and the Day view lists it. */
+
+.strip__cell--past .strip__fill {
+  background: var(--fg-soft);
+}
+
+.strip__cell--current {
+  border-color: var(--fg);
+}
+
+.strip__cell--current .strip__fill {
+  background: var(--accent);
+}
+
+/* Hovering a cell swaps the caption below to that period's name and times.
+   Mouse-only by design: the cells are aria-hidden and not focusable, so this
+   is an extra for pointer users, and the Day view is where the same labels
+   live for everyone else. */
+.strip__cell--block:hover {
+  border-color: var(--fg);
+}
+
+/* ============================================================
+   13. DISCLOSURE (collapsed past periods)
+   ============================================================ */
+
+.disclosure {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  min-height: 44px;
+  padding: 0;
+  font-family: var(--font-body);
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--fg-soft);
+  text-align: left;
+  background: none;
+  border: 0;
+  cursor: pointer;
+}
+
+.disclosure:hover {
+  color: var(--fg);
+}
+
+/* The marker span is empty in the HTML on purpose - it is decoration, and
+   decoration belongs in the stylesheet rather than the document. */
+.disclosure__marker::before {
+  content: "\25B8";
+  display: inline-block;
+  transition: transform 150ms ease-out;
+}
+
+.disclosure[aria-expanded="true"] .disclosure__marker::before {
+  transform: rotate(90deg);
 }

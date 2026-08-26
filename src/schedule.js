@@ -16,6 +16,23 @@
  */
 const hm = (hours, minutes) => hours * 60 + minutes;
 
+/**
+ * What a period *is*, as opposed to what it is called.
+ *
+ * The period strip needs to know which blocks are the day's real units and
+ * which are the seams between them, and it cannot learn that from the label -
+ * a school might call passing "Transition", or name a class "Passing Period
+ * Prep". `kind` is the schedule's own answer, set by whoever authored it.
+ *
+ * The research doc's recommended model is `{ startMin, endMin, label, kind }`;
+ * this is that field arriving early because the strip needs it.
+ */
+export const PERIOD_KINDS = {
+  CLASS: "class",
+  LUNCH: "lunch",
+  PASSING: "passing",
+};
+
 export const schedule = {
   name: "Regular day",
 
@@ -29,16 +46,16 @@ export const schedule = {
    * starts in 1h 12m", "school's out"), not holes to be patched.
    */
   periods: [
-    { name: "Period 1", startMin: hm(8, 0), endMin: hm(8, 55) },
-    { name: "Passing", startMin: hm(8, 55), endMin: hm(9, 5) },
-    { name: "Period 2", startMin: hm(9, 5), endMin: hm(10, 5) },
-    { name: "Passing", startMin: hm(10, 5), endMin: hm(10, 10) },
-    { name: "Period 3", startMin: hm(10, 10), endMin: hm(11, 5) },
-    { name: "A Lunch", startMin: hm(11, 5), endMin: hm(11, 35) },
-    { name: "Period 4", startMin: hm(11, 35), endMin: hm(12, 30) },
-    { name: "Passing", startMin: hm(12, 30), endMin: hm(12, 35) },
-    { name: "Period 5", startMin: hm(12, 35), endMin: hm(13, 30) },
-    { name: "Passing", startMin: hm(13, 30), endMin: hm(13, 35) },
-    { name: "Period 6", startMin: hm(13, 35), endMin: hm(14, 30) },
+    { name: "Period 1", kind: "class", startMin: hm(8, 0), endMin: hm(8, 55) },
+    { name: "Passing", kind: "passing", startMin: hm(8, 55), endMin: hm(9, 5) },
+    { name: "Period 2", kind: "class", startMin: hm(9, 5), endMin: hm(10, 5) },
+    { name: "Passing", kind: "passing", startMin: hm(10, 5), endMin: hm(10, 10) },
+    { name: "Period 3", kind: "class", startMin: hm(10, 10), endMin: hm(11, 5) },
+    { name: "A Lunch", kind: "lunch", startMin: hm(11, 5), endMin: hm(11, 35) },
+    { name: "Period 4", kind: "class", startMin: hm(11, 35), endMin: hm(12, 30) },
+    { name: "Passing", kind: "passing", startMin: hm(12, 30), endMin: hm(12, 35) },
+    { name: "Period 5", kind: "class", startMin: hm(12, 35), endMin: hm(13, 30) },
+    { name: "Passing", kind: "passing", startMin: hm(13, 30), endMin: hm(13, 35) },
+    { name: "Period 6", kind: "class", startMin: hm(13, 35), endMin: hm(14, 30) },
   ],
 };

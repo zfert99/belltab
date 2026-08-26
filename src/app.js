@@ -1,4 +1,4 @@
-import { schedule } from "./schedule.js";
+import { schedule, PERIOD_KINDS } from "./schedule.js";
 
 /* ============================================================
    PART 1 - THE PURE HALF
@@ -82,12 +82,74 @@ export function stateAt(schedule, nowSec) {
   return { phase: "after", current: null, next: null, remainingSec: 0, progress: 1 };
 }
 
+/**
+ * The whole day as one bar: first bell to last bell, gaps included.
+ *
+ * Kept separate from stateAt rather than bolted onto its return value, because
+ * the two answer different questions and the day view needs this without
+ * caring which period is running.
+ */
+export function daySummaryAt(schedule, nowSec) {
+  const periods = schedule.periods;
+
+  if (periods.length === 0) return { phase: "empty", remainingSec: 0, progress: 0 };
+
+  const dayStartSec = periods[0].startMin * 60;
+  const dayEndSec = periods[periods.length - 1].endMin * 60;
+
+  if (nowSec < dayStartSec) {
+    return { phase: "before", remainingSec: dayStartSec - nowSec, progress: 0 };
+  }
+  if (nowSec >= dayEndSec) {
+    return { phase: "after", remainingSec: 0, progress: 1 };
+  }
+  return {
+    phase: "during",
+    remainingSec: dayEndSec - nowSec,
+    progress: (nowSec - dayStartSec) / (dayEndSec - dayStartSec),
+  };
+}
+
+/**
+ * One period's status. Uses the same half-open rule as stateAt, so a period
+ * cannot read as "current" in the list while the countdown has moved on.
+ */
+export function periodStatusAt(period, nowSec) {
+  if (nowSec >= period.endMin * 60) return "past";
+  if (nowSec < period.startMin * 60) return "future";
+  return "current";
+}
+
+/**
+ * "3 of 7" - which countable block of the day this is.
+ *
+ * Passing periods are excluded because they are the seams, not the units. A
+ * student counting down their day counts classes and lunch, not the ninety
+ * seconds of hallway between them.
+ *
+ * Counts blocks that have STARTED, so mid-passing the number holds at the
+ * block just finished rather than jumping ahead to one that has not begun.
+ */
+export function blockPositionAt(schedule, nowSec) {
+  const blocks = schedule.periods.filter((p) => p.kind !== PERIOD_KINDS.PASSING);
+  const started = blocks.filter((p) => nowSec >= p.startMin * 60).length;
+  return { index: started, total: blocks.length };
+}
+
 /** Minutes since midnight to a wall-clock label: 545 -> "9:05". */
 export function formatClock(totalMinutes) {
   const hours24 = Math.floor(totalMinutes / 60) % 24;
   const minutes = totalMinutes % 60;
   const hours12 = hours24 % 12 === 0 ? 12 : hours24 % 12;
   return `${hours12}:${String(minutes).padStart(2, "0")}`;
+}
+
+/** A period's length, for the list: 55 -> "55m", 90 -> "1h 30m". */
+export function formatDuration(totalMinutes) {
+  if (totalMinutes < 60) return `${totalMinutes}m`;
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  return minutes === 0 ? `${hours}h` : `${hours}h ${minutes}m`;
 }
 
 /**
@@ -115,6 +177,21 @@ export function splitCountdown(totalSeconds) {
   };
 }
 
+/** The line under the strip: "3 of 7 - 3:38 until dismissal". */
+export function formatDayCaption(day, position) {
+  if (day.phase === "empty") return "No schedule";
+  if (day.phase === "after") return `${position.total} of ${position.total} · done for today`;
+
+  const { major, minor } = splitCountdown(day.remainingSec);
+  const target = day.phase === "before" ? "until first bell" : "until dismissal";
+  return `${position.index} of ${position.total} · ${major}:${minor} ${target}`;
+}
+
+/** One period, spelled out: "Period 3 - 10:10 to 11:05". */
+export function formatPeriodLabel(period) {
+  return `${period.name} · ${formatClock(period.startMin)}–${formatClock(period.endMin)}`;
+}
+
 /** The tab title: number first, so it survives truncation to a few characters. */
 export function formatTabTitle(state) {
   if (state.phase === "after") return "Done - BellTab";
@@ -133,51 +210,254 @@ export function formatTabTitle(state) {
 const els = {
   scheduleName: document.getElementById("schedule-name"),
   wallClock: document.getElementById("wall-clock"),
+
+  focusView: document.getElementById("focus-view"),
   periodName: document.getElementById("period-name"),
   minutes: document.getElementById("countdown-minutes"),
   seconds: document.getElementById("countdown-seconds"),
-  nextName: document.getElementById("next-name"),
-  progressFill: document.getElementById("progress-fill"),
-  periodStart: document.getElementById("period-start"),
-  periodEnd: document.getElementById("period-end"),
-  nextUp: document.getElementById("next-up"),
+  strip: document.getElementById("strip"),
+  stripTemplate: document.getElementById("strip-cell"),
+  dayStart: document.getElementById("day-start"),
+  dayEnd: document.getElementById("day-end"),
+  dayCaption: document.getElementById("day-caption"),
+
+  dayView: document.getElementById("day-view"),
+  dayRemaining: document.getElementById("day-remaining"),
+  dayRemainingLabel: document.getElementById("day-remaining-label"),
+  dayProgressFill: document.getElementById("day-progress-fill"),
+  pastToggle: document.getElementById("past-toggle"),
+  pastToggleLabel: document.getElementById("past-toggle-label"),
+  periodList: document.getElementById("period-list"),
+  rowTemplate: document.getElementById("period-row"),
+
+  viewNow: document.getElementById("view-now"),
+  viewDay: document.getElementById("view-day"),
 };
 
-/** Copy for the states where no period is running. */
-const EMPTY_STATE_COPY = {
-  before: { period: "Before school", until: null },
-  gap: { period: "Passing", until: null },
-  after: { period: "School is out", until: "tomorrow" },
-  empty: { period: "No schedule", until: "you add one" },
+/** The period-name line when no period is running. */
+const NO_PERIOD_NAME = {
+  before: "Before school",
+  gap: "Passing",
+  after: "School is out",
+  empty: "No schedule",
 };
 
-function paint(state, nowMinutes) {
-  els.wallClock.textContent = formatClock(nowMinutes);
+const DAY_LABEL = {
+  before: "until first bell",
+  during: "until dismissal",
+  after: "school is out",
+  empty: "no schedule",
+};
 
+/* ---------- The period strip ---------- */
+
+/** Which period the pointer is over, or null. Overrides the caption while set. */
+let hoveredPeriod = null;
+
+/**
+ * Clones one strip cell per period: a square for the day's real blocks, a thin
+ * connector for passing periods.
+ *
+ * Passing periods get a cell rather than being skipped, so nothing in the day
+ * is unaccounted for - the connector fills while you are in the hallway.
+ */
+function buildStripCells() {
+  return schedule.periods.map((period) => {
+    const cell = els.stripTemplate.content.firstElementChild.cloneNode(true);
+    const isPassing = period.kind === PERIOD_KINDS.PASSING;
+
+    cell.classList.add(isPassing ? "strip__cell--link" : "strip__cell--block");
+
+    // Only squares get the hover affordance. A 4px connector is not a credible
+    // pointer target, and the Day view carries these labels for everyone.
+    if (!isPassing) {
+      cell.addEventListener("pointerenter", () => {
+        hoveredPeriod = period;
+        tick();
+      });
+      cell.addEventListener("pointerleave", () => {
+        hoveredPeriod = null;
+        tick();
+      });
+    }
+
+    els.strip.append(cell);
+    return { period, cell, fill: cell.querySelector('[data-field="fill"]') };
+  });
+}
+
+function paintStrip(nowSec) {
+  for (const { period, cell, fill } of stripCells) {
+    const status = periodStatusAt(period, nowSec);
+
+    cell.classList.toggle("strip__cell--past", status === "past");
+    cell.classList.toggle("strip__cell--current", status === "current");
+    cell.classList.toggle("strip__cell--future", status === "future");
+
+    // A partly-filled cell is a STATE, not a tick. If the tab was frozen and
+    // the fill jumps 20% on return that reads as normal; the same gap in a
+    // seconds counter reads as broken. Recomputing makes both correct - the
+    // shape is what makes one of them also look correct.
+    const elapsed = nowSec - period.startMin * 60;
+    const length = (period.endMin - period.startMin) * 60;
+    const percent = status === "past" ? 100 : status === "future" ? 0 : (elapsed / length) * 100;
+
+    fill.style.width = `${percent.toFixed(2)}%`;
+  }
+}
+
+/* ---------- The period list ---------- */
+
+/** Whether finished periods are expanded in the Day view. */
+let showPast = false;
+
+/**
+ * Clones one row per period, once.
+ *
+ * Rows are built here and only their CONTENTS change on each tick. Rebuilding
+ * eleven list items every second would throw away focus, scroll position, and
+ * any in-flight CSS transition sixty times a minute.
+ *
+ * Rebuild this if the schedule itself ever changes - which the editor will do.
+ */
+function buildPeriodRows() {
+  return schedule.periods.map((period) => {
+    const row = els.rowTemplate.content.firstElementChild.cloneNode(true);
+
+    // Queried relative to `row`, not via getElementById, because every cloned
+    // row carries the same data-field names. Ids would collide eleven ways.
+    const fields = {
+      start: row.querySelector('[data-field="start"]'),
+      name: row.querySelector('[data-field="name"]'),
+      aside: row.querySelector('[data-field="aside"]'),
+      fill: row.querySelector('[data-field="fill"]'),
+    };
+
+    // The start time and the name never change with the clock, so they are
+    // written once here rather than on every tick.
+    fields.start.textContent = formatClock(period.startMin);
+    fields.name.textContent = period.name;
+
+    els.periodList.append(row);
+    return { period, row, fields };
+  });
+}
+
+const stripCells = buildStripCells();
+const periodRows = buildPeriodRows();
+
+/* ---------- Painting ---------- */
+
+function paintFocus(state, nowSec) {
   const { major, minor } = splitCountdown(state.remainingSec);
   els.minutes.textContent = major;
   els.seconds.textContent = minor;
 
-  if (state.phase === "during") {
-    els.periodName.textContent = state.current.name;
-    // No next period means the last bell of the day is what we are counting to.
-    els.nextName.textContent = state.next ? state.next.name : "dismissal";
-    els.periodStart.textContent = formatClock(state.current.startMin);
-    els.periodEnd.textContent = formatClock(state.current.endMin);
-  } else {
-    const copy = EMPTY_STATE_COPY[state.phase];
-    els.periodName.textContent = copy.period;
-    els.nextName.textContent = copy.until ?? state.next.name;
-    els.periodStart.textContent = "--:--";
-    els.periodEnd.textContent = "--:--";
+  els.periodName.textContent =
+    state.phase === "during" ? state.current.name : NO_PERIOD_NAME[state.phase];
+
+  paintStrip(nowSec);
+
+  // Hovering a square borrows the caption instead of opening a tooltip: no
+  // positioning code, no new tab stops, and it works on a touch tap.
+  els.dayCaption.textContent = hoveredPeriod
+    ? formatPeriodLabel(hoveredPeriod)
+    : formatDayCaption(daySummaryAt(schedule, nowSec), blockPositionAt(schedule, nowSec));
+}
+
+function paintDay(nowSec) {
+  const day = daySummaryAt(schedule, nowSec);
+  const { major, minor } = splitCountdown(day.remainingSec);
+
+  // Once the last bell has rung there is nothing left to count, and "0:00"
+  // reads like a stopped clock rather than a finished day.
+  const counting = day.phase === "before" || day.phase === "during";
+  els.dayRemaining.textContent = counting ? `${major}:${minor}` : "--:--";
+  els.dayRemainingLabel.textContent = DAY_LABEL[day.phase];
+  els.dayProgressFill.style.width = `${(day.progress * 100).toFixed(2)}%`;
+
+  let pastCount = 0;
+
+  for (const { period, row, fields } of periodRows) {
+    const status = periodStatusAt(period, nowSec);
+
+    // toggle() rather than assigning className, so a class added elsewhere
+    // later is not silently wiped out sixty times a minute.
+    row.classList.toggle("period--past", status === "past");
+    row.classList.toggle("period--current", status === "current");
+    row.classList.toggle("period--future", status === "future");
+
+    // Finished periods collapse so the current one sits at the top of the list.
+    if (status === "past") pastCount++;
+    row.hidden = status === "past" && !showPast;
+
+    if (status === "current") {
+      // aria-current="time" is the token for "the current one among a set of
+      // times" - the accessible equivalent of the butterscotch highlight.
+      row.setAttribute("aria-current", "time");
+
+      const left = splitCountdown(period.endMin * 60 - nowSec);
+      fields.aside.textContent = `${left.major}:${left.minor}`;
+
+      const elapsed = nowSec - period.startMin * 60;
+      const length = (period.endMin - period.startMin) * 60;
+      fields.fill.style.width = `${((elapsed / length) * 100).toFixed(2)}%`;
+    } else {
+      row.removeAttribute("aria-current");
+      fields.aside.textContent =
+        status === "past" ? "done" : formatDuration(period.endMin - period.startMin);
+    }
   }
 
-  els.nextUp.textContent = state.next
-    ? `Next: ${state.next.name} at ${formatClock(state.next.startMin)}`
-    : "No more periods today";
-
-  els.progressFill.style.width = `${(state.progress * 100).toFixed(2)}%`;
+  // Nothing to collapse before the first bell.
+  els.pastToggle.hidden = pastCount === 0;
+  els.pastToggleLabel.textContent = `${pastCount} earlier ${pastCount === 1 ? "period" : "periods"}`;
 }
+
+/* ---------- View switching ---------- */
+
+const VIEW_KEY = "belltab:view";
+let activeView = readStoredView();
+
+/**
+ * localStorage holds convenience, never truth, so anything unrecognised
+ * degrades to the default rather than being trusted or reported.
+ *
+ * The try/catch is not paranoia: localStorage throws outright when a browser
+ * is set to block site data, and in some private-browsing modes. An unguarded
+ * read would take the whole app down before the first tick.
+ */
+function readStoredView() {
+  try {
+    return localStorage.getItem(VIEW_KEY) === "day" ? "day" : "now";
+  } catch {
+    return "now";
+  }
+}
+
+function setView(view) {
+  const showDay = view === "day";
+  activeView = showDay ? "day" : "now";
+
+  els.focusView.hidden = showDay;
+  els.dayView.hidden = !showDay;
+
+  // aria-pressed is both the accessible state and the CSS hook - the stylesheet
+  // selects on [aria-pressed="true"], so there is only one source of truth.
+  els.viewNow.setAttribute("aria-pressed", String(!showDay));
+  els.viewDay.setAttribute("aria-pressed", String(showDay));
+
+  try {
+    localStorage.setItem(VIEW_KEY, activeView);
+  } catch {
+    // Not being able to remember the choice is not a reason to refuse it.
+  }
+
+  // The hidden view is not painted, so the one just revealed is a tick stale.
+  tick();
+}
+
+/* ---------- The clock ---------- */
 
 /**
  * One tick. Every value on screen is derived fresh from the system clock -
@@ -194,18 +474,42 @@ function tick() {
   const nowSec = now.getHours() * 3600 + now.getMinutes() * 60 + now.getSeconds();
   const state = stateAt(schedule, nowSec);
 
-  paint(state, Math.floor(nowSec / 60));
+  els.wallClock.textContent = formatClock(Math.floor(nowSec / 60));
+
+  // Only the visible view is painted. The other one is behind `hidden`, so
+  // writing to it would be ~50 DOM writes a second that nobody can see.
+  if (activeView === "day") paintDay(nowSec);
+  else paintFocus(state, nowSec);
 
   // Minute resolution: the tab title only needs to change 60x less often than
-  // the display, and rewriting it every second is wasted work.
+  // the display, and rewriting it every second is wasted work. Derived from
+  // stateAt in both views, so the title is right whichever one is showing.
   const title = formatTabTitle(state);
   if (document.title !== title) document.title = title;
 }
+
+/* ---------- Wiring ---------- */
 
 // Period names are user input and will eventually arrive from a share link, so
 // every write above is textContent. innerHTML anywhere here would be an XSS
 // hole reachable by sending someone a URL.
 els.scheduleName.textContent = schedule.name;
+
+// The day's outer bounds never move, so they are written once rather than
+// rewritten sixty times a minute.
+if (schedule.periods.length > 0) {
+  els.dayStart.textContent = formatClock(schedule.periods[0].startMin);
+  els.dayEnd.textContent = formatClock(schedule.periods[schedule.periods.length - 1].endMin);
+}
+
+els.viewNow.addEventListener("click", () => setView("now"));
+els.viewDay.addEventListener("click", () => setView("day"));
+
+els.pastToggle.addEventListener("click", () => {
+  showPast = !showPast;
+  els.pastToggle.setAttribute("aria-expanded", String(showPast));
+  tick();
+});
 
 // One clock, one subscriber. Every other view is derived from this tick, so
 // nothing else in the app is allowed its own setInterval.
@@ -217,4 +521,4 @@ setInterval(tick, 1000);
 document.addEventListener("visibilitychange", tick);
 window.addEventListener("focus", tick);
 
-tick();
+setView(activeView);
