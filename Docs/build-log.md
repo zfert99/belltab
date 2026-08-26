@@ -150,6 +150,9 @@ modules over `file://` because there is no content type without HTTP.
 | 2026-08-26 | `openApp` asserts the browser's wall clock matches the fixture | A timezone skew is silent by construction: the suite still boots, renders and asserts, just against a different hour. One assertion at the boundary converts that into a single failure that names the cause, instead of three failures that each look like a separate bug. |
 | 2026-08-26 | Period names get `overflow-wrap: anywhere`, not `break-word` | `break-word` wraps a long word but does **not** shrink the element's min-content contribution, so an intrinsically-sized ancestor — here a `1fr` grid column, then `main`, then the body grid track — keeps reserving the unbroken word's full width. `anywhere` is the only value that shrinks min-content too. The global `break-word` on `<body>` stays: it is right for prose, and wrong only where untrusted input meets an intrinsic size. |
 | 2026-08-26 | The reflow gate now runs in two clock states, not one | The 60-character-name test passed for a day while the bug it was written to catch was live, because it only ever looked at 09:30. A gate that sees one hour of the school day measures that hour, not the app. |
+| 2026-08-26 | Branch protection leaves **admin enforcement off** | Checked, the rules would apply to the owner too, and there would be no way to unwedge a broken `main` without first going back into settings to switch it off - which is the same bypass, with extra steps and worse timing. Unchecked, the status checks still gate the merge button on every PR; what stays possible is a deliberate direct push by the one person in the repo. The protection that matters here is against a bad merge, not against the author. |
+| 2026-08-26 | "Require branches to be up to date" is **off** | It forces a rebase and a full CI re-run every time `main` moves under an open PR. That is correct insurance in a repo with concurrent authors and semantic conflicts; with one author and one PR at a time it buys nothing and spends a browser install per merge. Revisit the moment a second person opens a PR here. |
+| 2026-08-26 | The required check list names the four CI jobs plus `Analyze JavaScript`, not the aggregate `CodeQL` check | A required check that does not report on some PR blocks that PR forever. The five named are job names from workflow files in this repo, so they report on every pull request by construction. The aggregate `CodeQL` run is produced by the action rather than by a job we declare, so it is the one most likely to change shape and wedge a merge. |
 | 2026-08-26 | CI pairs the `github` reporter with `html` | `github` annotates the failing line in the PR diff but writes nothing to disk, so the workflow's `upload-artifact` step found nothing on the one run where a trace would have saved a round trip. |
 | 2026-08-26 | CI is four parallel jobs, not one sequential script | `npm ci` runs four times instead of once, which is the cost. The gain is that a failure names itself in the checks list — "E2E (reflow gate)" is a different conversation from "Lint" — and a slow browser install never delays the answer to "did the unit tests pass". |
 
@@ -274,7 +277,6 @@ until the plain version has taught us the shape.
 | 2026-08-26 | There is no `npm run typecheck` | `AGENTS.md` lists it among the four commands that must pass. It needs a type checker; the closest thing available today is `tsc --checkJs` over plain JS, which is a different project from the port and would be thrown away by it. CI runs the other three. |
 | 2026-08-26 | `vercel.json` is unverified — no Vercel project exists yet | The header list is right and the JSON parses, but `outputDirectory: "src"` with `framework: null` has never served a request. Confirm the headers land, with `curl -I`, on the first deploy in Phase 7 — and again through the hub's rewrite, which is a second hop that can drop them. |
 | 2026-08-26 | Only `.period__name` and `.countdown__period` are hardened against intrinsic-width blowout | Those are the two elements that render a period name today. The schedule name (`#schedule-name`) and the editor's own rows are equally user-controlled and have not been measured with a 60-character unbroken value. The reflow suite covers the editor panel, but with the seeded names, not a hostile one. |
-| 2026-08-26 | Branch protection is still configured by hand | The workflows exist, but a required-status-check rule is a GitHub setting, not a file in the repo. Nothing in this branch enforces that CI must pass before merge; that has to be set in the repo settings once the checks have run once and appear in the list. |
 | 2026-08-26 | `README.md` documents the Next.js destination, not the current app | It tells a reader to run `npm run dev` and visit `localhost:3000/bell`. Neither exists: this is the plain HTML/CSS/JS build, served by `npm run serve` at `localhost:3000`. Consistent with the deliberate plain-JS-first detour, but a reader has no way to know that from the README. |
 
 ## Closed
@@ -298,6 +300,7 @@ until the plain version has taught us the shape.
 | 2026-08-26 | 2026-08-26 | The "only live region" test does not test that — the selector now covers the implicit roles too, the three regions are enumerated by id, and `#schedule-error` became polite and idempotent. Review finding 4. |
 | 2026-08-26 | 2026-08-26 | The Day view countdown has no units — a `#day-remaining-units` caption on the summary, and `formatRemaining` on the running row. Review finding 5. |
 | 2026-08-26 | 2026-08-26 | The `<dialog>` fixes were verified against a stub, not a browser — now covered by an `e2e/` Playwright suite running in the installed Chrome. Escape, focus trapping, inertness, Cancel, Delete and the backdrop caveat are all asserted against a real modal. |
+| 2026-08-26 | 2026-08-26 | Branch protection is configured by hand - now applied to `main` and recorded below, so the settings are readable without opening the GitHub UI. |
 | 2026-08-26 | 2026-08-26 | The Day view scrolled sideways at 768px before the first bell with a 60-character period name — `overflow-wrap: anywhere` on the two elements that render a period name. Found by the reflow gate on its first CI run. |
 | 2026-08-26 | 2026-08-26 | The E2E suite is not wired into CI — `.github/workflows/ci.yml` runs lint, markdownlint, unit and E2E on every push and PR. The reflow gate is a blocking check in practice now, not only in principle. |
 | 2026-08-26 | 2026-08-26 | The 320 px reflow check had not been re-run — now a Playwright suite at 320/375/768/1024/1440 over every view, every settings panel, the open dialog, and a 60-character unbroken period name. Measured at 320: `scrollWidth === clientWidth === 320` in all four states. |
@@ -1647,3 +1650,48 @@ first run, and not in the way that was expected: the value was not that CI ran
 the tests, it was that CI ran them *on a machine with different assumptions*. A
 suite that has only ever executed on its author's laptop is testing the laptop
 as much as the app.
+
+### 2026-08-26 16:25 — branch protection, and what it actually enforces
+
+`main` is protected. The settings are recorded here rather than left only in
+the GitHub UI, because a rule nobody can read without admin access to a
+settings page is a rule that gets silently changed:
+
+```json
+{
+  "required_status_checks": {
+    "strict": false,
+    "contexts": ["Lint", "Unit tests", "npm audit", "E2E (reflow gate)", "Analyze JavaScript"]
+  },
+  "required_pull_request_reviews": { "required_approving_review_count": 0 },
+  "required_linear_history": true,
+  "enforce_admins": false,
+  "allow_force_pushes": false,
+  "allow_deletions": false
+}
+```
+
+Applied with `gh api -X PUT repos/zfert99/belltab/branches/main/protection`
+and verified by reading it back, not by trusting the write.
+
+**Approvals are zero on purpose.** `AGENTS.md` already says to leave approvals
+off because GitHub blocks approving your own pull request; the trap is that
+checking "Require a pull request before merging" in the UI silently defaults
+the count to 1, which on a solo repo means nothing can ever merge. Requiring a
+PR and requiring an approval are separate settings and only one of them is
+wanted here.
+
+**What is genuinely enforced, and what is not.** With `enforce_admins: false`,
+the five checks gate the merge button on every pull request, and force pushes
+and branch deletion are off for everyone. A direct push to `main` by the repo
+owner is still possible. That is the deliberate trade recorded in Decisions:
+on a repo with one author, the failure worth defending against is merging a red
+branch, not the author reaching for `git push`.
+
+The three reasoning notes behind the check list, the `strict` flag and the
+admin flag are in **Decisions** rather than here, because each is a choice that
+will look arbitrary in six weeks.
+
+This entry is also the first change to go through the gate it describes: a
+branch, a pull request, five green checks, and a squash merge. Nothing has been
+pushed to `main` directly since it was turned on.

@@ -39,8 +39,7 @@ Three Phase 0 items had already arrived early, in plain-JS form, and carry over
 unchanged: the **Vitest + Playwright harness**, the **reflow gate**, and now
 **CI**. What Phase 0 still owes is the Next scaffold and `basePath`, the
 `jsx-a11y` lint rule — which lints JSX and would gate on zero files today — an
-`npm run typecheck`, and branch protection, which is a GitHub setting rather
-than a file in the repo.
+`npm run typecheck`. Branch protection is on as of 16:25.
 
 ## At a glance
 
@@ -82,8 +81,11 @@ Still owed:
 - 📋 `eslint-plugin-jsx-a11y` at `recommended`, blocking. It lints JSX, so it
   arrives with the first component rather than gating zero files now.
 - 📋 `npm run typecheck` — it needs a type checker, which the port brings.
-- 📋 Branch protection: status checks + linear history, approvals off. A GitHub
-  setting, configured by hand once the checks appear in the list.
+Also done:
+
+- ✅ Branch protection — five required status checks, linear history, approvals
+  off, force pushes and deletions off. Admin enforcement is deliberately off;
+  the reasoning and the exact settings are in `Docs/build-log.md`.
 
 **Gate:** CI green on an empty page. `npm run lint`, `npm run typecheck`,
 `npx vitest run`, `npx markdownlint-cli "**/*.md"` all pass. Three of those four
