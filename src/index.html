@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <!-- No user-scalable=no / maximum-scale: pinch-zoom must stay available (WCAG 1.4.4). -->
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="light dark" />
+    <title>BellTab</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+
+  <body>
+    <main class="screen">
+      <header class="screen__bar">
+        <h1 class="screen__schedule" id="schedule-name">Regular day</h1>
+        <div class="screen__meta">
+          <!-- Every time value starts as a placeholder and is filled in by JS,
+               so the page never shows a stale clock before the script runs. -->
+          <time class="screen__clock" id="wall-clock">--:--</time>
+          <button class="icon-button" type="button" aria-label="Edit schedule">
+            &#9881;
+          </button>
+        </div>
+      </header>
+
+      <div class="countdown">
+        <p class="countdown__period" id="period-name">&mdash;</p>
+
+        <!-- Split into spans so minutes can be styled larger than seconds.
+             Deliberately NOT an aria-live region: announcing this every second
+             would flood a screen reader. -->
+        <p class="countdown__time">
+          <span class="countdown__minutes" id="countdown-minutes">--</span
+          ><span class="countdown__colon">:</span
+          ><span class="countdown__seconds" id="countdown-seconds">--</span>
+        </p>
+
+        <p class="countdown__until">until <span id="next-name">&mdash;</span></p>
+      </div>
+
+      <!-- Decorative: the same numbers are stated as text above and below it,
+           so it needs no accessible name and no role. -->
+      <div class="progress" aria-hidden="true">
+        <div class="progress__fill" id="progress-fill"></div>
+      </div>
+
+      <footer class="bounds">
+        <time class="bounds__edge bounds__edge--start" id="period-start">--:--</time>
+        <p class="bounds__next" id="next-up">&mdash;</p>
+        <time class="bounds__edge bounds__edge--end" id="period-end">--:--</time>
+      </footer>
+    </main>
+
+    <script src="app.js" type="module"></script>
+  </body>
+</html>

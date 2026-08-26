@@ -1,0 +1,325 @@
+/* ============================================================
+   1. TOKENS
+   Raw palette from Docs/design/design-system.md, copied verbatim.
+   Nothing below this block uses a hex code directly.
+   ============================================================ */
+
+:root {
+  /* --- Light mode palette --- */
+  --paper: #fbf3e3;
+  --paper-2: #f5e7c8;
+  --ink: #2b1b12;
+  --ink-soft: #6b5544;
+  --butterscotch: #e8a33d;
+  --butterscotch-dark: #c97f1e;
+  --grape: #5a3e96;
+  --grape-dark: #3e2a69;
+  --mint: #2fae86;
+  --cherry: #d8453f;
+
+  /* --- Semantic layer ---
+     Components reference these names, never the palette above. Swapping a
+     theme then means re-pointing ~8 names instead of hunting every rule. */
+  --bg: var(--paper);
+  --surface: var(--paper-2);
+  --fg: var(--ink);
+  --fg-soft: var(--ink-soft);
+  --line: var(--ink-soft);
+  --accent: var(--butterscotch-dark); /* the dark variant in light mode: see contrast note */
+  --danger: var(--cherry);
+
+  /* --- Radius / border / shadow --- */
+  --r-sm: 8px;
+  --r-md: 14px;
+  --r-lg: 20px;
+  --border-interactive: 3px solid var(--fg);
+  --border-passive: 1.5px solid var(--line);
+  --press-shadow: 4px 4px 0 0 var(--fg);
+
+  /* --- Spacing: the 8pt scale --- */
+  --s-1: 4px;
+  --s-2: 8px;
+  --s-3: 12px;
+  --s-4: 16px;
+  --s-6: 24px;
+  --s-8: 32px;
+  --s-12: 48px;
+
+  /* --- Type ---
+     Fredoka / Manrope / Space Mono are the real faces. They are NOT
+     linked here: "no network at runtime" is a project rule, so they get
+     self-hosted when we move to Next's font pipeline. Until then these
+     fall through to the platform's nearest equivalent. */
+  --font-display: "Fredoka", ui-rounded, "Segoe UI Variable Display", system-ui, sans-serif;
+  --font-body: "Manrope", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "Space Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+}
+
+/* Dark tokens apply when the OS asks for dark AND the user has not
+   forced light. The :not() is what lets a future toggle win. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper: #1b1224;
+    --paper-2: #241833;
+    --ink: #f5e9ce;
+    --ink-soft: #c9b8a0;
+    --butterscotch: #f2b65a;
+    --grape: #9b7fd4;
+    --mint: #4fcba0;
+    --cherry: #f06b65;
+    --accent: var(--butterscotch); /* plenty of contrast on a dark ground */
+  }
+}
+
+/* Repeated for the explicit toggle so it beats the OS in both directions. */
+:root[data-theme="dark"] {
+  --paper: #1b1224;
+  --paper-2: #241833;
+  --ink: #f5e9ce;
+  --ink-soft: #c9b8a0;
+  --butterscotch: #f2b65a;
+  --grape: #9b7fd4;
+  --mint: #4fcba0;
+  --cherry: #f06b65;
+  --accent: var(--butterscotch);
+}
+
+/* ============================================================
+   2. BASE
+   ============================================================ */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+body,
+h1,
+p {
+  margin: 0;
+}
+
+body {
+  min-height: 100dvh;
+  display: grid;
+  place-items: center;
+  padding: var(--s-4);
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--font-body);
+  font-size: 1rem;
+  line-height: 1.6;
+
+  /* Period names are user input and can be one 60-character word.
+     Without this, a hostile label forces horizontal page scroll and
+     fails the 320px reflow gate. */
+  overflow-wrap: break-word;
+}
+
+:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: var(--r-sm);
+}
+
+/* ============================================================
+   3. THE CARD
+   ============================================================ */
+
+.screen {
+  width: 100%;
+  max-width: 60rem;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-6);
+  padding: clamp(var(--s-4), 4vw, var(--s-8));
+  background: var(--surface);
+  border: var(--border-passive);
+  border-radius: var(--r-lg);
+}
+
+/* ============================================================
+   4. HEADER BAR
+   ============================================================ */
+
+.screen__bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-4);
+}
+
+.screen__schedule {
+  /* An <h1> for document structure, but visually a quiet label - the
+     countdown is what the eye should land on first. */
+  font-family: var(--font-body);
+  font-size: 1.125rem;
+  font-weight: 500;
+  line-height: 1.5;
+  color: var(--fg-soft);
+}
+
+.screen__meta {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+}
+
+.screen__clock {
+  font-family: var(--font-mono);
+  font-size: 0.875rem;
+  color: var(--fg-soft);
+  /* Every digit the same width. Without this the clock visibly jitters
+     as 1s and 8s swap in - the most-missed detail in countdown UIs. */
+  font-variant-numeric: tabular-nums;
+}
+
+.icon-button {
+  /* The Biscuit Lab pressable mechanic: chunky border, hard offset
+     shadow, and the whole thing shifts into its own shadow on press. */
+  display: grid;
+  place-items: center;
+  min-width: 44px; /* 44px is the accessible touch-target floor */
+  min-height: 44px;
+  padding: 0;
+  font-size: 1.125rem;
+  color: var(--fg);
+  background: var(--bg);
+  border: var(--border-interactive);
+  border-radius: var(--r-md);
+  box-shadow: var(--press-shadow);
+  cursor: pointer;
+  transition: transform 90ms ease-out, box-shadow 90ms ease-out;
+}
+
+.icon-button:active {
+  transform: translate(4px, 4px);
+  box-shadow: 0 0 0 0 var(--fg);
+}
+
+/* ============================================================
+   5. THE COUNTDOWN
+   ============================================================ */
+
+.countdown {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--s-2);
+  text-align: center;
+}
+
+.countdown__period {
+  font-family: var(--font-display);
+  font-size: 1.5rem;
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+.countdown__time {
+  font-family: var(--font-display);
+  /* Scales with the viewport because the primary use is "read from
+     across the room", and it is what keeps the layout reflowing at 320px. */
+  font-size: clamp(4rem, 18vw, 11rem);
+  font-weight: 600;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  color: var(--fg);
+}
+
+/* Seconds are secondary information: smaller and quieter than minutes,
+   so the glanceable number is the one that matters. */
+.countdown__colon,
+.countdown__seconds {
+  font-size: 0.55em;
+  color: var(--fg-soft);
+}
+
+.countdown__until {
+  font-size: 1.125rem;
+  font-weight: 500;
+  color: var(--fg-soft);
+}
+
+/* ============================================================
+   6. PROGRESS BAR
+   ============================================================ */
+
+.progress {
+  height: 12px;
+  background: var(--bg);
+  border: var(--border-passive);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.progress__fill {
+  height: 100%;
+  width: 0%; /* JS sets this; 0 is the honest starting value */
+  background: var(--accent);
+  transition: width 300ms linear;
+}
+
+/* ============================================================
+   7. BOUNDS FOOTER
+   ============================================================ */
+
+.bounds {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  grid-template-areas: "start next end";
+  gap: var(--s-1) var(--s-4);
+  align-items: baseline;
+}
+
+.bounds__edge {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  font-weight: 500;
+  line-height: 1;
+  color: var(--fg-soft);
+  font-variant-numeric: tabular-nums;
+}
+
+.bounds__edge--start {
+  grid-area: start;
+}
+
+.bounds__edge--end {
+  grid-area: end;
+  text-align: right;
+}
+
+.bounds__next {
+  grid-area: next;
+  text-align: center;
+  font-size: 0.875rem;
+  color: var(--fg-soft);
+}
+
+/* Below ~480px the three-across row cannot hold the "Next:" sentence,
+   so it gets its own line under the two edge times. */
+@media (max-width: 30rem) {
+  .bounds {
+    grid-template-columns: 1fr 1fr;
+    grid-template-areas:
+      "start end"
+      "next next";
+  }
+}
+
+/* ============================================================
+   8. REDUCED MOTION
+   This app sits open on a projector for six hours. Under a reduced-motion
+   preference every transition becomes an instant state swap.
+   ============================================================ */
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+  }
+}
