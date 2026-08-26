@@ -28,5 +28,21 @@ updates:
     schedule:
       interval: weekly
       day: monday
+    # One PR for the whole set, majors included.
+    #
+    # Ungrouped, the first run opened three separate pull requests that each
+    # edited the same handful of lines in ci.yml, and each one invalidated the
+    # other two the moment it merged. Action bumps also arrive in lockstep -
+    # the three that landed on 2026-08-26 were all the same change underneath,
+    # the runtime moving to Node 24 - so reviewing them apart costs three CI
+    # runs to answer one question.
+    #
+    # Majors are grouped here but NOT in the npm block above, because these are
+    # first-party GitHub actions pinned by major tag: the blast radius of a bad
+    # one is a red CI run, visible immediately and reverted with one commit.
+    groups:
+      github-actions:
+        patterns: ["*"]
+        update-types: [major, minor, patch]
     commit-message:
       prefix: "chore(ci)"
