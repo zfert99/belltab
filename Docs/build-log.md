@@ -284,7 +284,6 @@ until the plain version has taught us the shape.
 | 2026-08-26 | TypeScript is a major version behind on purpose | 6.0.3 rather than 7.0.2, because `typescript-eslint` cannot load under TS 7. This is a real cost — TS 7 is the Go rewrite — and it is deliberate, not neglect. Revisit when typescript-eslint#10940 lands; the upgrade should be a one-line version bump plus a full lint run. |
 | 2026-08-26 | Two apps share `src/` | `src/app/` is the Next scaffold; `src/index.html`, `src/app.js`, `src/store.js`, `src/ui/` and `src/lib/` are still the plain build. They do not collide — Next looks for a directory named `app` and ignores the file `app.js` — but the folder reads as confusing until Phases 1–4 delete the plain half. |
 | 2026-08-26 | `npm run dev` and `npm run serve` both want port 3000 | The Next dev server and the plain build's static server cannot run at once. Harmless while the Next app is an empty page; worth a different port on whichever one loses the argument first. |
-| 2026-08-26 | Branch protection does not yet require `Typecheck` or `Next build` | Two new CI jobs arrived with this change. A required-check list is a GitHub setting and cannot be committed, so it has to be updated by hand once these two have reported once. Until then they run but do not block. |
 | 2026-08-26 | The headers have still never been verified on Vercel | `vercel.json` is gone and the list now lives in `next.config.ts`, verified against a real `next start`. What remains unverified is the deploy itself, and the hub's rewrite in Phase 7 — a second hop that can drop headers. |
 | 2026-08-26 | Only `.period__name` and `.countdown__period` are hardened against intrinsic-width blowout | Those are the two elements that render a period name today. The schedule name (`#schedule-name`) and the editor's own rows are equally user-controlled and have not been measured with a 60-character unbroken value. The reflow suite covers the editor panel, but with the seeded names, not a hostile one. |
 | 2026-08-26 | `README.md` documents the Next.js destination, not the current app | It tells a reader to run `npm run dev` and visit `localhost:3000/bell`. Neither exists: this is the plain HTML/CSS/JS build, served by `npm run serve` at `localhost:3000`. Consistent with the deliberate plain-JS-first detour, but a reader has no way to know that from the README. |
@@ -310,6 +309,7 @@ until the plain version has taught us the shape.
 | 2026-08-26 | 2026-08-26 | The "only live region" test does not test that — the selector now covers the implicit roles too, the three regions are enumerated by id, and `#schedule-error` became polite and idempotent. Review finding 4. |
 | 2026-08-26 | 2026-08-26 | The Day view countdown has no units — a `#day-remaining-units` caption on the summary, and `formatRemaining` on the running row. Review finding 5. |
 | 2026-08-26 | 2026-08-26 | The `<dialog>` fixes were verified against a stub, not a browser — now covered by an `e2e/` Playwright suite running in the installed Chrome. Escape, focus trapping, inertness, Cancel, Delete and the backdrop caveat are all asserted against a real modal. |
+| 2026-08-26 | 2026-08-26 | Branch protection does not require `Typecheck` or `Next build` — added, bringing the required list to seven. |
 | 2026-08-26 | 2026-08-26 | `eslint-plugin-jsx-a11y` is not installed — now installed and running at full `recommended`, not the 6-rule subset `eslint-config-next` ships. |
 | 2026-08-26 | 2026-08-26 | There is no `npm run typecheck` — `tsc --noEmit` on TypeScript 6.0.3, and its own CI job. |
 | 2026-08-26 | 2026-08-26 | `vercel.json` is unverified — deleted. The header list moved into `next.config.ts` `headers()` where AGENTS.md wants it, and was verified against a running `next start` rather than by inspection. |
@@ -1895,3 +1895,21 @@ curl -I /bell       5 of 5 security headers, no X-Powered-By
 TypeScript with a branded `ValidSchedule`. That is the change that finally
 breaks the plain build, because a browser cannot load a `.ts` module directly —
 so its E2E suite retires in the same PR that replaces what it tested.
+
+### 2026-08-26 17:20 — branch protection catches up to the six-job CI
+
+`Typecheck` and `Next build` arrived with the scaffold and ran on PR #12, but a
+required-check list is a GitHub setting rather than a file, so they were green
+without being blocking. Added via
+`gh api -X PATCH .../branches/main/protection/required_status_checks` and read
+back to confirm. The required list is now:
+
+```text
+Lint  Typecheck  Next build  Unit tests  E2E (reflow gate)  npm audit
+Analyze JavaScript
+```
+
+This gap is worth noting as a **recurring** one rather than a one-off: every
+future CI job will land green-but-not-blocking until someone edits a settings
+page. There is no version of this repo where adding a job also enforces it, so
+the two steps have to stay linked by habit.
