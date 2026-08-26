@@ -1,0 +1,28 @@
+{
+  "name": "belltab",
+  "version": "0.1.0",
+  "description": "A school bell schedule countdown that lives in your browser tab.",
+  "scripts": {
+    "test": "vitest run",
+    "watch": "vitest",
+    "serve": "serve src --listen 3000",
+    "lint:md": "markdownlint-cli **/*.md"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/zfert99/belltab.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "MIT",
+  "type": "module",
+  "bugs": {
+    "url": "https://github.com/zfert99/belltab/issues"
+  },
+  "homepage": "https://github.com/zfert99/belltab#readme",
+  "private": "true",
+  "devDependencies": {
+    "jsdom": "^30.0.1",
+    "vitest": "^4.1.11"
+  }
+}
