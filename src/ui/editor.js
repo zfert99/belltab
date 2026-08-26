@@ -43,8 +43,8 @@ export const SETTINGS_PANELS = ["schedules", "calendar", "preferences"];
  * Both glyphs are stand-ins for real inline SVG, as noted in the build log.
  */
 const TOGGLE_STATES = {
-  closed: { glyph: "⚙", label: "Settings" },
-  open: { glyph: "←", label: "Back" },
+  closed: { label: "Settings", showBack: false },
+  open: { label: "Back", showBack: true },
 };
 
 export let settingsOpen = false;
@@ -74,8 +74,17 @@ export function setSettingsOpen(open) {
   document.body.classList.toggle("is-settings", open);
   els.settingsView.hidden = !open;
 
+  // Both icons live in the markup; only their visibility changes. Swapping
+  // innerHTML would work too, but innerHTML is banned in this codebase and an
+  // exception "just for an icon" is how that rule stops being a rule.
+  //
+  // toggleAttribute, NOT `.hidden = `. The hidden IDL property is defined on
+  // HTMLElement and these are SVGElements, so assigning to it sets a useless
+  // expando and no attribute - the icons would simply never swap. The CSS
+  // `[hidden]` rule matches the attribute, so this works for both.
   const toggle = open ? TOGGLE_STATES.open : TOGGLE_STATES.closed;
-  els.settingsToggle.textContent = toggle.glyph;
+  els.iconGear.toggleAttribute("hidden", toggle.showBack);
+  els.iconBack.toggleAttribute("hidden", !toggle.showBack);
   els.settingsToggle.setAttribute("aria-label", toggle.label);
   els.settingsToggle.setAttribute("aria-expanded", String(open));
 
@@ -485,13 +494,43 @@ export function newSchedule() {
   els.scheduleNameInput.select();
 }
 
+/**
+ * Asks before destroying something, using a real <dialog>.
+ *
+ * showModal() supplies focus trapping, Escape-to-close, an inert background,
+ * and dialog semantics - every part a hand-rolled overlay gets wrong. Where it
+ * is unsupported (or in a jsdom test), the fall-through returns true rather
+ * than silently refusing the delete the user asked for.
+ */
+function confirmDelete(name, onConfirm) {
+  const dialog = els.confirmDialog;
+  els.confirmBody.textContent = `"${name}" will be removed, along with any days that use it. This cannot be undone.`;
+
+  if (typeof dialog.showModal !== "function") {
+    onConfirm();
+    return;
+  }
+
+  const handleClose = () => {
+    dialog.removeEventListener("close", handleClose);
+    if (dialog.returnValue === "confirm") onConfirm();
+  };
+
+  dialog.addEventListener("close", handleClose);
+  dialog.returnValue = "cancel";
+  dialog.showModal();
+
+  // Cancel takes focus, not Delete. The dangerous button should never be the
+  // one a stray Enter lands on.
+  dialog.querySelector('button[value="cancel"]')?.focus();
+}
+
 export function deleteSchedule() {
   if (!draft) return;
-  // A native confirm is blunt but honest, and it is keyboard- and
-  // screen-reader-accessible for free. A custom dialog is a focus-trap problem
-  // for another day - noted in the build log.
-  if (!window.confirm(`Delete "${draft.name}"? This cannot be undone.`)) return;
+  confirmDelete(draft.name, applyDelete);
+}
 
+function applyDelete() {
   store.schedules = store.schedules.filter((entry) => entry.id !== draft.id);
   saveSchedules();
 

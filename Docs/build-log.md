@@ -186,24 +186,24 @@ until the plain version has taught us the shape.
 
 | Opened | Item | Notes |
 | --- | --- | --- |
-| 2026-08-26 | `splitCountdown` is ambiguous over an hour | Under 60 min it renders `43:12` (min:sec); over, it flips to `3:38` (hr:min). Identical shape, different units. Needs a unit label, which needs a slot in the markup. Flagged in-code as `KNOWN GAP`. |
 | 2026-08-26 | Fonts are not real | Fredoka / Manrope / Space Mono are named in the CSS stack but nothing loads them — "no network at runtime" rules out Google Fonts. Self-host at the Next port via `next/font`. Currently rendering system fallbacks. |
-| 2026-08-26 | Header button uses `⚙` / `←` characters, not icons | Labeled and functional, but both render differently per platform. Replace with inline SVG. |
 | 2026-08-26 | 12-hour clock has no am/pm | Matches the mockups and is unambiguous for a school day. Revisit if a schedule ever crosses noon ambiguously. |
 | 2026-08-26 | No `clearInterval` anywhere | Harmless for a page that lives until closed. Becomes a timer leak on every remount once this is a React component — needs a `useEffect` cleanup at the port. |
-| 2026-08-26 | `els` is a one-time DOM snapshot | If the DOM is ever rebuilt (the editor will do this), those cached references point at detached nodes and paints silently go nowhere. |
 | 2026-08-26 | The inline theme script needs a CSP hash at the Next port | `AGENTS.md` requires baseline security headers. An inline `<script>` is fine today with no CSP, but becomes a violation the moment one ships. |
-| 2026-08-26 | No period-change announcement for screen readers | The design system permits an `aria-live="polite"` region that fires **only at period boundaries**. Not built. The countdown itself must never become one. |
-| 2026-08-26 | Day view has no "scroll the current period into view" | With eleven periods on a short viewport the current row can sit off-screen when the view is opened. |
 | 2026-08-26 | Overlap errors are attributed by sort order, not edit order | On an exact `startMin` tie the error lands on the row that sorts second, which is usually but not always the row being edited. Fixing it means threading edit state into a pure function. |
-| 2026-08-26 | Deleting a schedule uses `window.confirm` | Blunt, but keyboard- and screen-reader-accessible for free. A custom dialog is a focus-trap problem for later. |
-| 2026-08-26 | `Docs/roadmap.md` status line is stale | It says "The repo has no commits and no remote yet." Both are now false — `origin` is `github.com/zfert99/belltab.git` and `main` has a commit. Left for the user to reword, since the same block carries the open questions about repo name and the `/bell` path. |
-| 2026-08-26 | `src/belltab.code-workspace` is ignored, not committed | Editor-personal file, and `src/` is the wrong home for it either way. `.gitignore` carries `*.code-workspace`; reverse that line if the workspace config is meant to be shared. |
 
 ## Closed
 
 | Opened | Closed | Item |
 | --- | --- | --- |
+| 2026-08-26 | 2026-08-26 | `splitCountdown` ambiguity — the countdown now carries a `min : sec` / `hr : min` label, and `splitCountdown` returns the unit alongside the numbers. |
+| 2026-08-26 | 2026-08-26 | Glyph icons — `⚙`, `←` and `×` replaced with inline SVG. |
+| 2026-08-26 | 2026-08-26 | `els` staleness — no longer reachable: every rebuild uses `replaceChildren()` on a container, so no reference in `dom.js` is ever replaced. The invariant is now documented in the file. |
+| 2026-08-26 | 2026-08-26 | No period-change announcement — added a single `aria-live="polite"` region that fires only at period boundaries and is silent on first paint. |
+| 2026-08-26 | 2026-08-26 | Day view scroll-into-view — the running row is revealed on entry and on each period change, `block: "nearest"`, reduced-motion aware. |
+| 2026-08-26 | 2026-08-26 | `window.confirm` on delete — replaced with a native `<dialog>`; `showModal()` supplies focus trapping, Escape, and an inert background. |
+| 2026-08-26 | 2026-08-26 | `Docs/roadmap.md` status line — rewritten to describe reality, with the phase table explicitly flagged as describing the Next.js destination rather than the current state. |
+| 2026-08-26 | 2026-08-26 | `src/belltab.code-workspace` — decided rather than fixed: editor-personal, stays ignored. |
 | 2026-08-26 | 2026-08-26 | Schedule list view not built — shipped as the day view (mockup 1): day progress bar, eleven period rows, past/current/future states, per-row countdown, and a Now/Day switcher. |
 | 2026-08-26 | 2026-08-26 | Settings: Schedules panel was a placeholder — now a full editor with live validation bound to `parseSchedule`. |
 | 2026-08-26 | 2026-08-26 | Settings: Calendar panel was a placeholder — now the weekday map plus dated exceptions, resolving per day. |
@@ -226,6 +226,29 @@ wrong assertions, not wrong code:
 **Lesson:** a failing assertion is a claim that two things disagree, not proof
 that the code is the wrong one. Both were resolved by computing the expected
 value by hand rather than by editing the engine until it agreed.
+
+### 2026-08-26 — `hidden` is an HTMLElement property, not an SVGElement one
+
+Swapping the header gear for a back arrow was written the obvious way:
+
+```js
+els.iconGear.hidden = toggle.showBack;
+```
+
+That does nothing. The `hidden` IDL attribute is defined on **HTMLElement**,
+and these are **SVGElement**s — the assignment creates a useless expando
+property and sets no attribute at all, so the icons never swapped. No error, no
+warning, and `node --check` has nothing to say about it.
+
+Caught by the jsdom test asserting `$("icon-gear").hidden` was `false` and
+getting `undefined`. Fixed with `toggleAttribute("hidden", …)`, which works on
+any `Element`; the CSS `[hidden]` rule matches the attribute, so it hides both
+kinds.
+
+**Lesson:** the convenience IDL properties (`hidden`, `dataset`, `title`,
+`accessKey`) are HTML-only. On SVG, go through attributes. The test that caught
+it was written to check the icon and the accessible name moved *together* —
+which is why it was looking at the icon at all.
 
 ### 2026-08-26 — a refactor script rewrote code inside string literals
 
@@ -840,3 +863,52 @@ delete-plus-add.
 
 **Verification:** all 115 tests still pass, and every module returns 200 at its
 new URL.
+
+### 2026-08-26 14:25 — closing the open gaps
+
+Eight of thirteen closed. The five left are deliberate deferrals, not oversights
+(see **Open gaps** for each).
+
+**The countdown now says what its units are.** `splitCountdown` returns a
+`unit` alongside the numbers, rendered as a quiet `min : sec` / `hr : min`
+caption. The two modes were visually identical, so `3:38` could have been three
+hours or three minutes — a clock that is ambiguous about its own units is worse
+than one that is merely ugly.
+
+**`⚙`, `←` and `×` are inline SVG.** Both header icons live in the markup and
+only their visibility changes; swapping `innerHTML` would have worked but
+`innerHTML` is banned here, and an exception "just for an icon" is how that
+rule stops being a rule.
+
+**One `aria-live="polite"` region, firing only at period boundaries.** The
+design system permits exactly this and forbids ever wrapping the countdown or
+the title in one. It is silent on first paint — describing the current period
+the instant the page loads is noise, not news — and it lives *outside* the
+paused branch of `tick`, because the bell still rings while settings is open
+and that is when a screen-reader user most needs telling.
+
+**The Day view reveals the running row** on entry and at each period change,
+`block: "nearest"` so a row already on screen is left alone, and reduced-motion
+aware. Guarded by a feature check, because jsdom implements no scrolling at all.
+
+**`window.confirm` replaced with a native `<dialog>`.** `showModal()` supplies
+focus trapping, Escape-to-close, an inert background, and dialog semantics —
+every part a hand-rolled overlay gets wrong. Cancel takes focus, not Delete: the
+dangerous button should never be the one a stray Enter lands on. Where
+`showModal` is unsupported the code proceeds rather than silently refusing the
+delete the user asked for.
+
+**The `els` staleness gap was closed by checking rather than fixing.** Every
+rebuild in the app is `replaceChildren()` on a container, which replaces
+children and not the container — so no reference in `dom.js` is ever
+invalidated. Nothing needed changing; the invariant is now written down in the
+file so it stays true.
+
+**`Docs/roadmap.md` status rewritten** to describe reality, with the phase table
+explicitly flagged as describing the Next.js destination rather than the current
+state. The open questions in that block were left alone — they are the user's.
+
+**Verification:** 120 tests (5 new). The new ones assert that the announcer is
+the *only* live region on the page and that neither the countdown nor the period
+name sits inside one — the rule is easy to break later with a well-meaning
+addition, and cheap to guard now.

@@ -35,13 +35,17 @@ export function formatDuration(totalMinutes) {
 }
 
 /**
- * Splits a duration into the two numbers the display shows.
+ * Splits a duration into the two numbers the display shows, and says what they
+ * mean.
  *
- * Under an hour that is minutes and seconds ("43:12"). Over an hour it
- * becomes hours and minutes ("3:38"), because "218:12" is unreadable.
+ * Under an hour that is minutes and seconds ("43:12"). Over an hour it becomes
+ * hours and minutes ("3:38"), because "218:12" is unreadable.
  *
- * KNOWN GAP: the two modes look identical, so "3:38" is ambiguous on its own.
- * It needs a unit label next to it - revisit when the markup gains a slot.
+ * The `unit` is not decoration. The two modes render identically, so "3:38"
+ * alone could be three hours or three minutes - a countdown that is ambiguous
+ * about its own units is worse than one that is merely ugly. Callers that show
+ * the number in a context where the scale is already obvious (a period row
+ * that says "55m" beside it) are free to ignore it.
  */
 export function splitCountdown(totalSeconds) {
   const safeSeconds = Math.max(0, Math.floor(totalSeconds));
@@ -50,12 +54,14 @@ export function splitCountdown(totalSeconds) {
     return {
       major: String(Math.floor(safeSeconds / 3600)),
       minor: String(Math.floor((safeSeconds % 3600) / 60)).padStart(2, "0"),
+      unit: "hr : min",
     };
   }
 
   return {
     major: String(Math.floor(safeSeconds / 60)),
     minor: String(safeSeconds % 60).padStart(2, "0"),
+    unit: "min : sec",
   };
 }
 

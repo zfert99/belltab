@@ -96,19 +96,33 @@ describe("view switching", () => {
 });
 
 describe("settings", () => {
-  it("opens, swaps the header glyph and its label, and closes", () => {
+  // The icon and the accessible name have to move together. A back arrow that
+  // still announces "Settings" is the exact mismatch these assertions exist to
+  // prevent, so they are checked in the same breath rather than separately.
+  it("opens, swaps the header icon and its label together, and closes", () => {
     const toggle = $("settings-toggle");
+    const gearHidden = () => $("icon-gear").hasAttribute("hidden");
+    const backHidden = () => $("icon-back").hasAttribute("hidden");
+
+    // hasAttribute, not `.hidden`: these are SVGElements, and the hidden IDL
+    // property is only defined on HTMLElement. Reading `.hidden` here returns
+    // undefined, which is how the swap was broken and this caught it.
     expect(toggle.getAttribute("aria-label")).toBe("Settings");
+    expect(gearHidden()).toBe(false);
+    expect(backHidden()).toBe(true);
 
     toggle.click();
     expect($("settings-view").hidden).toBe(false);
     expect(toggle.getAttribute("aria-expanded")).toBe("true");
     expect(toggle.getAttribute("aria-label")).toBe("Back");
-    expect(toggle.textContent.trim()).toBe("←");
+    expect(gearHidden()).toBe(true);
+    expect(backHidden()).toBe(false);
 
     toggle.click();
     expect($("settings-view").hidden).toBe(true);
     expect(toggle.getAttribute("aria-label")).toBe("Settings");
+    expect(gearHidden()).toBe(false);
+    expect(backHidden()).toBe(true);
   });
 
   it("shows one panel at a time", () => {
@@ -127,6 +141,34 @@ describe("settings", () => {
   it("renders the weekday map with all seven days", () => {
     $("tab-calendar").click();
     expect($("weekday-map").children.length).toBe(7);
+  });
+});
+
+describe("the countdown says what its units are", () => {
+  it("labels the number, because 3:38 could be hours or minutes", () => {
+    const units = $("countdown-units").textContent;
+    expect(["min : sec", "hr : min"]).toContain(units);
+  });
+});
+
+describe("the screen-reader announcement", () => {
+  // The countdown itself must never be a live region - it would be read aloud
+  // once a second. This is the only aria-live in the app, and it must be silent
+  // on load rather than describing a period nobody just walked into.
+  it("exists, is polite, and says nothing on first paint", () => {
+    const announcer = $("period-announcer");
+    expect(announcer.getAttribute("aria-live")).toBe("polite");
+    expect(announcer.textContent).toBe("");
+  });
+
+  it("is the only live region on the page", () => {
+    expect(document.querySelectorAll("[aria-live]")).toHaveLength(1);
+  });
+
+  it("never wraps the countdown or the period name", () => {
+    for (const id of ["countdown-minutes", "countdown-seconds", "period-name", "wall-clock"]) {
+      expect($(id).closest("[aria-live]")).toBeNull();
+    }
   });
 });
 

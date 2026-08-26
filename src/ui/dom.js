@@ -5,8 +5,16 @@
  * header clock should be reading the same reference, and getElementById
  * scattered across four files is four places to forget when an id changes.
  *
- * This is a snapshot. Anything that replaces these nodes wholesale has to
- * refresh what it holds - see rebuildViews in views.js.
+ * This is a snapshot, which is only safe because of one invariant the whole
+ * codebase keeps: **nothing here is ever replaced, only its children are.**
+ * Every rebuild in the app goes through `replaceChildren()` on a container
+ * listed below, so these references stay live forever.
+ *
+ * Break that - a `replaceWith`, a `remove()`, an `innerHTML` on one of these -
+ * and the reference silently points at a detached node. Paints then go
+ * nowhere, with no error: the worst kind of failure for a clock. If you ever
+ * need to replace one of these elements, re-query it here rather than
+ * assuming.
  */
 
 export const els = {
@@ -17,6 +25,8 @@ export const els = {
   periodName: document.getElementById("period-name"),
   minutes: document.getElementById("countdown-minutes"),
   seconds: document.getElementById("countdown-seconds"),
+  countdownUnits: document.getElementById("countdown-units"),
+  announcer: document.getElementById("period-announcer"),
   strip: document.getElementById("strip"),
   stripTemplate: document.getElementById("strip-cell"),
   dayStart: document.getElementById("day-start"),
@@ -38,6 +48,8 @@ export const els = {
   bigExit: document.getElementById("big-exit"),
 
   settingsToggle: document.getElementById("settings-toggle"),
+  iconGear: document.getElementById("icon-gear"),
+  iconBack: document.getElementById("icon-back"),
   settingsView: document.getElementById("settings-view"),
   settingsTabs: {
     schedules: document.getElementById("tab-schedules"),
@@ -62,6 +74,9 @@ export const els = {
   periodAdd: document.getElementById("period-add"),
   scheduleError: document.getElementById("schedule-error"),
   editRowTemplate: document.getElementById("period-edit-row"),
+  confirmDialog: document.getElementById("confirm-dialog"),
+  confirmBody: document.getElementById("confirm-body"),
+  confirmOk: document.getElementById("confirm-ok"),
 
   calendarToday: document.getElementById("calendar-today"),
   weekdayMap: document.getElementById("weekday-map"),

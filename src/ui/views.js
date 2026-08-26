@@ -28,6 +28,65 @@ export function setViewsPaused(value) {
   paused = value;
 }
 
+/**
+ * What the announcer last said, and which row the Day view last scrolled to.
+ *
+ * Both exist so their effect fires on a CHANGE rather than on every tick. An
+ * announcement repeated once a second would make a screen reader unusable, and
+ * a scrollIntoView every second would fight the user for control of the page.
+ */
+let lastAnnounced = null;
+let lastScrolledTo = null;
+
+/**
+ * Announces the period change, and only the period change.
+ *
+ * This is the app's one live region. The countdown itself must never become
+ * one: a per-second aria-live would read the number aloud sixty times a
+ * minute. The tab title is not an accessible surface either - changing
+ * document.title announces nothing - so for a screen-reader user this is how
+ * the bell rings.
+ */
+function announce(state) {
+  const label =
+    state.phase === "during"
+      ? state.current.name
+      : (NO_PERIOD_NAME[state.phase] ?? "No schedule");
+
+  if (label === lastAnnounced) return;
+
+  // Skipped on the very first paint: describing the current period the instant
+  // the page loads is noise, not news.
+  if (lastAnnounced !== null) {
+    els.announcer.textContent =
+      state.phase === "during" ? `${label} has started.` : `${label}.`;
+  }
+
+  lastAnnounced = label;
+}
+
+/**
+ * Keeps the running period visible in the Day view.
+ *
+ * With eleven periods on a short viewport the current row can sit well below
+ * the fold. `block: "nearest"` scrolls only if it actually needs to, so a row
+ * already on screen is left where it is.
+ */
+function revealCurrentRow() {
+  const current = periodRows.find(({ row }) => row.classList.contains("period--current"));
+  if (!current || current.row === lastScrolledTo) return;
+
+  lastScrolledTo = current.row;
+
+  // Feature-detected because jsdom does not implement scrolling at all. It is
+  // a convenience either way - the row is correct whether or not it is on
+  // screen - so an environment without it loses nothing that matters.
+  if (typeof current.row.scrollIntoView !== "function") return;
+
+  const reducedMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+  current.row.scrollIntoView({ block: "nearest", behavior: reducedMotion ? "auto" : "smooth" });
+}
+
 /** The period-name line when no period is running. */
 const NO_PERIOD_NAME = {
   before: "Before school",
@@ -153,6 +212,7 @@ export function rebuildViews() {
   // The old period objects are gone; a stale hover would caption a period that
   // no longer exists in this schedule.
   hoveredPeriod = null;
+  lastScrolledTo = null;
 
   stripCells = buildStripCells();
   periodRows = buildPeriodRows();
@@ -181,9 +241,10 @@ export function paintStaticTimes() {
 }
 
 function paintFocus(state, nowSec) {
-  const { major, minor } = splitCountdown(state.remainingSec);
+  const { major, minor, unit } = splitCountdown(state.remainingSec);
   els.minutes.textContent = major;
   els.seconds.textContent = minor;
+  els.countdownUnits.textContent = unit;
 
   els.periodName.textContent =
     state.phase === "during" ? state.current.name : NO_PERIOD_NAME[state.phase];
@@ -292,6 +353,10 @@ export function setView(view) {
   document.body.classList.toggle("is-big", showBig);
   els.bigExit.hidden = !showBig;
 
+  // Scrolling a hidden element does nothing, so arriving at the Day view has
+  // to count as a change even when the current period has not moved.
+  if (showDay) lastScrolledTo = null;
+
   // aria-pressed is both the accessible state and the CSS hook - the stylesheet
   // selects on [aria-pressed="true"], so there is only one source of truth.
   els.viewNow.setAttribute("aria-pressed", String(activeView === "now"));
@@ -379,9 +444,14 @@ export function tick() {
     /* nothing to paint */
   } else if (activeView === "day") {
     paintDay(nowSec);
+    revealCurrentRow();
   } else {
     paintFocus(state, nowSec);
   }
+
+  // Outside the paused branch on purpose: the bell still rings while settings
+  // is open, and that is exactly when a screen-reader user most needs telling.
+  announce(state);
 
   // Minute resolution: the tab title only needs to change 60x less often than
   // the display, and rewriting it every second is wasted work. Derived from

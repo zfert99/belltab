@@ -68,23 +68,34 @@ describe("formatDuration", () => {
 
 describe("splitCountdown", () => {
   it("shows minutes and seconds under an hour", () => {
-    expect(splitCountdown(43 * 60 + 12)).toEqual({ major: "43", minor: "12" });
-    expect(splitCountdown(61)).toEqual({ major: "1", minor: "01" });
+    expect(splitCountdown(43 * 60 + 12)).toEqual({ major: "43", minor: "12", unit: "min : sec" });
+    expect(splitCountdown(61)).toEqual({ major: "1", minor: "01", unit: "min : sec" });
   });
 
   // "218:12" is unreadable, so past an hour it flips to hours and minutes.
-  // The two modes look identical, which is a known gap - see the build log.
   it("shows hours and minutes over an hour", () => {
-    expect(splitCountdown(3600)).toEqual({ major: "1", minor: "00" });
-    expect(splitCountdown(2 * 3600 + 38 * 60)).toEqual({ major: "2", minor: "38" });
+    expect(splitCountdown(3600)).toEqual({ major: "1", minor: "00", unit: "hr : min" });
+    expect(splitCountdown(2 * 3600 + 38 * 60)).toEqual({
+      major: "2",
+      minor: "38",
+      unit: "hr : min",
+    });
+  });
+
+  // The two modes render identically, so "3:38" alone could be three hours or
+  // three minutes. The unit is what stops the clock being ambiguous about
+  // itself, and it has to flip at exactly the same boundary as the numbers.
+  it("names its own units, and switches them at the hour", () => {
+    expect(splitCountdown(3599).unit).toBe("min : sec");
+    expect(splitCountdown(3600).unit).toBe("hr : min");
   });
 
   it("clamps negatives rather than rendering them", () => {
-    expect(splitCountdown(-90)).toEqual({ major: "0", minor: "00" });
+    expect(splitCountdown(-90)).toEqual({ major: "0", minor: "00", unit: "min : sec" });
   });
 
   it("floors fractional seconds", () => {
-    expect(splitCountdown(59.9)).toEqual({ major: "0", minor: "59" });
+    expect(splitCountdown(59.9)).toEqual({ major: "0", minor: "59", unit: "min : sec" });
   });
 });
 
