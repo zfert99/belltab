@@ -1,0 +1,8 @@
+# Keeps a local `npx markdownlint-cli "**/*.md"` matching what CI actually lints.
+# Without this, local runs drown in errors from generated files that CI (a fresh checkout) never
+# sees — which reads as "the docs are broken" when they aren't.
+node_modules/
+
+# Playwright failure artifacts. Generated, gitignored, and not prose.
+test-results/
+playwright-report/
