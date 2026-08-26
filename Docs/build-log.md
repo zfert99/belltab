@@ -68,12 +68,52 @@ load modules over `file://` because there is no content type without HTTP.
 | 2026-08-26 | Every DOM write is `textContent`; `innerHTML` banned in this codebase | Period names will arrive from share links, i.e. from strangers. `innerHTML` here is an XSS hole triggered by sending someone a URL. |
 | 2026-08-26 | Pure engine kept inside `app.js` for now, clearly sectioned | Readable in one sitting while learning. The friction of testing it (see 11:15 entry) is the signal for when to extract. |
 | 2026-08-26 | This log is maintained per-change, and the rule lives in `AGENTS.md` | A convention that exists only in conversation dies with the session. Encoded as a checked-in rule so it survives context loss and applies to anyone working the repo. |
+| 2026-08-26 | **Overlapping periods stay blocked.** The `AGENTS.md` invariant is upheld; the editor mockup's warn-and-allow banner is not built | Allowing overlap means answering "which of two simultaneous periods does the big number count down" — a product question with no obvious answer, for a capability the plan explicitly disclaims. Cost accepted: BellTab cannot represent concurrent lunches. |
+| 2026-08-26 | The header gear becomes a back arrow inside settings, and its accessible name changes with it | An icon-only button whose glyph says "back" while its label still says "Settings" is precisely the mismatch that makes icon buttons hostile to anyone not looking at the screen. |
 
 ---
 
 ## Deviations from the plan docs
 
 Recorded so they get folded back in rather than quietly diverging.
+
+### Overlapping periods — RESOLVED 2026-08-26, invariant upheld
+
+**Resolution (2026-08-26 12:58):** overlaps stay **blocked**. The `AGENTS.md`
+invariant is upheld and the mockup's warn-and-allow banner is not built. The
+editor blocks at input time and names the colliding period, per the design
+system. The Schedules editor is no longer blocked by this.
+
+What this costs: BellTab cannot represent a school with genuinely concurrent
+lunches. That is the stated non-goal, accepted knowingly rather than by
+oversight. Reversing it later means deciding which of two simultaneous periods
+the countdown counts down and what the strip shows — the analysis below stands
+as the record of that cost.
+
+The original entry follows, superseded but kept, because deleting it would
+delete the reason the current answer exists.
+
+#### Original entry — the conflict as first raised
+
+`AGENTS.md` states as a domain invariant:
+
+> **Periods within a schedule may not overlap.** This is a deliberate product
+> decision, not an oversight. […] real schools run concurrent lunches and […] a
+> general tool would need to allow classified overlaps; **BellTab is not that
+> tool.**
+
+The editor mockup supplied on 2026-08-26 shows a **warn-and-allow** banner —
+*"A Lunch overlaps Period 4 — keep if these run at the same time"* — which is
+exactly the classified-overlap tool the invariant rules out.
+
+**Why it is not a small change.** `stateAt` returns *the* current period and
+stops at the first match; `periodStatusAt` assumes one answer; the strip assumes
+one cell is current; and a check in the suite asserts no second of the day ever
+has two current periods. Allowing overlap means deciding which of two
+simultaneous periods the big number counts down, and what the strip shows.
+
+**Status:** ~~raised with the user, not yet decided~~ — superseded by the
+resolution above.
 
 ### Countdown color vs. the design system
 
@@ -104,11 +144,14 @@ until the plain version has taught us the shape.
 | --- | --- | --- |
 | 2026-08-26 | `splitCountdown` is ambiguous over an hour | Under 60 min it renders `43:12` (min:sec); over, it flips to `3:38` (hr:min). Identical shape, different units. Needs a unit label, which needs a slot in the markup. Flagged in-code as `KNOWN GAP`. |
 | 2026-08-26 | Fonts are not real | Fredoka / Manrope / Space Mono are named in the CSS stack but nothing loads them — "no network at runtime" rules out Google Fonts. Self-host at the Next port via `next/font`. Currently rendering system fallbacks. |
-| 2026-08-26 | Edit button is a `⚙` character, not an icon | Labeled and functional, but renders differently per platform. Replace with inline SVG. |
+| 2026-08-26 | Header button uses `⚙` / `←` characters, not icons | Labeled and functional, but both render differently per platform. Replace with inline SVG. |
 | 2026-08-26 | Pure engine not extracted; no test runner | Verified by hand-copying functions into a scratch file. Needs `src/engine.js` + Vitest. |
 | 2026-08-26 | 12-hour clock has no am/pm | Matches the mockups and is unambiguous for a school day. Revisit if a schedule ever crosses noon ambiguously. |
 | 2026-08-26 | No `clearInterval` anywhere | Harmless for a page that lives until closed. Becomes a timer leak on every remount once this is a React component — needs a `useEffect` cleanup at the port. |
 | 2026-08-26 | `els` is a one-time DOM snapshot | If the DOM is ever rebuilt (the editor will do this), those cached references point at detached nodes and paints silently go nowhere. |
+| 2026-08-26 | Settings: Schedules panel is a placeholder | No longer blocked — the overlap question is settled. Next thing to build. |
+| 2026-08-26 | Settings: Calendar panel is a placeholder | Weekday default map plus date overrides. Roadmap Phase 4. |
+| 2026-08-26 | The inline theme script needs a CSP hash at the Next port | `AGENTS.md` requires baseline security headers. An inline `<script>` is fine today with no CSP, but becomes a violation the moment one ships. |
 | 2026-08-26 | No period-change announcement for screen readers | The design system permits an `aria-live="polite"` region that fires **only at period boundaries**. Not built. The countdown itself must never become one. |
 | 2026-08-26 | Day view has no "scroll the current period into view" | With eleven periods on a short viewport the current row can sit off-screen when the view is opened. |
 | 2026-08-26 | `Docs/roadmap.md` status line is stale | It says "The repo has no commits and no remote yet." Both are now false — `origin` is `github.com/zfert99/belltab.git` and `main` has a commit. Left for the user to reword, since the same block carries the open questions about repo name and the `/bell` path. |
@@ -433,3 +476,98 @@ past-period collapse. The Now view's old `paintFocus` targets are gone.
 one matters here specifically — this change deleted five elements the previous
 `app.js` depended on, and a missed one would have been a null-reference crash on
 load rather than a visible mistake.
+
+### 2026-08-26 12:34 — big mode (the projector view)
+
+A third entry in the view switcher, but **not** a third set of markup: big mode
+is the Now view with `is-big` on `<body>`. One painter, one strip, nothing that
+can drift out of sync with the small version. The CSS is entirely "make it
+bigger" or "take it away".
+
+- **Sized against both axes.** `clamp(4rem, min(26vw, 30vh), 26rem)` — a
+  vw-only clamp pushes the number off the top and bottom of a wide, short
+  projector surface.
+- **The wall clock survives the strip-down**; the schedule name, edit button,
+  bounds footer, and switcher do not. A clock on a classroom projector earns
+  its space; authoring chrome does not read at ten feet.
+- **Fullscreen is an enhancement, never a requirement.** Feature-detected and
+  every promise caught: the request is denied outright inside a
+  permissions-restricted iframe, and the API is absent on iOS Safari for
+  anything but `<video>`. Big mode is pure CSS, so a rejected fullscreen leaves
+  it working rather than half-on.
+- **`fullscreenchange` drops big mode** when fullscreen ends by any other route
+  (F11, the browser's own Escape, the OS), so the page is never left stretched
+  with no fullscreen and no explanation.
+- **Escape is handled ourselves too**, because a denied or unsupported
+  fullscreen leaves big mode running as plain CSS with no browser-level exit.
+- **Focus is moved deliberately.** The switcher is `display: none` in big mode,
+  so the button the user just clicked vanishes and focus would fall to `<body>`.
+  `enterBig` hands focus to the exit button; `leaveBig` hands it back to the Big
+  button.
+- **The exit control dims with a color token, not opacity.** An opacity fade
+  would have taken the label below the contrast floor while it was still the
+  only way out of the mode.
+
+**Verification:** id cross-check (23/23, none missing, none orphaned) and
+`node --check` on both scripts. The engine was untouched, so the existing 56
+checks still describe it.
+
+### 2026-08-26 12:47 — settings, and Preferences
+
+Settings opens from the header gear as a mode (like big mode), not a view:
+`settingsOpen` is separate from `activeView`, so closing settings restores
+whichever live view was showing. Three sections — Schedules, Calendar,
+Preferences — of which only Preferences is built. The other two ship as honest
+"not built yet" panels rather than non-functional UI; the Schedules panel names
+the overlap decision as its blocker.
+
+**Theme (system / light / dark).** "System" *removes* `data-theme` rather than
+writing a value, so the stylesheet falls through to its `prefers-color-scheme`
+block and keeps following the OS live — including when the user flips it with
+the tab open. Writing `data-theme="light"` for "system" would freeze it at
+whatever the OS said once.
+
+**A render-blocking inline script in `<head>`** reads the stored theme before
+first paint. This is the one inline script in the app and it earns its place:
+`app.js` is a module, therefore deferred until after parsing, by which time the
+page has already painted in the system theme. Without it, a user who chose light
+on a dark-mode machine gets a dark flash on every single load. Noted for the
+Next port — this is exactly the problem `next-themes` exists to solve, and CSP
+will need a hash or nonce for it.
+
+**12/24-hour is a parameter, not a module global.** `formatClock(minutes,
+{ hour12 })` — a formatter that consults hidden state is a formatter you cannot
+test. 24-hour pads the hour (`09:05`), 12-hour does not (`9:05`); that is the
+convention in each, not an inconsistency.
+
+**`paintStaticTimes()` is a new third category.** Times fixed by the schedule
+(row start times, day bounds) are not per-tick work, but they are not
+write-once either — switching to 24-hour has to rewrite all of them. Previously
+they were written inside `buildPeriodRows`, which would have left them stale
+after a preference change.
+
+**Verification:** 22 new checks. Beyond the obvious conversions: all 1440
+minutes of the day agree between the two formats on the minute component, and
+24-hour output is always exactly 5 characters (so switching format cannot shift
+the layout). Existing 56 checks still pass — `formatClock` with no options
+still returns 12-hour, so nothing regressed.
+
+### 2026-08-26 12:58 — overlap decision, and the header back button
+
+**Overlaps stay blocked.** See the resolution under **Deviations**. The
+`AGENTS.md` invariant is upheld, the editor mockup's warn-and-allow banner is
+not built, and the Schedules panel copy now states the actual behaviour
+("blocked at input time, naming the period they collide with") rather than
+naming a blocker that no longer exists. No engine change was needed, which is
+the point — `stateAt` returning exactly one current period stays true, and the
+check asserting no second of the day has two current periods stays meaningful.
+
+**The header gear becomes a back arrow inside settings.** One control, two
+jobs, and the glyph and the accessible name change *together* — a back arrow
+that still announces itself as "Settings" is exactly the mismatch that makes
+icon-only buttons hostile to anyone not looking at the screen. `aria-expanded`
+rides on top of both, because the settings region genuinely is a disclosure.
+
+The initial state stays in the HTML rather than being written by JS at startup:
+the markup has to say something before the module runs, and duplicating it in
+`setSettingsOpen` would mean two owners of the same fact for no gain.

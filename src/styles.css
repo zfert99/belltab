@@ -650,3 +650,257 @@ body {
 .disclosure[aria-expanded="true"] .disclosure__marker::before {
   transform: rotate(90deg);
 }
+
+/* ============================================================
+   14. BIG MODE (the projector)
+
+   Not a separate view - a presentation mode laid over the Now view, so both
+   paint from the same code and cannot drift apart. Everything here is either
+   "make it bigger" or "take it away".
+
+   Sized against BOTH axes: min(26vw, 30vh) means a wide, short projector
+   surface does not push the number off the top and bottom of the screen the
+   way a vw-only clamp would.
+   ============================================================ */
+
+body.is-big {
+  padding: 0;
+}
+
+.is-big .screen {
+  max-width: none;
+  min-height: 100dvh;
+  justify-content: center;
+  gap: clamp(var(--s-4), 3vw, var(--s-12));
+  padding: clamp(var(--s-4), 3vw, var(--s-8));
+  /* Full bleed on the page background rather than the card surface: the
+     darkest available ground is the one that reads from the back of a room. */
+  background: var(--bg);
+  border: 0;
+  border-radius: 0;
+}
+
+/* The schedule name and the edit button are authoring chrome, useless at ten
+   feet. The wall clock stays - a clock on a classroom projector earns its
+   space - and the bounds footer goes because the strip already says it. */
+.is-big .screen__schedule,
+.is-big .icon-button,
+.is-big .bounds,
+.is-big .viewswitch {
+  display: none;
+}
+
+.is-big .screen__bar {
+  justify-content: flex-end;
+}
+
+.is-big .screen__clock {
+  font-size: clamp(1rem, 2.5vw, 1.75rem);
+}
+
+.is-big .countdown__period {
+  font-size: clamp(1.75rem, 6vw, 5rem);
+}
+
+.is-big .countdown__time {
+  font-size: clamp(4rem, min(26vw, 30vh), 26rem);
+}
+
+.is-big .strip {
+  gap: var(--s-2);
+}
+
+.is-big .strip__cell--block {
+  max-width: 96px;
+  border-width: 2px;
+}
+
+.is-big .strip__cell--link {
+  flex-basis: 48px;
+  height: 6px;
+}
+
+/* Quiet, not invisible. An opacity fade would have taken the label below the
+   contrast floor while it was still the only way out of the mode, so this
+   dims with a token that still passes and gains a surface on interaction. */
+.bigexit {
+  position: fixed;
+  bottom: var(--s-4);
+  left: 50%;
+  transform: translateX(-50%);
+  min-height: 44px;
+  padding: 0 var(--s-4);
+  font-family: var(--font-body);
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--fg-soft);
+  background: transparent;
+  border: 1.5px solid transparent;
+  border-radius: var(--r-md);
+  cursor: pointer;
+  transition: color 150ms ease-out, background-color 150ms ease-out;
+}
+
+.bigexit:hover,
+.bigexit:focus-visible {
+  color: var(--fg);
+  background: var(--surface);
+  border-color: var(--line);
+}
+
+/* ============================================================
+   15. SETTINGS
+   ============================================================ */
+
+.settings {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-6);
+}
+
+/* The live views and the view switcher step aside while settings is open -
+   there is nothing to switch between when no clock is on screen. */
+body.is-settings .viewswitch {
+  display: none;
+}
+
+.settings__layout {
+  display: grid;
+  grid-template-columns: minmax(9rem, 13rem) 1fr;
+  gap: var(--s-8);
+}
+
+.settings__nav {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-1);
+}
+
+.settings__navlabel {
+  margin: 0 0 var(--s-2);
+  font-size: 0.875rem;
+  color: var(--fg-soft);
+}
+
+.settings__tab {
+  min-height: 44px;
+  padding: 0 var(--s-3);
+  font-family: var(--font-body);
+  font-size: 1rem;
+  font-weight: 500;
+  color: var(--fg-soft);
+  text-align: left;
+  background: none;
+  border: 0;
+  border-radius: var(--r-md);
+  cursor: pointer;
+}
+
+.settings__tab:hover {
+  color: var(--fg);
+}
+
+.settings__tab[aria-pressed="true"] {
+  color: var(--fg);
+  font-weight: 600;
+  background: var(--bg);
+}
+
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+}
+
+.panel__title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 1.5rem;
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+.panel__note {
+  max-width: 52ch;
+  font-size: 0.9375rem;
+  color: var(--fg-soft);
+}
+
+/* --- Form fields --- */
+
+.field {
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.field__legend {
+  padding: 0;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--fg);
+}
+
+.field__hint {
+  max-width: 52ch;
+  margin: var(--s-1) 0 var(--s-2);
+  font-size: 0.875rem;
+  color: var(--fg-soft);
+}
+
+.field__options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-2);
+}
+
+.option {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  min-height: 44px;
+  padding: 0 var(--s-3);
+  font-size: 0.9375rem;
+  border: var(--border-passive);
+  border-radius: var(--r-md);
+  cursor: pointer;
+}
+
+.option:hover {
+  border-color: var(--fg);
+}
+
+/* The native radio is kept visible rather than hidden behind a custom control:
+   it carries the checked state, the focus ring, and arrow-key navigation for
+   free. accent-color tints it without giving any of that up. */
+.option input {
+  width: 1.125rem;
+  height: 1.125rem;
+  margin: 0;
+  accent-color: var(--grape);
+}
+
+/* Progressive enhancement: :has() is Baseline but not ancient, and where it is
+   missing the radio dot still shows which option is chosen. Nothing is lost
+   but the tint. */
+.option:has(input:checked) {
+  border-color: var(--grape);
+  background: var(--bg);
+}
+
+@media (max-width: 40rem) {
+  .settings__layout {
+    grid-template-columns: 1fr;
+    gap: var(--s-4);
+  }
+
+  .settings__nav {
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+
+  .settings__navlabel {
+    flex-basis: 100%;
+    margin: 0;
+  }
+}

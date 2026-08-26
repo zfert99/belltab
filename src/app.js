@@ -136,12 +136,24 @@ export function blockPositionAt(schedule, nowSec) {
   return { index: started, total: blocks.length };
 }
 
-/** Minutes since midnight to a wall-clock label: 545 -> "9:05". */
-export function formatClock(totalMinutes) {
+/**
+ * Minutes since midnight to a wall-clock label: 545 -> "9:05" or "09:05".
+ *
+ * The 12/24 choice is a PARAMETER, not a module-level setting read from
+ * inside. A preference consulted internally would make this function's output
+ * depend on hidden state, which is exactly what makes a formatter untestable.
+ *
+ * 24-hour pads the hour ("09:05"), 12-hour does not ("9:05") - that is the
+ * convention in each, not an inconsistency.
+ */
+export function formatClock(totalMinutes, { hour12 = true } = {}) {
   const hours24 = Math.floor(totalMinutes / 60) % 24;
-  const minutes = totalMinutes % 60;
+  const minutes = String(totalMinutes % 60).padStart(2, "0");
+
+  if (!hour12) return `${String(hours24).padStart(2, "0")}:${minutes}`;
+
   const hours12 = hours24 % 12 === 0 ? 12 : hours24 % 12;
-  return `${hours12}:${String(minutes).padStart(2, "0")}`;
+  return `${hours12}:${minutes}`;
 }
 
 /** A period's length, for the list: 55 -> "55m", 90 -> "1h 30m". */
@@ -188,8 +200,8 @@ export function formatDayCaption(day, position) {
 }
 
 /** One period, spelled out: "Period 3 - 10:10 to 11:05". */
-export function formatPeriodLabel(period) {
-  return `${period.name} · ${formatClock(period.startMin)}–${formatClock(period.endMin)}`;
+export function formatPeriodLabel(period, options) {
+  return `${period.name} · ${formatClock(period.startMin, options)}–${formatClock(period.endMin, options)}`;
 }
 
 /** The tab title: number first, so it survives truncation to a few characters. */
@@ -232,7 +244,68 @@ const els = {
 
   viewNow: document.getElementById("view-now"),
   viewDay: document.getElementById("view-day"),
+  viewBig: document.getElementById("view-big"),
+  bigExit: document.getElementById("big-exit"),
+
+  settingsToggle: document.getElementById("settings-toggle"),
+  settingsView: document.getElementById("settings-view"),
+  settingsTabs: {
+    schedules: document.getElementById("tab-schedules"),
+    calendar: document.getElementById("tab-calendar"),
+    preferences: document.getElementById("tab-preferences"),
+  },
+  settingsPanels: {
+    schedules: document.getElementById("panel-schedules"),
+    calendar: document.getElementById("panel-calendar"),
+    preferences: document.getElementById("panel-preferences"),
+  },
 };
+
+/* ---------- Preferences ---------- */
+
+const THEME_KEY = "belltab:theme";
+const CLOCK_KEY = "belltab:clock";
+const THEMES = ["system", "light", "dark"];
+
+/**
+ * Reads one stored preference, and validates it in the same breath.
+ *
+ * The value that comes back is always one of `allowed`, so nothing downstream
+ * ever re-checks it - parse, don't validate, in miniature. The try/catch is
+ * required, not defensive: localStorage throws outright when a browser is set
+ * to block site data.
+ */
+function readStoredChoice(key, allowed, fallback) {
+  try {
+    const stored = localStorage.getItem(key);
+    return allowed.includes(stored) ? stored : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+function writeStoredChoice(key, value) {
+  try {
+    localStorage.setItem(key, value);
+  } catch {
+    // Not being able to remember a preference is not a reason to refuse it.
+  }
+}
+
+const prefs = {
+  theme: readStoredChoice(THEME_KEY, THEMES, "system"),
+  hour12: readStoredChoice(CLOCK_KEY, ["12", "24"], "12") === "12",
+};
+
+/**
+ * "system" means *remove* the attribute rather than write one, so the
+ * stylesheet falls through to its prefers-color-scheme block and keeps
+ * following the OS live - including when the user flips it with the tab open.
+ */
+function applyTheme(theme) {
+  if (theme === "system") delete document.documentElement.dataset.theme;
+  else document.documentElement.dataset.theme = theme;
+}
 
 /** The period-name line when no period is running. */
 const NO_PERIOD_NAME = {
@@ -333,9 +406,9 @@ function buildPeriodRows() {
       fill: row.querySelector('[data-field="fill"]'),
     };
 
-    // The start time and the name never change with the clock, so they are
-    // written once here rather than on every tick.
-    fields.start.textContent = formatClock(period.startMin);
+    // The name never changes at all. The start time changes only when the
+    // 12/24-hour preference does, so paintStaticTimes owns it rather than the
+    // per-second tick.
     fields.name.textContent = period.name;
 
     els.periodList.append(row);
@@ -345,6 +418,25 @@ function buildPeriodRows() {
 
 const stripCells = buildStripCells();
 const periodRows = buildPeriodRows();
+
+/**
+ * Every time on screen that is fixed by the schedule rather than by the clock.
+ *
+ * These would be wasted work in the per-second tick, but they are not truly
+ * write-once either: switching to 24-hour has to rewrite all of them. Called
+ * at startup and whenever that preference changes.
+ */
+function paintStaticTimes() {
+  for (const { period, fields } of periodRows) {
+    fields.start.textContent = formatClock(period.startMin, prefs);
+  }
+
+  if (schedule.periods.length > 0) {
+    const last = schedule.periods[schedule.periods.length - 1];
+    els.dayStart.textContent = formatClock(schedule.periods[0].startMin, prefs);
+    els.dayEnd.textContent = formatClock(last.endMin, prefs);
+  }
+}
 
 /* ---------- Painting ---------- */
 
@@ -361,7 +453,7 @@ function paintFocus(state, nowSec) {
   // Hovering a square borrows the caption instead of opening a tooltip: no
   // positioning code, no new tab stops, and it works on a touch tap.
   els.dayCaption.textContent = hoveredPeriod
-    ? formatPeriodLabel(hoveredPeriod)
+    ? formatPeriodLabel(hoveredPeriod, prefs)
     : formatDayCaption(daySummaryAt(schedule, nowSec), blockPositionAt(schedule, nowSec));
 }
 
@@ -417,6 +509,7 @@ function paintDay(nowSec) {
 /* ---------- View switching ---------- */
 
 const VIEW_KEY = "belltab:view";
+const VIEWS = ["now", "day", "big"];
 let activeView = readStoredView();
 
 /**
@@ -429,23 +522,34 @@ let activeView = readStoredView();
  */
 function readStoredView() {
   try {
-    return localStorage.getItem(VIEW_KEY) === "day" ? "day" : "now";
+    const stored = localStorage.getItem(VIEW_KEY);
+    return VIEWS.includes(stored) ? stored : "now";
   } catch {
     return "now";
   }
 }
 
+/**
+ * Big mode is NOT a third set of markup - it is the Now view with a class on
+ * <body> that enlarges what matters and removes the rest. One painter, one
+ * strip, nothing that can drift out of sync with the small version.
+ */
 function setView(view) {
-  const showDay = view === "day";
-  activeView = showDay ? "day" : "now";
+  activeView = VIEWS.includes(view) ? view : "now";
+
+  const showDay = activeView === "day";
+  const showBig = activeView === "big";
 
   els.focusView.hidden = showDay;
   els.dayView.hidden = !showDay;
+  document.body.classList.toggle("is-big", showBig);
+  els.bigExit.hidden = !showBig;
 
   // aria-pressed is both the accessible state and the CSS hook - the stylesheet
   // selects on [aria-pressed="true"], so there is only one source of truth.
-  els.viewNow.setAttribute("aria-pressed", String(!showDay));
+  els.viewNow.setAttribute("aria-pressed", String(activeView === "now"));
   els.viewDay.setAttribute("aria-pressed", String(showDay));
+  els.viewBig.setAttribute("aria-pressed", String(showBig));
 
   try {
     localStorage.setItem(VIEW_KEY, activeView);
@@ -455,6 +559,126 @@ function setView(view) {
 
   // The hidden view is not painted, so the one just revealed is a tick stale.
   tick();
+}
+
+/* ---------- Fullscreen (best effort) ---------- */
+
+/**
+ * Fullscreen is an enhancement, never a requirement - big mode is pure CSS and
+ * works identically without it. The request is denied outright in a
+ * permissions-restricted iframe and the API is absent on iOS Safari for
+ * anything but <video>, so every call here is feature-detected and every
+ * promise is caught. A rejected fullscreen must not leave the mode half-on.
+ */
+function requestFullscreen() {
+  const root = document.documentElement;
+  if (typeof root.requestFullscreen !== "function") return;
+  root.requestFullscreen().catch(() => {});
+}
+
+function exitFullscreen() {
+  if (document.fullscreenElement && typeof document.exitFullscreen === "function") {
+    document.exitFullscreen().catch(() => {});
+  }
+}
+
+function enterBig() {
+  setView("big");
+  requestFullscreen();
+  // The switcher is display:none in big mode, so the button that was focused
+  // has just vanished and focus would fall back to <body>. Hand it to the one
+  // control that is still there.
+  els.bigExit.focus();
+}
+
+function leaveBig() {
+  exitFullscreen();
+  setView("now");
+  els.viewBig.focus();
+}
+
+/* ---------- Settings ---------- */
+
+const SETTINGS_PANELS = ["schedules", "calendar", "preferences"];
+
+/**
+ * The header button is one control with two jobs: open settings, then go back.
+ *
+ * The glyph and the accessible name change together - a back arrow that still
+ * announces itself as "Settings" is exactly the mismatch that makes an
+ * icon-only button hostile to anyone not looking at it. `aria-expanded` stays
+ * on top of both, because the settings region genuinely is a disclosure.
+ *
+ * Both glyphs are stand-ins for real inline SVG, as noted in the build log.
+ */
+const TOGGLE_STATES = {
+  closed: { glyph: "⚙", label: "Settings" },
+  open: { glyph: "←", label: "Back" },
+};
+
+let settingsOpen = false;
+
+function setSettingsPanel(panel) {
+  const active = SETTINGS_PANELS.includes(panel) ? panel : "preferences";
+
+  for (const name of SETTINGS_PANELS) {
+    els.settingsTabs[name].setAttribute("aria-pressed", String(name === active));
+    els.settingsPanels[name].hidden = name !== active;
+  }
+}
+
+function setSettingsOpen(open) {
+  settingsOpen = open;
+
+  document.body.classList.toggle("is-settings", open);
+  els.settingsView.hidden = !open;
+
+  const toggle = open ? TOGGLE_STATES.open : TOGGLE_STATES.closed;
+  els.settingsToggle.textContent = toggle.glyph;
+  els.settingsToggle.setAttribute("aria-label", toggle.label);
+  els.settingsToggle.setAttribute("aria-expanded", String(open));
+
+  if (open) {
+    // Both live views stand down; setView restores whichever was showing.
+    els.focusView.hidden = true;
+    els.dayView.hidden = true;
+    tick();
+  } else {
+    setView(activeView);
+  }
+}
+
+/**
+ * Points the radios at the stored preferences and keeps them pointed there.
+ *
+ * The `change` event, not `click`: change fires for keyboard selection and
+ * programmatic setting too, and a radio group is meant to be driven with the
+ * arrow keys.
+ */
+function initPreferences() {
+  for (const input of document.querySelectorAll('input[name="theme"]')) {
+    input.checked = input.value === prefs.theme;
+    input.addEventListener("change", () => {
+      if (!input.checked) return;
+      prefs.theme = input.value;
+      applyTheme(prefs.theme);
+      writeStoredChoice(THEME_KEY, prefs.theme);
+    });
+  }
+
+  for (const input of document.querySelectorAll('input[name="clock"]')) {
+    const isTwelve = input.value === "12";
+    input.checked = isTwelve === prefs.hour12;
+    input.addEventListener("change", () => {
+      if (!input.checked) return;
+      prefs.hour12 = isTwelve;
+      writeStoredChoice(CLOCK_KEY, input.value);
+      // Fixed times do not repaint on their own; the ticking ones need the
+      // new format immediately rather than up to a second later.
+      paintStaticTimes();
+      tick();
+    });
+  }
 }
 
 /* ---------- The clock ---------- */
@@ -474,12 +698,20 @@ function tick() {
   const nowSec = now.getHours() * 3600 + now.getMinutes() * 60 + now.getSeconds();
   const state = stateAt(schedule, nowSec);
 
-  els.wallClock.textContent = formatClock(Math.floor(nowSec / 60));
+  els.wallClock.textContent = formatClock(Math.floor(nowSec / 60), prefs);
 
   // Only the visible view is painted. The other one is behind `hidden`, so
   // writing to it would be ~50 DOM writes a second that nobody can see.
-  if (activeView === "day") paintDay(nowSec);
-  else paintFocus(state, nowSec);
+  // Big mode paints through paintFocus because it IS the Now view, restyled.
+  // With settings open neither is on screen, and the header clock above plus
+  // the tab title below are the only live things left.
+  if (settingsOpen) {
+    /* nothing to paint */
+  } else if (activeView === "day") {
+    paintDay(nowSec);
+  } else {
+    paintFocus(state, nowSec);
+  }
 
   // Minute resolution: the tab title only needs to change 60x less often than
   // the display, and rewriting it every second is wasted work. Derived from
@@ -495,15 +727,48 @@ function tick() {
 // hole reachable by sending someone a URL.
 els.scheduleName.textContent = schedule.name;
 
-// The day's outer bounds never move, so they are written once rather than
-// rewritten sixty times a minute.
-if (schedule.periods.length > 0) {
-  els.dayStart.textContent = formatClock(schedule.periods[0].startMin);
-  els.dayEnd.textContent = formatClock(schedule.periods[schedule.periods.length - 1].endMin);
+// The inline script in <head> already set light/dark before first paint. This
+// runs anyway so "system" clears any attribute left over from a previous
+// choice, and so there is one function that owns the rule.
+applyTheme(prefs.theme);
+paintStaticTimes();
+initPreferences();
+setSettingsPanel("preferences");
+
+els.settingsToggle.addEventListener("click", () => setSettingsOpen(!settingsOpen));
+
+for (const name of SETTINGS_PANELS) {
+  els.settingsTabs[name].addEventListener("click", () => setSettingsPanel(name));
 }
 
 els.viewNow.addEventListener("click", () => setView("now"));
 els.viewDay.addEventListener("click", () => setView("day"));
+els.viewBig.addEventListener("click", enterBig);
+els.bigExit.addEventListener("click", leaveBig);
+
+// Escape is the expected way out of any full-screen-ish mode. Needed even
+// though the browser's own Escape exits fullscreen, because a denied or
+// unsupported fullscreen leaves big mode running as plain CSS with no
+// browser-level exit of its own.
+document.addEventListener("keydown", (event) => {
+  if (event.key !== "Escape") return;
+  if (settingsOpen) {
+    setSettingsOpen(false);
+    els.settingsToggle.focus();
+  } else if (activeView === "big") {
+    leaveBig();
+  }
+});
+
+// Leaving fullscreen by any other route - F11, the browser's own Escape, the
+// OS - must drop big mode too, or the page is left stretched with no fullscreen
+// and no obvious explanation.
+document.addEventListener("fullscreenchange", () => {
+  if (!document.fullscreenElement && activeView === "big") {
+    setView("now");
+    els.viewBig.focus();
+  }
+});
 
 els.pastToggle.addEventListener("click", () => {
   showPast = !showPast;
