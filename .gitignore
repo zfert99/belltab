@@ -6,10 +6,13 @@ node_modules/
 .env.*
 !.env.example
 
-# Next.js build output (arrives with the Phase 0 scaffold)
+# Next.js build output
 .next/
 out/
 next-env.d.ts
+
+# Incremental type-check cache, from `incremental: true` in tsconfig.json
+*.tsbuildinfo
 
 # Test artifacts
 coverage/

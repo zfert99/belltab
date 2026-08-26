@@ -3,8 +3,12 @@
   "version": "0.1.0",
   "description": "A school bell schedule countdown that lives in your browser tab.",
   "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
     "lint": "eslint .",
     "lint:md": "markdownlint \"**/*.md\"",
+    "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "watch": "vitest",
     "e2e": "playwright test",
@@ -25,12 +29,23 @@
   "homepage": "https://github.com/zfert99/belltab#readme",
   "private": "true",
   "devDependencies": {
-    "@eslint/js": "^10.0.1",
+    "@eslint/js": "^9.39.5",
     "@playwright/test": "^1.62.1",
-    "eslint": "^10.9.1",
+    "@types/node": "^26.3.0",
+    "@types/react": "^19.2.18",
+    "@types/react-dom": "^19.2.5",
+    "eslint": "^9.39.5",
+    "eslint-config-next": "^16.3.3",
+    "eslint-plugin-jsx-a11y": "^6.10.2",
     "globals": "^17.11.0",
     "jsdom": "^30.0.1",
     "markdownlint-cli": "^0.49.1",
+    "typescript": "^6.0.3",
     "vitest": "^4.1.11"
+  },
+  "dependencies": {
+    "next": "^16.3.3",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8"
   }
 }

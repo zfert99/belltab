@@ -35,18 +35,28 @@ request; CodeQL and Dependabot are configured; the baseline security headers
 ship in `vercel.json` rather than `next.config.ts`, since the app is static
 files and the headers belong to the deploy rather than to the framework.
 
-Three Phase 0 items had already arrived early, in plain-JS form, and carry over
-unchanged: the **Vitest + Playwright harness**, the **reflow gate**, and now
-**CI**. What Phase 0 still owes is the Next scaffold and `basePath`, the
-`jsx-a11y` lint rule — which lints JSX and would gate on zero files today — an
-`npm run typecheck`. Branch protection is on as of 16:25.
+**Phase 0 complete (2026-08-26 17:05, `feat/next-scaffold`):** the scaffold
+half landed too. Next.js 16.3.3, React 19.2.8, TypeScript 6.0.3 and an empty
+page at `/bell`; the security headers moved out of `vercel.json` into
+`next.config.ts` `headers()`; `eslint-plugin-jsx-a11y` runs at full
+`recommended`; and `npm run typecheck` exists. CI is six jobs.
+
+Two version pins are deliberate and go against "latest": **TypeScript 6, not 7**
+(`typescript-eslint` throws on 7, taking the whole Next lint config down with
+it) and **ESLint 9, not 10** (`jsx-a11y` supports no ESLint above 9). Both trade
+a newer major for a lint gate `AGENTS.md` calls blocking. See the Decisions
+table in `Docs/build-log.md`.
+
+The plain HTML/CSS/JS build is **untouched** and still passes its 153 unit and
+37 E2E tests. Phases 1–4 replace it module by module; Phase 1 is the one that
+retires it, since a browser cannot load a `.ts` module directly.
 
 ## At a glance
 
 | Phase | What | Track | Status |
 | :---: | --- | :---: | :---: |
 | **D** | Docs & planning — plan, agent rules, design system, research | 🏗️ | ✅ Done |
-| **0** | Scaffold — Next.js, `basePath`, CI, test harness, a11y gate | 🏗️ | 🚧 In progress |
+| **0** | Scaffold — Next.js, `basePath`, CI, test harness, a11y gate | 🏗️ | ✅ Done |
 | **1** | The schedule engine — pure, typed, fully tested | ⚙️ | 📋 Planned |
 | **2** | The countdown — one clock, the display, the tab title | 🎨 | 📋 Planned |
 | **3** | The editor — build and edit a schedule, overlap blocking | 🎨 | 📋 Planned |
@@ -70,26 +80,36 @@ Done, against the plain-JS build:
   see below.
 - ✅ GitHub Actions running lint, markdownlint, unit and E2E, plus `npm audit`.
   Dependabot and CodeQL configured.
-- ✅ Baseline security headers — in `vercel.json`, not `next.config.ts`, since
-  there is no Next yet and the headers belong to the deploy.
+- ✅ GitHub Actions, now six jobs — Lint, Typecheck, Next build, Unit tests,
+  E2E (reflow gate), npm audit. Dependabot and CodeQL configured.
+- ✅ Branch protection — required status checks, linear history, approvals off,
+  force pushes and deletions off. Admin enforcement is deliberately off; the
+  exact settings are recorded in `Docs/build-log.md`.
+- ✅ Next.js 16.3.3 + React 19.2.8 + TypeScript 6.0.3, `src/` App Router, one
+  empty page.
+- ✅ `basePath: '/bell'` in `next.config.ts`. Verified against a running server:
+  `/bell` serves, `/` 404s, assets land at `/bell/_next/static/*`. No
+  `assetPrefix` — the Next docs recommend against it for sub-path hosting.
+  Local dev is `localhost:3000/bell`, which is briefly confusing exactly as
+  predicted.
+- ✅ Baseline security headers, in `next.config.ts` `headers()`. `vercel.json`
+  is deleted; it only existed because there was no framework to hang them on.
+  **Two `source` entries, not one** — with `basePath`, `/(.*)` never matches
+  the bare `/bell`, and the first version shipped headers to the assets and not
+  the page. See Bugs found.
+- ✅ `eslint-plugin-jsx-a11y` at full `recommended`, blocking. Note that
+  `eslint-config-next` enables only 6 of its 32 rules, so the rest are spread
+  explicitly.
+- ✅ `npm run typecheck` — `tsc --noEmit`, with `strict: true`.
 
-Still owed:
+**Gate: met.** `npm run lint`, `npm run typecheck`, `npm run build`,
+`npx vitest run`, `npx playwright test` and `npx markdownlint-cli "**/*.md"` all
+pass, in CI and locally.
 
-- 📋 The Next.js scaffold itself, and `basePath: '/bell'` in `next.config.ts`
-  (local dev becomes `localhost:3000/bell` — expect this to be briefly
-  confusing). The header list moves from `vercel.json` into `headers()` here.
-- 📋 `eslint-plugin-jsx-a11y` at `recommended`, blocking. It lints JSX, so it
-  arrives with the first component rather than gating zero files now.
-- 📋 `npm run typecheck` — it needs a type checker, which the port brings.
-Also done:
-
-- ✅ Branch protection — five required status checks, linear history, approvals
-  off, force pushes and deletions off. Admin enforcement is deliberately off;
-  the reasoning and the exact settings are in `Docs/build-log.md`.
-
-**Gate:** CI green on an empty page. `npm run lint`, `npm run typecheck`,
-`npx vitest run`, `npx markdownlint-cli "**/*.md"` all pass. Three of those four
-pass in CI today; `typecheck` arrives with the scaffold.
+Carried forward as open gaps rather than done: TypeScript is a major behind on
+purpose, `Typecheck` and `Next build` are not yet required checks in branch
+protection, and the headers remain unverified on a real Vercel deploy until
+Phase 7.
 
 ## Phase 1 — The schedule engine ⚙️
 

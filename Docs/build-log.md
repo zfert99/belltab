@@ -150,6 +150,13 @@ modules over `file://` because there is no content type without HTTP.
 | 2026-08-26 | `openApp` asserts the browser's wall clock matches the fixture | A timezone skew is silent by construction: the suite still boots, renders and asserts, just against a different hour. One assertion at the boundary converts that into a single failure that names the cause, instead of three failures that each look like a separate bug. |
 | 2026-08-26 | Period names get `overflow-wrap: anywhere`, not `break-word` | `break-word` wraps a long word but does **not** shrink the element's min-content contribution, so an intrinsically-sized ancestor — here a `1fr` grid column, then `main`, then the body grid track — keeps reserving the unbroken word's full width. `anywhere` is the only value that shrinks min-content too. The global `break-word` on `<body>` stays: it is right for prose, and wrong only where untrusted input meets an intrinsic size. |
 | 2026-08-26 | The reflow gate now runs in two clock states, not one | The 60-character-name test passed for a day while the bug it was written to catch was live, because it only ever looked at 09:30. A gate that sees one hour of the school day measures that hour, not the app. |
+| 2026-08-26 | **TypeScript is pinned to 6.0.3, not 7.0.2** | `typescript-eslint` throws outright on TS 7 — not a warning, a `throw new Error` at import time — and `eslint-config-next` depends on it, so the entire Next lint config fails to load. The choice was the fast Go-based compiler or the lint stack that carries the accessibility gate AGENTS.md calls blocking. The gate wins: a type checker that is 10x faster is a convenience, and an a11y rule set that never runs is a false claim. Revisit at typescript-eslint#10940. |
+| 2026-08-26 | **ESLint is pinned to 9, not 10** | `eslint-plugin-jsx-a11y` has no ESLint 10 support at any published version — its peer range stops at `^9`. Same reasoning: ESLint 10 was chosen arbitrarily a day earlier and nothing depends on it, while the a11y plugin is a stated requirement. |
+| 2026-08-26 | `jsx-a11y` **recommended** is spread on top of `eslint-config-next`, which is not redundant | The Next config bundles the plugin and then enables 6 of its 32 recommended rules. The 26 it omits include `label-has-associated-control`, `click-events-have-key-events`, `interactive-supports-focus` and `no-static-element-interactions` — precisely the rules the schedule editor's requirements depend on. Trusting the bundled config would have produced a passing a11y check covering under a fifth of the rule set. |
+| 2026-08-26 | `strict: true` in `tsconfig.json`, overriding the `false` Next generated | The engine's core rule is parse-don't-validate: untrusted input narrows once into a branded `ValidSchedule` and nothing downstream re-checks it. That guarantee lives entirely in the type system, and non-strict turns off both halves holding it up — null checks and no-implicit-any. A non-strict build would let an unvalidated schedule reach the countdown and still compile. |
+| 2026-08-26 | `headers()` declares **two** sources, `/` and `/(.*)` | With `basePath`, `source` is matched with the prefix applied, so `/(.*)` becomes `/bell/(.*)` and never matches the bare `/bell`. Measured, not reasoned: the page came back with zero of five headers while its assets had all five. See Bugs found. |
+| 2026-08-26 | `poweredByHeader: false` | Naming the framework in a response header is not a vulnerability, but it lets an attacker skip straight to that framework's known CVEs. It costs one line. |
+| 2026-08-26 | The Next scaffold ships as an **empty page**, with the plain build left running beside it | The roadmap's own Phase 0 gate is "CI green on an empty page". Porting the app in the same change would mean one branch containing a framework migration and four phases of feature work, reviewable by nobody. The plain app keeps its 153 unit and 37 E2E tests green throughout, so the scaffold is provably additive. |
 | 2026-08-26 | Dependabot groups **major** action bumps, but only minor/patch for npm | The asymmetry is the point. A first-party GitHub action pinned by major tag has a blast radius of one red CI run — visible immediately, reverted with one commit — so batching majors costs nothing and saves three CI runs answering one question. An npm major can change runtime behaviour in ways a green suite does not catch, so those stay ungrouped and individually revertible. |
 | 2026-08-26 | Branch protection leaves **admin enforcement off** | Checked, the rules would apply to the owner too, and there would be no way to unwedge a broken `main` without first going back into settings to switch it off - which is the same bypass, with extra steps and worse timing. Unchecked, the status checks still gate the merge button on every PR; what stays possible is a deliberate direct push by the one person in the repo. The protection that matters here is against a bad merge, not against the author. |
 | 2026-08-26 | "Require branches to be up to date" is **off** | It forces a rebase and a full CI re-run every time `main` moves under an open PR. That is correct insurance in a repo with concurrent authors and semantic conflicts; with one author and one PR at a time it buys nothing and spends a browser install per merge. Revisit the moment a second person opens a PR here. |
@@ -274,9 +281,11 @@ until the plain version has taught us the shape.
 | 2026-08-26 | The inline theme script needs a CSP hash at the Next port | `AGENTS.md` requires baseline security headers. An inline `<script>` is fine today with no CSP, but becomes a violation the moment one ships. |
 | 2026-08-26 | Overlap errors are attributed by sort order, not edit order | On an exact `startMin` tie the error lands on the row that sorts second, which is usually but not always the row being edited. Fixing it means threading edit state into a pure function. |
 | 2026-08-26 | WebKit and Firefox are not covered | The E2E suite runs one project, `chrome`, against the browser already installed on the machine — no engine binaries were downloaded. `AGENTS.md` asks for real WebKit coverage, which is where `<dialog>`, `:modal` and `inert` behaviour is most likely to differ. Add the projects and `npx playwright install webkit firefox` when the download is worth it. |
-| 2026-08-26 | `eslint-plugin-jsx-a11y` is not installed | `AGENTS.md` names it as a blocking check. It lints JSX and this build has none, so it would gate on zero files. Add it with the Next scaffold, at `recommended`, in the same change that introduces the first component. |
-| 2026-08-26 | There is no `npm run typecheck` | `AGENTS.md` lists it among the four commands that must pass. It needs a type checker; the closest thing available today is `tsc --checkJs` over plain JS, which is a different project from the port and would be thrown away by it. CI runs the other three. |
-| 2026-08-26 | `vercel.json` is unverified — no Vercel project exists yet | The header list is right and the JSON parses, but `outputDirectory: "src"` with `framework: null` has never served a request. Confirm the headers land, with `curl -I`, on the first deploy in Phase 7 — and again through the hub's rewrite, which is a second hop that can drop them. |
+| 2026-08-26 | TypeScript is a major version behind on purpose | 6.0.3 rather than 7.0.2, because `typescript-eslint` cannot load under TS 7. This is a real cost — TS 7 is the Go rewrite — and it is deliberate, not neglect. Revisit when typescript-eslint#10940 lands; the upgrade should be a one-line version bump plus a full lint run. |
+| 2026-08-26 | Two apps share `src/` | `src/app/` is the Next scaffold; `src/index.html`, `src/app.js`, `src/store.js`, `src/ui/` and `src/lib/` are still the plain build. They do not collide — Next looks for a directory named `app` and ignores the file `app.js` — but the folder reads as confusing until Phases 1–4 delete the plain half. |
+| 2026-08-26 | `npm run dev` and `npm run serve` both want port 3000 | The Next dev server and the plain build's static server cannot run at once. Harmless while the Next app is an empty page; worth a different port on whichever one loses the argument first. |
+| 2026-08-26 | Branch protection does not yet require `Typecheck` or `Next build` | Two new CI jobs arrived with this change. A required-check list is a GitHub setting and cannot be committed, so it has to be updated by hand once these two have reported once. Until then they run but do not block. |
+| 2026-08-26 | The headers have still never been verified on Vercel | `vercel.json` is gone and the list now lives in `next.config.ts`, verified against a real `next start`. What remains unverified is the deploy itself, and the hub's rewrite in Phase 7 — a second hop that can drop headers. |
 | 2026-08-26 | Only `.period__name` and `.countdown__period` are hardened against intrinsic-width blowout | Those are the two elements that render a period name today. The schedule name (`#schedule-name`) and the editor's own rows are equally user-controlled and have not been measured with a 60-character unbroken value. The reflow suite covers the editor panel, but with the seeded names, not a hostile one. |
 | 2026-08-26 | `README.md` documents the Next.js destination, not the current app | It tells a reader to run `npm run dev` and visit `localhost:3000/bell`. Neither exists: this is the plain HTML/CSS/JS build, served by `npm run serve` at `localhost:3000`. Consistent with the deliberate plain-JS-first detour, but a reader has no way to know that from the README. |
 
@@ -301,6 +310,9 @@ until the plain version has taught us the shape.
 | 2026-08-26 | 2026-08-26 | The "only live region" test does not test that — the selector now covers the implicit roles too, the three regions are enumerated by id, and `#schedule-error` became polite and idempotent. Review finding 4. |
 | 2026-08-26 | 2026-08-26 | The Day view countdown has no units — a `#day-remaining-units` caption on the summary, and `formatRemaining` on the running row. Review finding 5. |
 | 2026-08-26 | 2026-08-26 | The `<dialog>` fixes were verified against a stub, not a browser — now covered by an `e2e/` Playwright suite running in the installed Chrome. Escape, focus trapping, inertness, Cancel, Delete and the backdrop caveat are all asserted against a real modal. |
+| 2026-08-26 | 2026-08-26 | `eslint-plugin-jsx-a11y` is not installed — now installed and running at full `recommended`, not the 6-rule subset `eslint-config-next` ships. |
+| 2026-08-26 | 2026-08-26 | There is no `npm run typecheck` — `tsc --noEmit` on TypeScript 6.0.3, and its own CI job. |
+| 2026-08-26 | 2026-08-26 | `vercel.json` is unverified — deleted. The header list moved into `next.config.ts` `headers()` where AGENTS.md wants it, and was verified against a running `next start` rather than by inspection. |
 | 2026-08-26 | 2026-08-26 | Branch protection is configured by hand - now applied to `main` and recorded below, so the settings are readable without opening the GitHub UI. |
 | 2026-08-26 | 2026-08-26 | The Day view scrolled sideways at 768px before the first bell with a 60-character period name — `overflow-wrap: anywhere` on the two elements that render a period name. Found by the reflow gate on its first CI run. |
 | 2026-08-26 | 2026-08-26 | The E2E suite is not wired into CI — `.github/workflows/ci.yml` runs lint, markdownlint, unit and E2E on every push and PR. The reflow gate is a blocking check in practice now, not only in principle. |
@@ -659,6 +671,49 @@ is not evidence that it implements the requirement — `break-word` vs `anywhere
 differs on exactly the axis that mattered. And when a red test turns green for
 an unrelated reason, check what it was accidentally covering before deleting the
 accident.
+
+---
+
+### 2026-08-26 — the security headers reached the assets and missed every page
+
+`next.config.ts` declared the five baseline headers once, the obvious way:
+
+```ts
+async headers() {
+  return [{ source: "/(.*)", headers: securityHeaders }]
+}
+```
+
+`next build` was happy, `next start` served the page, and nothing anywhere
+said otherwise. Checking with `curl` rather than trusting it:
+
+```text
+GET /bell                              0 of 5 security headers
+GET /bell/                             0 of 5   (308 redirect)
+GET /bell/_next/static/chunks/...js    5 of 5
+```
+
+**The headers were landing on the JavaScript and missing the HTML** — the
+single response an attacker frames, sniffs or leaks a referrer from.
+
+The cause is `basePath`. `source` is matched with the prefix already applied,
+so `/(.*)` becomes `/bell/(.*)`, which requires the slash and something after
+it. `/bell/_next/...` matches. `/bell` does not. Assets are always deep paths,
+so they were fine; the page is the bare path, so it never matched once.
+
+AGENTS.md documents this precise trap one section over, about the hub's
+rewrites — *"add both rewrites (bare `/bell` and `/bell/:path*` — the bare path
+does not always match `:path*`)"*. It was written about `rewrites` and applies
+to `headers()` for exactly the same reason. Reading a rule and recognising the
+shape it describes somewhere else are different skills.
+
+Fixed with two source entries, `/` and `/(.*)`, and re-measured: 5 of 5 on the
+page, 5 of 5 on the assets, and `/bell/` a 308 to a `/bell` that carries them.
+
+**Lesson:** a security header is not configured until a request has come back
+carrying it. Every step before that — the config parses, the build succeeds,
+the page renders — is fully compatible with the header being absent, which is
+why this class of bug ships. The check costs one `curl -I`.
 
 ---
 
@@ -1752,3 +1807,91 @@ One operational note: two `gh pr merge` calls returned
 `GraphQL: Something went wrong` and the merges had in fact succeeded on the
 server. Reading the PR state back is the only reliable confirmation; the exit
 code of the merge command is not.
+
+### 2026-08-26 17:05 — Phase 0, part 2: the Next scaffold
+
+Branch `feat/next-scaffold`. The half of Phase 0 that was deferred a day ago:
+Next.js, React and TypeScript, `basePath`, the headers in their proper home,
+the a11y lint rule, and `npm run typecheck`.
+
+Scope is the roadmap's own gate — **CI green on an empty page**. The plain
+build is untouched and still passes its 153 unit and 37 E2E tests, so the
+scaffold is provably additive rather than a migration in disguise.
+
+| | |
+| --- | --- |
+| Next.js | 16.3.3 |
+| React | 19.2.8 |
+| TypeScript | 6.0.3 (deliberately not 7.0.2) |
+| ESLint | 9 (deliberately not 10) |
+
+**The docs were read first, and they earned it.** AGENTS.md requires reading
+`node_modules/next/dist/docs/` before writing code because this Next differs
+from training data. Three things would have been wrong from memory:
+Turbopack is now the default bundler; `next lint` was **removed** in 16 and
+`next build` no longer runs the linter; and `next.config` with `.cjs` or
+`.cts` extensions is unsupported. A fourth came from the compiler rather than
+the docs — TypeScript 6 **deprecates `baseUrl`** and errors on it (TS5101),
+so the `@/*` alias is `paths` alone, which resolves relative to the config.
+
+**Two dependency ceilings, discovered by installing rather than assuming.**
+Neither is in any changelog I would have thought to check:
+
+- `eslint-plugin-jsx-a11y` supports no ESLint above 9, at any version.
+- `typescript-eslint` **throws at import time** on TypeScript 7, and
+  `eslint-config-next` depends on it, so the whole Next lint config fails to
+  load. Not a warning — `throw new Error('typescript-eslint does not support
+  TS 7.0.')`.
+
+Both were resolved by pinning down rather than forcing through. The reasoning
+is in Decisions; the short version is that a linting gate AGENTS.md calls
+blocking outranks having the newest major of the linter.
+
+**The `eslint-config-next` a11y subset.** The Next config bundles jsx-a11y and
+enables 6 of its 32 recommended rules. Taking it at face value would have
+produced a green accessibility check over 19% of the rule set — the same
+shape of false comfort as the `if: failure()` artifact step two entries up.
+The full `recommended` set is now spread on top, and was verified by writing a
+deliberately broken component and watching four rules fire, three of them from
+the omitted 26.
+
+**`basePath` behaves exactly as AGENTS.md claims**, verified against a running
+server rather than trusted:
+
+```text
+GET /bell        200
+GET /            404
+assets           /bell/_next/static/chunks/*.js
+```
+
+No `assetPrefix` needed — the Next docs explicitly recommend against it for
+sub-path hosting. Both routes prerender as static (`○`), which is what the
+no-SSR requirement wants.
+
+**The same verification caught a real bug** — the headers were reaching the
+assets and missing every page. Written up under Bugs found; it is the most
+useful thing in this change.
+
+`vercel.json` is deleted. It only ever existed because there was no framework
+to hang `headers()` on.
+
+**CI grows to six jobs:** Lint, Typecheck, Next build, Unit tests, E2E and npm
+audit. Branch protection still requires only the original five and needs the
+two new names added by hand — logged as a gap.
+
+Verified locally, everything:
+
+```text
+npm run lint        0 problems
+npm run lint:md     0 problems
+npm run typecheck   0 errors
+npm run build       ✓ 2 static routes
+npm test            153 passed
+npm run e2e         37 passed  (and again under TZ=UTC)
+curl -I /bell       5 of 5 security headers, no X-Powered-By
+```
+
+**What is owed next.** Phase 1: the engine moves from `src/lib/*.js` to
+TypeScript with a branded `ValidSchedule`. That is the change that finally
+breaks the plain build, because a browser cannot load a `.ts` module directly —
+so its E2E suite retires in the same PR that replaces what it tested.
