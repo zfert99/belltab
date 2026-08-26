@@ -98,6 +98,39 @@ unfalsifiably wrong — the worst possible failure for this tool.
   - `Docs/archive/`: historical logs, superseded plans, phase walkthroughs.
 <!-- END:documentation-standards -->
 
+<!-- BEGIN:build-log-rules -->
+## The Build Log
+
+`Docs/build-log.md` is the running record of what was built, what was decided
+and why, what broke, and what is still owed. It is the narrative between the
+scope (`Docs/belltab-plan.md`) and the phases (`Docs/roadmap.md`).
+
+**Updating it is part of every change, not a follow-up task.** Do not batch it
+up and write it at the end of a phase — the value is in capturing reasoning and
+dead ends while they are fresh, and a log reconstructed afterwards loses exactly
+the wrong turns that make it worth keeping. Never wait to be asked.
+
+Every change to the repo adds:
+
+- A dated entry under **Session log** describing what changed.
+- A row in **Decisions** if a *why* was involved — the reasoning, not the diff.
+- An entry in **Open gaps** if anything is knowingly unfinished, deferred, or
+  wrong, moved to **Closed** with a date when it is fixed.
+- An entry under **Bugs found** for anything that actually broke, including the
+  lesson. A bug whose fix is obvious in hindsight is still worth the entry.
+
+Rules for the file itself:
+
+- **Append, don't rewrite.** When a decision is reversed, add a new entry that
+  supersedes the old one and mark the old one. Deleting a superseded decision
+  destroys the reason the current one exists.
+- **Absolute timestamps in local time (`America/New_York`)** — never
+  "yesterday", never "last session". Read the real clock; do not invent times.
+- **Record deviations from the plan docs explicitly**, under **Deviations**,
+  with what is owed to reconcile them. A deviation that is only in the code is
+  indistinguishable from a mistake six weeks later.
+<!-- END:build-log-rules -->
+
 <!-- BEGIN:roadblock-research-rules -->
 ## Roadblock & Research Rules
 

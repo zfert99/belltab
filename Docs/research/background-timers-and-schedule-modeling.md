@@ -93,6 +93,7 @@ The "chain count" detail matters: a `setInterval` or self-rescheduling `setTimeo
 **Recommendation:** **Option B — absolute start/end per period + a parse-at-boundary validator** — but store times as **minutes-since-midnight integers**, and follow "parse, don't validate": the validator's *output* is a branded `ValidSchedule` type, not a boolean, so the rest of the app can't accidentally operate on an unvalidated one. Represent a period as `{ startMin, endMin, label, kind }`. Allow overlaps but *classify* them: a validator can distinguish intentional concurrency (two `lunch`/`class` periods flagged concurrent) from accidental overlap (two `class` periods for the same cohort). Contiguity is **not** an invariant to enforce — gaps are legal.
 
 **Time representation [strong].** Your instinct is correct: **minutes-since-midnight integers**, not `Date`, not durations.
+
 - A bell schedule is **wall-clock, not instant.** "Period 2 at 9:05" means 9:05 local regardless of DST. Integers are inherently wall-clock.
 - **DST:** A schedule almost never needs to care. The only edge is the ~twice-a-year 1–2 AM transition, which no school day spans; 09:05 is 09:05 on both sides. Storing instants (`Date`/epoch) would *introduce* a DST bug that integers avoid.
 - **IANA timezones: not needed** for a purely local tool. The device clock is already in the user's zone; you compare `Date.now()`'s local wall-clock minutes to your integers. (If two people in different zones share a link, each sees the schedule in their own local time — which is exactly right for "when does *my* bell ring," and only wrong if a schedule is meant to be pinned to a specific school's zone; note this as a known, acceptable limitation.)
@@ -107,6 +108,7 @@ The "chain count" detail matters: a `setInterval` or self-rescheduling `setTimeo
 **Interchange standards [strong].** **Ed-Fi's Bell Schedule Domain is the only mainstream standard that directly models this** (BellSchedule/ClassPeriod/Date). **OneRoster (1EdTech) does not model bell times** (it's rostering). **iCalendar RRULE (RFC 5545) cannot cleanly express "Day 3 of a 6-day rotation"** — RRULE has no rotating-cycle primitive; you'd need per-occurrence RDATEs, which is just an explicit date list by another name. SIF/CEDS similarly don't give you a countdown-ready period model. **Conclusion: no drop-in interchange format; roll your own, but mirror Ed-Fi's shape (named schedules + date→schedule map) so your model is conceptually standard.**
 
 **Recommended model.** Two layers:
+
 1. **Named schedule templates:** `{ id, name, periods: Period[] }` (e.g., "Regular", "Late Start", "Assembly", "Half Day", "Day 1"…"Day 6").
 2. **A date→schedule resolver**, in priority order: (a) explicit **date override** (`2026-09-14 → "Assembly"`); else (b) **cycle position** if the school uses a rotation (computed from cycle-start + skip-dates, with manual bump); else (c) **default weekly pattern** (`Mon→"Regular"`, etc.); else (d) **"no schedule today"** (weekend/holiday/summer) with a graceful empty state.
 
@@ -121,6 +123,7 @@ The "chain count" detail matters: a `setInterval` or self-rescheduling `setTimeo
 **Versioning/migration [strong-principle].** Once a link is shared, that encoded format is permanent. **Prefix the payload with a version marker** (e.g., a leading `v1`/single byte before the compressed blob). On load, branch on version and run migrations forward. Never repurpose a version number. This is cheap insurance that costs one byte.
 
 **Right combination [moderate].**
+
 - **URL hash** = the *shareable* schedule (teacher configures once, shares one link).
 - **localStorage** = the *"my schedule" convenience* (last-used schedule auto-loads; also the natural home for personal prefs like theme, seconds-vs-minutes, wake-lock toggle, bell-offset).
 - **Plain JSON export/import** = the durable backup/portability fallback (and a debugging aid).
@@ -150,22 +153,27 @@ The "chain count" detail matters: a `setInterval` or self-rescheduling `setTimeo
 ## Decisions (each fork, with recommendation, reasoning, and the strongest counterargument)
 
 **Throttling strategy → Recompute-from-clock as foundation; Web Worker as optional desktop enhancement.**
+
 - *Reasoning:* Correctness-on-view is the actual product requirement, and `deadline − Date.now()` on tick + `visibilitychange` delivers it under every throttle tier. Workers add live background ticks but don't help mobile freeze.
 - *Strongest counterargument:* If the core use case is genuinely "glance at a buried desktop tab and see seconds ticking without clicking it," only a Worker delivers that, and you're leaving the flagship feel on the table by deferring it. *Rebuttal:* You can add the Worker later without changing the data model; recomputation is the safe floor.
 
 **Schedule model → Option B (absolute start/end, minutes-since-midnight ints) with a parse-don't-validate boundary that outputs a branded valid type; overlaps allowed-but-classified; contiguity not enforced.**
+
 - *Reasoning:* Concurrent lunches make Option A unrepresentable-in-the-wrong-direction (it forbids a legal state). Ed-Fi's professional model is Option B–shaped.
 - *Strongest counterargument:* Option A's "illegal states unrepresentable" is genuinely more elegant and needs no validator, and *many* schools never have concurrent periods. *Rebuttal:* You can't ship a general tool that silently can't represent a common real schedule; the validator is small and the branded type recovers most of Option A's safety.
 
 **Time representation → minutes-since-midnight integers; no IANA TZ; skip Temporal for now.**
+
 - *Reasoning:* Wall-clock domain, DST-safe, trivially serializable/comparable, zero deps.
 - *Strongest counterargument:* Temporal is "the right way" and now ships in 2 of 3 engines. *Rebuttal:* Not stable in Safari in 2026 → 20–44KB polyfill for arithmetic that's a subtraction of two integers. Revisit when Safari ships.
 
 **Day-type model → named schedule templates + priority resolver (date override → cycle position → weekly default → none), with manual cycle-bump for closures.**
+
 - *Reasoning:* Mirrors Ed-Fi; handles A/B, N-day cycles, delays, and one-offs; the resolver localizes all complexity.
 - *Strongest counterargument:* This is more machinery than a single-school tool needs. *Rebuttal:* Progressive disclosure keeps the simple case one-screen; the resolver is invisible until used.
 
 **State encoding → version-prefixed JSON → `deflate-raw` → base64url in the URL hash; localStorage for "my schedule"; JSON export/import as backup.**
+
 - *Reasoning:* No backend, no length problem (fragment not sent to server), native compression everywhere, forward-migratable.
 - *Strongest counterargument:* LZ-string is simpler and battle-tested for this exact job. *Rebuttal:* It's a fine fallback, but native CompressionStream is now Baseline and dependency-free; either is defensible.
 
