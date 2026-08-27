@@ -1,59 +1,25 @@
 import type { LocalNow } from "@/lib/clock";
 import { stateAt, type DayState } from "@/lib/engine";
 import { formatTabTitle } from "@/lib/format";
-import { parseCalendar, parseScheduleCollection, resolveScheduleId } from "@/lib/parse";
-import {
-  DEFAULT_CALENDAR,
-  DEFAULT_SCHEDULES,
-  type Calendar,
-  type ScheduleId,
-  type ValidSchedule,
-} from "@/lib/schedule";
+import { resolveScheduleId } from "@/lib/parse";
+import type { ValidSchedule } from "@/lib/schedule";
+import type { Library } from "@/app/_lib/library";
 
 /**
  * Which schedule is running, and what it is doing right now.
  *
  * The seam between the pure engine and the view. Everything here is still pure
- * - `now` is an argument - but unlike `src/lib/` this file knows about the
- * app's own hard-coded library, so it lives beside the route that uses it
- * rather than in the engine.
+ * - both the library and the clock reading are arguments - but unlike
+ * `src/lib/` this file knows what shape the app keeps its data in, so it lives
+ * beside the route that uses it rather than in the engine.
  *
- * PHASE 2 SCOPE. The library below is `DEFAULT_SCHEDULES`, frozen at module
- * load, exactly as the roadmap's "schedule is hard-coded" says. What is pulled
- * forward from Phase 4 is only the READ side of the calendar: the weekday map
- * already exists in `src/lib/schedule.ts` and `resolveScheduleId` already
- * exists in `src/lib/parse.ts`, and without them the design system's "no
- * schedule today" empty state has nothing that can produce it. Phase 4 adds the
- * UI that edits any of this; nothing here is editable.
+ * **Changed in Phase 3:** the library was a module constant frozen at
+ * `DEFAULT_SCHEDULES`, matching the roadmap's "schedule is hard-coded". Now
+ * that the editor can change it and `localStorage` can persist it, it is a
+ * parameter - which also means these functions can be tested against a library
+ * that has no schedules at all, a state the seeded one can never reach.
  */
 
-/**
- * The library, parsed once.
- *
- * Seed data gets no exemption from the boundary - `AGENTS.md`'s "parse, don't
- * validate" applies to our own constants too, and `parseSchedule` is the only
- * thing that can mint a `ValidSchedule`. A failure here degrades to an empty
- * library, which renders the no-schedules onboarding state rather than
- * throwing; `parse.test.ts` already asserts all four defaults survive the trip,
- * so this branch is a floor, not an expectation.
- */
-const parsed = parseScheduleCollection(DEFAULT_SCHEDULES);
-const SCHEDULES: readonly ValidSchedule[] = parsed.ok ? parsed.value : [];
-
-const knownIds: readonly ScheduleId[] = SCHEDULES.map((schedule) => schedule.id).filter(
-  (id): id is ScheduleId => id !== null,
-);
-
-const CALENDAR: Calendar = parseCalendar(DEFAULT_CALENDAR, knownIds);
-
-/**
- * What the Now view is looking at.
- *
- * Three kinds rather than one shape with nullable fields, for the same reason
- * `DayState` is a union: "no school today" and "no schedules at all" are
- * different screens with different copy, and a renderer that has to tell them
- * apart from two nulls will eventually get it wrong.
- */
 export type TodayView =
   | { kind: "scheduled"; scheduleName: string; state: DayState }
   | { kind: "no-school" }
@@ -62,13 +28,14 @@ export type TodayView =
 /**
  * Resolves the day and asks the engine what is true at this second.
  *
+ * @param library - the schedules that exist and the calendar pointing at them
  * @param now - one reading of the device clock, already reduced to integers
  */
-export function viewForNow(now: LocalNow): TodayView {
-  if (SCHEDULES.length === 0) return { kind: "no-schedules" };
+export function viewForNow(library: Library, now: LocalNow): TodayView {
+  if (library.schedules.length === 0) return { kind: "no-schedules" };
 
-  const id = resolveScheduleId(CALENDAR, now.isoDate, now.weekday);
-  const schedule = SCHEDULES.find((candidate) => candidate.id === id);
+  const id = resolveScheduleId(library.calendar, now.isoDate, now.weekday);
+  const schedule = library.schedules.find((candidate) => candidate.id === id);
 
   // A weekday the calendar points at nothing, an explicit closure, or an id
   // that no longer resolves - all three are the same screen to the user.
@@ -88,4 +55,23 @@ export function viewForNow(now: LocalNow): TodayView {
 export function tabTitleFor(view: TodayView): string {
   if (view.kind === "scheduled") return formatTabTitle(view.state);
   return view.kind === "no-school" ? "No school · BellTab" : "BellTab";
+}
+
+/**
+ * The schedule the editor opens on.
+ *
+ * Today's, if today has one; otherwise the first in the library. A weekend is
+ * the ordinary case for the fallback - somebody setting up their timetable on a
+ * Sunday should not be shown an empty editor and told to come back Monday.
+ *
+ * Phase 4 replaces this with a picker. Until there is more than one schedule a
+ * user can choose between, "the one that matters today" is the only sensible
+ * answer, and it is computed rather than remembered so it cannot go stale.
+ */
+export function scheduleToEdit(library: Library, now: LocalNow | null): ValidSchedule | null {
+  if (library.schedules.length === 0) return null;
+  if (now === null) return library.schedules[0];
+
+  const id = resolveScheduleId(library.calendar, now.isoDate, now.weekday);
+  return library.schedules.find((candidate) => candidate.id === id) ?? library.schedules[0];
 }

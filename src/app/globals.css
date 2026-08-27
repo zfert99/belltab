@@ -169,6 +169,14 @@ body {
   display: flex;
   align-items: center;
   gap: var(--s-3);
+  /* A flex item refuses to shrink below its min-content width by default, so
+     without this the wrapping above buys nothing: the schedule name would wrap
+     and the row would still be as wide as its longest unbreakable run. */
+  min-width: 0;
+}
+
+#schedule-name {
+  min-width: 0;
 }
 
 .screen__clock {
@@ -503,7 +511,14 @@ body {
    Found by the reflow gate on its first CI run, in the before-school state.
    See Docs/build-log.md. */
 .period__name,
-.countdown__period {
+.countdown__period,
+/* Phase 3 added the third one. The schedule's own name is user input too, and
+   it lands in the header rather than in the countdown - where it is a flex item
+   whose min-content width the row happily grows to fit, pushing the wall clock
+   off the right edge and scrolling the page. Found by the reflow gate the first
+   time the gate was pointed at it; the gap predicting exactly this had been
+   open since 2026-08-26. */
+#schedule-name {
   overflow-wrap: anywhere;
 }
 
@@ -872,6 +887,10 @@ body.is-settings .viewswitch {
 }
 
 .panel__title {
+  /* Focusable (tabindex="-1") so the view swap can move focus here, which
+     means it can show a focus ring - and a full-bleed ring round a block
+     heading reads as an error box. Shrink-wrapped so the ring hugs the words. */
+  width: fit-content;
   margin: 0;
   font-family: var(--font-display);
   font-size: 1.5rem;
@@ -1161,7 +1180,14 @@ body.is-settings .viewswitch {
 .editrow__head,
 .editrow__grid {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 7rem 8rem 5.5rem 2.75rem;
+  /* Name, kind, start, minutes, move, delete. The move column arrived in
+     Phase 3: periods are stored sorted by start time, so "reorder" has to be a
+     control that changes the times rather than a drag that the next parse would
+     undo. */
+  /* The start column is 9.5rem because Chrome's `input[type=time]` renders
+     "08:00 AM" plus a picker icon and clips silently at 8rem - the value is
+     still there, it just cannot be read. */
+  grid-template-columns: minmax(0, 1fr) 7rem 9.5rem 5.5rem 5rem 2.75rem;
   gap: var(--s-2);
   align-items: center;
 }
@@ -1193,6 +1219,41 @@ body.is-settings .viewswitch {
 .editrow__field select {
   width: 100%;
   min-width: 0;
+}
+
+.editrow__move {
+  display: flex;
+  gap: var(--s-1);
+}
+
+/* Two buttons rather than a drag handle: keyboard-operable by construction,
+   which is what AGENTS.md asks for, rather than a pointer gesture with a
+   keyboard fallback bolted on. 44px is the accessible touch-target floor and
+   these are the smallest controls in the app. */
+.editrow__movebutton {
+  display: grid;
+  place-items: center;
+  flex: 1;
+  min-width: 44px;
+  min-height: 44px;
+  color: var(--fg-soft);
+  background: none;
+  border: 1.5px solid transparent;
+  border-radius: var(--r-md);
+  cursor: pointer;
+}
+
+.editrow__movebutton:hover:not(:disabled) {
+  color: var(--fg);
+  border-color: var(--fg);
+}
+
+/* The first row cannot move up and the last cannot move down. Disabled rather
+   than absent, so the row's control count never changes and a keyboard user's
+   Tab distance to Delete is the same on every row. */
+.editrow__movebutton:disabled {
+  opacity: 0.35;
+  cursor: default;
 }
 
 .editrow__delete {
@@ -1232,7 +1293,12 @@ body.is-settings .viewswitch {
     grid-template-areas:
       "name del"
       "kind kind"
-      "start length";
+      "start length"
+      "move move";
+  }
+
+  .editrow__move {
+    grid-area: move;
   }
 
   .editrow__field:nth-of-type(1) {
@@ -1278,6 +1344,22 @@ body.is-settings .viewswitch {
     padding: var(--s-3);
     border: var(--border-passive);
     border-radius: var(--r-md);
+  }
+}
+
+/* At the reflow floor the two-up row cannot hold a time input either: Chrome
+   needs roughly 130px for "08:00 AM" and its picker icon, and 320px minus the
+   body, card and row padding leaves about 140px for a column that also has to
+   fit the label. One control per row is the honest answer. 375px has room and
+   keeps the pair. */
+@media (max-width: 22.5rem) {
+  .editrow__grid {
+    grid-template-areas:
+      "name del"
+      "kind kind"
+      "start start"
+      "length length"
+      "move move";
   }
 }
 
