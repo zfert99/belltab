@@ -1,0 +1,168 @@
+import { test, expect } from "@playwright/test";
+import { openApp, openSettings, MID_PERIOD, BEFORE_SCHOOL } from "./helpers";
+
+/**
+ * The period announcer: the bell, for a screen-reader user.
+ *
+ * `AGENTS.md` is explicit that the tab title announces nothing and the
+ * countdown must never be live, so a deliberate `aria-live="polite"` region
+ * firing ONLY on period boundaries is how the bell is conveyed at all. Getting
+ * it wrong in either direction is a real failure: silent, and the app is unusable
+ * without sight; chatty, and it reads a ticking number aloud once a second.
+ *
+ * Phase 1 retired the plain build that implemented it, so the behavioural tests
+ * are parked below and revived by Phase 2. What stays live is the invariant
+ * that survives having no UI: the page's live regions are an enumerated list,
+ * and nothing joins it by accident.
+ */
+
+const LIVE_REGION_SELECTOR = '[aria-live], [role="alert"], [role="status"], [role="log"]';
+
+/**
+ * Next injects one of its own, and it is NOT optional.
+ *
+ * `div#__next-route-announcer__` is `aria-live="assertive"` with `role="alert"`,
+ * visually hidden, added by the App Router to announce client-side route
+ * changes. It did not exist in the plain build and it cannot be removed. It
+ * appears only AFTER hydration, so a test that reads the document straight
+ * after `goto` sees an empty page and one that reads it a moment later sees the
+ * region - which is why this is awaited rather than sampled.
+ *
+ * It should stay permanently silent here: BellTab is a single route with no
+ * client-side navigation, so there is no route change to announce. That claim
+ * is worth re-testing in Phase 2 if anything ever calls `router.push`.
+ */
+const NEXT_ROUTE_ANNOUNCER = "div#__next-route-announcer__";
+
+test("the shell ships no live regions beyond Next's route announcer", async ({ page }) => {
+  await openApp(page, MID_PERIOD);
+
+  // Awaited, not assumed: the region arrives with hydration, and asserting
+  // before it lands would pass for the wrong reason and then fail the day the
+  // bundle got slower.
+  await expect(page.locator(NEXT_ROUTE_ANNOUNCER)).toBeAttached();
+
+  // Not a placeholder assertion. Phase 2 adds exactly one clock-driven live
+  // region and Phase 3 adds two form-error slots; every one of those is a
+  // decision, and this is what makes a fourth arriving unnoticed impossible.
+  const regions = await page
+    .locator(LIVE_REGION_SELECTOR)
+    .evaluateAll((elements) =>
+      elements.map((element) => `${element.tagName.toLowerCase()}#${element.id || "(no id)"}`),
+    );
+
+  expect(regions).toEqual([NEXT_ROUTE_ANNOUNCER]);
+});
+
+/**
+ * PARKED until Phase 2 (the announcer itself) and Phase 3 (the editor the
+ * keystroke test types into).
+ *
+ * These came out of Finding 2 of `Docs/code-review-2026-08-26.md` and its
+ * counterpart. The review measured the bug rather than reasoning about it,
+ * because it needs a period to actually be running: typing "Chem" into the
+ * running period's name wrote four successive announcements, one per keystroke.
+ * The assertions below are the contract the rebuilt announcer has to meet.
+ */
+test.describe.fixme("the period announcer", () => {
+  const announcer = (page: import("@playwright/test").Page) => page.locator("#period-announcer");
+
+  test("is silent on first paint", async ({ page }) => {
+    await openApp(page, MID_PERIOD);
+
+    // Describing the period you are already in, the instant the page loads, is
+    // noise rather than news.
+    await expect(announcer(page)).toHaveText("");
+  });
+
+  test("says nothing while the running period's name is typed", async ({ page }) => {
+    await openApp(page, MID_PERIOD);
+    await openSettings(page, "schedules");
+
+    // Period 2 is 09:05-10:05 and the clock is at 09:30, so this row is the
+    // one under the countdown - the exact case the review reproduced.
+    const runningName = page.locator("#period-editor .editrow").nth(2).locator('[data-field="name"]');
+    await expect(runningName).toHaveValue("Period 2");
+
+    await runningName.fill("");
+    await runningName.pressSequentially("Chem", { delay: 20 });
+
+    await expect(runningName).toHaveValue("Chem");
+    await expect(announcer(page)).toHaveText("");
+  });
+
+  test("says nothing when the calendar is repointed", async ({ page }) => {
+    await openApp(page, MID_PERIOD);
+    await openSettings(page, "calendar");
+
+    const wednesday = page.locator("#weekday-map select").nth(3);
+    await wednesday.selectOption("");
+    await expect(page.locator("#calendar-today")).toContainText("no school");
+
+    await expect(announcer(page)).toHaveText("");
+  });
+
+  /**
+   * The other half. Silence is only correct if the thing can still speak, and
+   * for a screen-reader user this region IS the bell - the tab title announces
+   * nothing, and the countdown must never be live.
+   */
+  test("announces the bell when the clock crosses a boundary", async ({ page }) => {
+    await openApp(page, BEFORE_SCHOOL);
+
+    // 07:00 to 08:10: past the 08:00 first bell, into Period 1. fastForward
+    // fires due timers at most once, which is also a fair model of a throttled
+    // tab waking up - the value has to be right on the first repaint, not
+    // caught up to over the next minute.
+    await page.clock.fastForward("01:10:00");
+
+    await expect(announcer(page)).toHaveText("Period 1 has started.");
+    await expect(page.locator("#period-name")).toHaveText("Period 1");
+  });
+
+  test("announces the end of the day exactly once", async ({ page }) => {
+    await openApp(page, MID_PERIOD);
+
+    // 09:30 to 14:40, past the 14:30 last bell.
+    await page.clock.fastForward("05:10:00");
+    await expect(announcer(page)).toHaveText("School is out.");
+
+    // Another ten minutes of the same state must not repeat it.
+    await announcer(page).evaluate((element) => (element.textContent = ""));
+    await page.clock.fastForward("10:00");
+    await expect(announcer(page)).toHaveText("");
+  });
+
+  /**
+   * `AGENTS.md` is explicit: the countdown must never be wrapped in a live
+   * region, and neither must the tab title. A per-second announcement would
+   * make the app unusable with a screen reader.
+   *
+   * The missing-element case is asserted separately on purpose. The plain
+   * build's version of this test read `getElementById(id)?.closest(sel) !== null`,
+   * which evaluates to `true` for an id that does not exist - so a renamed
+   * element would have reported itself as WRAPPED rather than as absent, and
+   * the failure message would have sent the reader looking for a live region
+   * that was never there. Found while porting; see Bugs found in the build log.
+   */
+  test("never wraps the ticking values", async ({ page }) => {
+    await openApp(page, MID_PERIOD);
+
+    const { missing, wrapped } = await page.evaluate((selector) => {
+      const ids = [
+        "countdown-minutes",
+        "countdown-seconds",
+        "period-name",
+        "wall-clock",
+        "day-remaining",
+      ];
+      return {
+        missing: ids.filter((id) => document.getElementById(id) === null),
+        wrapped: ids.filter((id) => document.getElementById(id)?.closest(selector) != null),
+      };
+    }, LIVE_REGION_SELECTOR);
+
+    expect(missing, "these ids no longer exist; the test is checking nothing").toEqual([]);
+    expect(wrapped).toEqual([]);
+  });
+});

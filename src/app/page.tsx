@@ -1,22 +1,22 @@
 /**
- * The Phase 0 gate: an empty page that CI can go green on.
+ * A shell, not the app.
  *
- * Deliberately not the app. The working BellTab is still the plain HTML/CSS/JS
- * build served from `src/index.html` by `npm run serve`, and it stays that way
- * until the engine is ported in Phase 1. This file exists to prove the scaffold
- * builds, type-checks, lints and reflows - nothing more.
+ * Phase 1 landed the schedule engine - `src/lib/` is typed, parsed at the
+ * boundary and covered by the unit suite - and retired the plain HTML/CSS/JS
+ * build that used to render it, because a browser cannot load a `.ts` module.
+ * The countdown itself arrives in Phase 2.
  *
  * Nothing here reads the clock. A time-dependent value rendered on the server
  * hydrate-mismatches by definition, so the countdown arrives as a client
- * component in Phase 2.
+ * component rather than being retrofitted onto this file.
  */
 export default function Page() {
   return (
-    <main>
+    <main className="screen">
       <h1>BellTab</h1>
       <p>
-        The Next.js scaffold is up. The working app is still the plain build —
-        run <code>npm run serve</code> for it.
+        The schedule engine has landed. The countdown, the day view and the
+        editor are rebuilt on top of it in the phases after this one.
       </p>
     </main>
   );

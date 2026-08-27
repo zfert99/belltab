@@ -1,4 +1,4 @@
-import { PERIOD_KINDS } from "./schedule.js";
+import { PERIOD_KINDS, type Period, type ValidSchedule } from "./schedule";
 
 /**
  * The schedule engine: what is true at a given moment.
@@ -6,17 +6,58 @@ import { PERIOD_KINDS } from "./schedule.js";
  * Pure. No DOM, no Date, no side effects - "what time is it" is always an
  * ARGUMENT. That is what makes every function here testable without faking a
  * clock: call stateAt with second 32700 and assert on what comes back.
+ *
+ * Every entry point takes a `ValidSchedule`, so none of them re-checks
+ * ordering or overlap. If a schedule reached this file, it was parsed.
  */
+
+/** The five states a school day can be in, and the only five. */
+export type DayPhase = "empty" | "before" | "during" | "gap" | "after";
 
 /**
  * Where the school day stands at a given moment.
  *
- * @param {object} schedule - a schedule, periods sorted and non-overlapping
- * @param {number} nowSec - seconds since local midnight
- * @returns {{phase: string, current: object|null, next: object|null,
- *            remainingSec: number, progress: number}}
+ * A discriminated union rather than one shape with nullable fields: during a
+ * period there is always a `current`, before the first bell there is always a
+ * `next`, and after dismissal there is neither. Spelling that out means the
+ * tab-title formatter reads `state.current.name` without a null check and the
+ * compiler agrees, instead of the check being a comment somewhere.
  */
-export function stateAt(schedule, nowSec) {
+export type DayState =
+  | { phase: "empty"; current: null; next: null; remainingSec: number; progress: number }
+  | { phase: "before"; current: null; next: Period; remainingSec: number; progress: number }
+  | {
+      phase: "during";
+      current: Period;
+      next: Period | null;
+      remainingSec: number;
+      progress: number;
+    }
+  | { phase: "gap"; current: null; next: Period; remainingSec: number; progress: number }
+  | { phase: "after"; current: null; next: null; remainingSec: number; progress: number };
+
+/** The whole day as one bar. No `current`/`next` - it is not asking that question. */
+export interface DaySummary {
+  phase: "empty" | "before" | "during" | "after";
+  remainingSec: number;
+  progress: number;
+}
+
+export type PeriodStatus = "past" | "current" | "future";
+
+/** "3 of 7" - which countable block of the day this is. */
+export interface BlockPosition {
+  index: number;
+  total: number;
+}
+
+/**
+ * Where the school day stands at a given moment.
+ *
+ * @param schedule - a parsed schedule; periods are sorted and non-overlapping
+ * @param nowSec - seconds since local midnight
+ */
+export function stateAt(schedule: ValidSchedule, nowSec: number): DayState {
   const periods = schedule.periods;
 
   if (periods.length === 0) {
@@ -86,7 +127,7 @@ export function stateAt(schedule, nowSec) {
  * the two answer different questions and the day view needs this without
  * caring which period is running.
  */
-export function daySummaryAt(schedule, nowSec) {
+export function daySummaryAt(schedule: ValidSchedule, nowSec: number): DaySummary {
   const periods = schedule.periods;
 
   if (periods.length === 0) return { phase: "empty", remainingSec: 0, progress: 0 };
@@ -111,7 +152,7 @@ export function daySummaryAt(schedule, nowSec) {
  * One period's status. Uses the same half-open rule as stateAt, so a period
  * cannot read as "current" in the list while the countdown has moved on.
  */
-export function periodStatusAt(period, nowSec) {
+export function periodStatusAt(period: Period, nowSec: number): PeriodStatus {
   if (nowSec >= period.endMin * 60) return "past";
   if (nowSec < period.startMin * 60) return "future";
   return "current";
@@ -127,7 +168,7 @@ export function periodStatusAt(period, nowSec) {
  * Counts blocks that have STARTED, so mid-passing the number holds at the
  * block just finished rather than jumping ahead to one that has not begun.
  */
-export function blockPositionAt(schedule, nowSec) {
+export function blockPositionAt(schedule: ValidSchedule, nowSec: number): BlockPosition {
   const blocks = schedule.periods.filter((p) => p.kind !== PERIOD_KINDS.PASSING);
   const started = blocks.filter((p) => nowSec >= p.startMin * 60).length;
   return { index: started, total: blocks.length };

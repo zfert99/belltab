@@ -7,9 +7,24 @@ import { defineConfig, devices } from "@playwright/test";
  * (the WCAG reflow gate is a measurement, not an assertion about markup), and
  * real browser lifecycle - a modal <dialog>'s Escape, which jsdom does not
  * implement at all.
+ *
+ * TypeScript rather than JavaScript since Phase 1: the app it drives is typed,
+ * and `npm run typecheck` covers `**\/*.ts`, so the suite is compiled by the
+ * same gate as the code under test.
  */
 
 const PORT = 3111;
+
+/**
+ * `basePath: '/bell'` in next.config.ts means the app does not live at the
+ * origin root: `/` is a 404 and every route and asset carries the prefix.
+ *
+ * It is NOT folded into `baseURL`, and that is deliberate. Playwright resolves
+ * a relative navigation with `new URL(path, baseURL)`, so a baseURL ending in
+ * `/bell` plus a `goto("/")` resolves back to the origin root and 404s. The
+ * prefix belongs on the paths instead - see `openApp` in e2e/helpers.ts.
+ */
+export const BASE_PATH = "/bell";
 
 export default defineConfig({
   // E2E lives in a top-level directory, exempt from the colocation rule that
@@ -48,8 +63,26 @@ export default defineConfig({
   ],
 
   webServer: {
-    command: `node scripts/serve.js ${PORT}`,
-    url: `http://localhost:${PORT}`,
+    /**
+     * A production build, not `next dev`, and not the retired `scripts/serve.js`.
+     *
+     * The Next docs recommend testing against the production build, and here it
+     * earns its cost twice over: CSS ordering and chunking only take their final
+     * form in `next build`, and the reflow gate is a measurement of the CSS that
+     * actually ships. A dev server would gate on a stylesheet no user receives.
+     */
+    command: `npm run build && npx next start --port ${PORT}`,
+
+    // The prefix is required. `basePath` makes the origin root a 404, and
+    // Playwright's readiness probe accepts 2xx/3xx/400/401/402/403 - a 404
+    // reads as "not up yet" and the whole run times out waiting for a server
+    // that has been listening the entire time.
+    url: `http://localhost:${PORT}${BASE_PATH}`,
+
+    // The default 60s covers `next start` alone. This command builds first,
+    // which on a cold CI runner does not reliably fit in that.
+    timeout: 120_000,
+
     reuseExistingServer: !process.env.CI,
     stdout: "ignore",
   },

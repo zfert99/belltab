@@ -61,42 +61,44 @@ the browser throttled the timer that rendered it.
 
 ## Stack
 
-**Today: plain HTML, CSS, and ES modules. No build step, no framework, no
-runtime dependencies.** That is a deliberate detour — the app was built without
-a framework first so the wiring is visible, and the schedule engine is pure and
-framework-free precisely so the port is mechanical. `Docs/build-log.md` records
-the reasoning.
+**Next.js (App Router) · React · TypeScript · Vercel**, deployed as its own
+zone and proxied to `biscuitlab.net/bell` by the Biscuit Lab hub, the same way
+Puzzle Lab is served at `/puzzles`. Vitest and Playwright cover it.
 
-**The destination:** Next.js (App Router) · TypeScript · Tailwind · Vercel,
-deployed as its own zone and proxied to `biscuitlab.net/bell` by the Biscuit Lab
-hub, the same way Puzzle Lab is served at `/puzzles`. Vitest and Playwright are
-already here and carry over unchanged.
+The app was built as plain HTML, CSS and ES modules first — a deliberate detour,
+so the wiring stayed visible and the schedule engine came out pure and
+framework-free. Phase 1 ported that engine to TypeScript and retired the plain
+build, since a browser cannot load a `.ts` module. The UI is being rebuilt on
+top of the engine phase by phase; `Docs/build-log.md` records the reasoning and
+`Docs/roadmap.md` tracks what is left.
 
 ## Local development
 
 ```bash
 npm install
-npm run serve     # http://localhost:3000
+npm run dev       # http://localhost:3000/bell
 ```
 
-A server is **required** even though there is no backend: `app.js` is an ES
-module, and browsers refuse to load modules over `file://`. `npm run serve` is
-forty lines of Node in `scripts/serve.js`, not a dependency.
-
-There is no `/bell` base path yet — that arrives with `next.config.ts` at the
-port, and local dev becomes `localhost:3000/bell` then.
+The `/bell` suffix is not a typo. `basePath: '/bell'` in `next.config.ts` scopes
+every route and every `/_next/*` asset, and it is inlined at build time — so the
+bare `localhost:3000` is a 404 in development exactly as it would be in
+production.
 
 Before calling any change done:
 
 ```bash
-npm test          # vitest - the engine, the parser, the formatters, the wiring
-npm run e2e       # playwright - reflow, the dialog, the announcer
+npm run lint      # eslint, including jsx-a11y at full `recommended`
+npm run typecheck # tsc --noEmit, strict
+npm test          # vitest - the engine, the parser, the formatters
+npm run e2e       # playwright - the reflow gate
 npm run lint:md   # markdownlint
 ```
 
-`npm run e2e` starts its own server and drives the Chrome already installed on
-the machine, so it needs no browser download. WebKit and Firefox are not covered
-yet; see **Open gaps** in `Docs/build-log.md`.
+`npm run e2e` builds the app and starts its own server, then drives the Chrome
+already installed on the machine, so it needs no browser download. It runs
+against a production build rather than `next dev`, because the reflow gate
+measures the CSS that actually ships. WebKit and Firefox are not covered yet;
+see **Open gaps** in `Docs/build-log.md`.
 
 ## Docs
 

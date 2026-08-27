@@ -8,24 +8,26 @@ evidence behind the technical decisions is
 **Status legend:** ✅ Done · 🚧 In progress · 📋 Planned · ⛔ Blocked (prereq)
 **Tracks:** 🏗️ Setup · ⚙️ Engine · 🎨 UI · 🔀 Infra · 🔗 Integration
 
-**Status (2026-08-26):** a working plain HTML/CSS/JS build exists on `main`,
-deliberately ahead of Phase 0 — see `Docs/build-log.md` for the running
-narrative and the reasoning behind each decision. Shipped so far: the countdown
-and period strip, the day list, big/projector mode, a schedule editor with
-validation, a calendar, and preferences.
+**Status (2026-08-27):** the plain HTML/CSS/JS build that ran ahead of the
+roadmap is **retired**. Phase 1 ported its engine to TypeScript, which a browser
+cannot load directly, so the app it powered went with it. What is on `main` is
+the Next.js scaffold plus a fully typed, fully tested `src/lib/` — and a page
+that renders no time yet. The UI is rebuilt on the engine phase by phase from
+here, starting with the countdown.
 
-**Testing:** 153 Vitest tests over the pure engine, the parser, the formatters
-and the jsdom wiring, plus 37 Playwright tests in `e2e/` running in a real
-Chrome. The reflow gate that Phase 0 calls for is among them and passes at
-320/375/768/1024/1440.
+**Testing:** 118 Vitest tests over the pure engine, the parser and the
+formatters, plus 11 live Playwright tests in `e2e/` running in a real Chrome.
+The reflow gate that Phase 0 calls for is among them and passes at
+320/375/768/1024/1440. A further **37 Playwright tests are parked** — they drove
+UI Phase 1 removed, and each names the phase that revives it. See
+`Docs/build-log.md` for what that narrowing costs and what is owed.
 
 The repo is at `github.com/zfert99/belltab`, with `main` protected by GitHub
 Flow (one PR per change, squash-merged).
 
-**The phase table below still describes the Next.js track**, which is the
-destination rather than the current state: Phase 0's scaffold, security headers,
-CI and lint gate are genuinely not started, and Phases 1–4 exist only in their
-plain-JS form. Reconciling the two is owed once the port begins.
+**The phase table below and the code now describe the same track.** The
+plain-JS detour is over; Phases 2–4 rebuild in React what the retired build
+already proved out, against an engine that no longer has to be re-derived.
 
 **Phase 0 update (2026-08-26 15:47, `feat/phase-0-scaffold`):** the phase splits
 cleanly into a Next.js scaffold and the gates that scaffold would be checked by,
@@ -51,14 +53,18 @@ The plain HTML/CSS/JS build is **untouched** and still passes its 153 unit and
 37 E2E tests. Phases 1–4 replace it module by module; Phase 1 is the one that
 retires it, since a browser cannot load a `.ts` module directly.
 
+> **Superseded 2026-08-27.** Phase 1 did exactly that. The paragraph above
+> describes the state on 2026-08-26 and is kept because it is what the Phase 0
+> decision was made against; the current state is the Status block at the top.
+
 ## At a glance
 
 | Phase | What | Track | Status |
 | :---: | --- | :---: | :---: |
 | **D** | Docs & planning — plan, agent rules, design system, research | 🏗️ | ✅ Done |
 | **0** | Scaffold — Next.js, `basePath`, CI, test harness, a11y gate | 🏗️ | ✅ Done |
-| **1** | The schedule engine — pure, typed, fully tested | ⚙️ | 📋 Planned |
-| **2** | The countdown — one clock, the display, the tab title | 🎨 | 📋 Planned |
+| **1** | The schedule engine — pure, typed, fully tested | ⚙️ | ✅ Done |
+| **2** | The countdown — one clock, the display, the tab title | 🎨 | 🚧 Next |
 | **3** | The editor — build and edit a schedule, overlap blocking | 🎨 | 📋 Planned |
 | **4** | Day types — named schedules, weekday map, date overrides | 🎨 | 📋 Planned |
 | **5** | Sharing — versioned hash encoding, export/import | ⚙️ | 📋 Planned |
@@ -116,16 +122,37 @@ Phase 7.
 Pure functions in `src/lib/`. No React, no `Date.now()` — the current time is
 always an argument.
 
-- `Period` and `Schedule` types; times as minutes-since-midnight integers.
-- The boundary parser: untrusted input → branded `ValidSchedule` or a structured
-  error. Sorted, non-overlapping, `startMin < endMin`; gaps permitted.
-- `stateAt(schedule, minute)` → current period, remaining, next period, progress
-  fraction, and which empty state applies.
-- Unit tests at every boundary: exact start minute, exact end minute, back-to-back
-  periods with zero gap, the minute before the first bell, the minute after the
-  last, an empty schedule, a one-period schedule, midnight rollover.
+- ✅ `Period` and `Schedule` types; times as minutes-since-midnight integers.
+- ✅ The boundary parser: untrusted input → branded `ValidSchedule` or a
+  structured error. Sorted, non-overlapping, `startMin < endMin`; gaps
+  permitted. The brand's symbol is unexported, so `parseSchedule` is the only
+  thing that can mint one.
+- ✅ `stateAt(schedule, nowSec)` → current period, remaining, next period,
+  progress fraction, and which empty state applies. Returned as a discriminated
+  union keyed on `phase`, so a `during` with no current period is
+  unrepresentable rather than merely unlikely.
 
-**Gate:** the engine is fully tested with no UI and no fake timers.
+  **Corrected from `stateAt(schedule, minute)`:** the argument is *seconds*
+  since local midnight. Storage stays minute integers — that invariant is
+  untouched — but the countdown displays a seconds place, which a
+  minute-resolution engine cannot produce. The multiply happens once, at the
+  engine's front door.
+- ✅ Unit tests at every boundary: exact start minute, exact end minute,
+  back-to-back periods with zero gap, the minute before the first bell, the
+  minute after the last, an empty schedule, a one-period schedule, midnight
+  rollover. 118 in total, with fixtures built through the real parser rather
+  than cast into place.
+- ✅ The plain HTML/CSS/JS build retired, its stylesheet carried into
+  `src/app/globals.css`, and its E2E suite repointed at the Next app — 11 live,
+  37 parked against the phases that revive them.
+
+**Gate: met.** The engine is fully tested with no UI and no fake timers, and
+`npm run lint`, `npm run typecheck`, `npm run build`, `npx vitest run`,
+`npx playwright test` and `npx markdownlint-cli "**/*.md"` all pass.
+
+Carried forward as open gaps rather than done: `src/lib/` has no consumer until
+Phase 2, most of `globals.css` targets markup that does not exist yet, and the
+E2E suite is 11 live tests where it was 37.
 
 ## Phase 2 — The countdown 🎨
 

@@ -1,10 +1,11 @@
 /**
- * Seed data: the schedules a fresh install starts with, and the calendar that
- * says which one runs on which day.
+ * What a schedule *is*, and the schedules a fresh install starts with.
  *
- * This file is data only - no logic, no clock, no DOM. Everything here is a
- * DEFAULT: once the user edits anything, the edited copy lives in localStorage
- * and this file is only ever read again on a reset.
+ * Two things live here because they are the same statement twice: the types
+ * are the vocabulary, and `DEFAULT_SCHEDULES` is the canonical example of it.
+ * There is no logic, no clock and no DOM - everything below is either a type
+ * or a DEFAULT. Once the user edits anything, the edited copy lives in
+ * localStorage and this file is only ever read again on a reset.
  */
 
 /**
@@ -15,7 +16,7 @@
  * comparable, and trivially serializable. Subtracting two integers cannot
  * drift; subtracting two Dates across a DST boundary can.
  */
-const hm = (hours, minutes) => hours * 60 + minutes;
+const hm = (hours: number, minutes: number): number => hours * 60 + minutes;
 
 /**
  * What a period *is*, as opposed to what it is called.
@@ -29,7 +30,77 @@ export const PERIOD_KINDS = {
   CLASS: "class",
   LUNCH: "lunch",
   PASSING: "passing",
-};
+} as const;
+
+export type PeriodKind = (typeof PERIOD_KINDS)[keyof typeof PERIOD_KINDS];
+
+/**
+ * A minute of the day, 0 to 1440.
+ *
+ * An alias rather than a brand: every integer in range is a legal value, so a
+ * brand would buy no safety and cost a cast at every arithmetic site. It
+ * exists to make signatures read as intent - `startMin: MinuteOfDay` says what
+ * `startMin: number` does not.
+ */
+export type MinuteOfDay = number;
+
+/** A date on a wall calendar, "YYYY-MM-DD". Minted by `parseIsoDate`. */
+export type IsoDate = string;
+
+/** A schedule's stable identity, used by the calendar to point at it. */
+export type ScheduleId = string;
+
+export interface Period {
+  name: string;
+  kind: PeriodKind;
+  startMin: MinuteOfDay;
+  endMin: MinuteOfDay;
+}
+
+export interface Schedule {
+  id: ScheduleId | null;
+  name: string;
+  periods: readonly Period[];
+}
+
+/**
+ * The brand that makes "parse, don't validate" a compiler rule rather than a
+ * convention.
+ *
+ * The symbol is deliberately NOT exported. A `ValidSchedule` can be held,
+ * passed and read anywhere, but the only honest way to obtain one is
+ * `parseSchedule` - nothing downstream can name the brand in order to forge
+ * it, so nothing downstream needs to re-check ordering or overlap.
+ *
+ * The guarantee it carries: periods sorted by start, `startMin < endMin` on
+ * every one, and no two overlapping. Gaps are legal and are NOT part of the
+ * guarantee - a schedule need not tile the day.
+ */
+declare const validScheduleBrand: unique symbol;
+
+export type ValidSchedule = Schedule & { readonly [validScheduleBrand]: true };
+
+/** One weekday's default, indexed 0 = Sunday through 6 = Saturday. */
+export type WeekdayMap = readonly [
+  ScheduleId | null,
+  ScheduleId | null,
+  ScheduleId | null,
+  ScheduleId | null,
+  ScheduleId | null,
+  ScheduleId | null,
+  ScheduleId | null,
+];
+
+export interface CalendarOverride {
+  date: IsoDate;
+  /** `null` is an explicit closure - a snow day - not a missing entry. */
+  scheduleId: ScheduleId | null;
+}
+
+export interface Calendar {
+  weekdays: WeekdayMap;
+  overrides: readonly CalendarOverride[];
+}
 
 /**
  * Every schedule below obeys the same invariants, enforced from here on by
@@ -38,8 +109,12 @@ export const PERIOD_KINDS = {
  * Gaps are legal and deliberate - before the first bell and after the last
  * belongs to no period, and those are real states the UI renders rather than
  * holes to be patched.
+ *
+ * Typed as plain `Schedule`, not `ValidSchedule`. Seed data gets no exemption
+ * from the boundary: `parse.test.ts` runs all four through `parseSchedule`, so
+ * a typo here fails the suite rather than shipping as a broken default.
  */
-export const DEFAULT_SCHEDULES = [
+export const DEFAULT_SCHEDULES: readonly Schedule[] = [
   {
     id: "regular",
     name: "Regular",
@@ -125,7 +200,7 @@ export const DEFAULT_SCHEDULES = [
  * an ISO timestamp would drag a timezone into a question that has none.
  * A `scheduleId` of null is an explicit closure - a snow day.
  */
-export const DEFAULT_CALENDAR = {
+export const DEFAULT_CALENDAR: Calendar = {
   weekdays: [null, "regular", "regular", "regular", "regular", "regular", null],
   overrides: [],
 };

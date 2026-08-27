@@ -5,13 +5,13 @@ import nextTs from "eslint-config-next/typescript";
 import jsxA11y from "eslint-plugin-jsx-a11y";
 
 /**
- * The lint gate, spanning two apps at once.
+ * The lint gate.
  *
- * This repo currently holds both the plain HTML/CSS/JS build (`src/*.js`,
- * `src/ui/`, `src/lib/`) and the Next scaffold (`src/app/**.tsx`), and they
- * need different treatment: the plain half has no compiler, so `no-undef` is
- * standing in for a type checker, while the TypeScript half gets that from
- * `tsc` and needs React and accessibility rules instead.
+ * Phase 1 retired the plain HTML/CSS/JS build, so the "two apps at once" shape
+ * this file used to have is gone: everything under `src/` and `e2e/` is now
+ * TypeScript, and `tsc` rather than `no-undef` is what catches a name that does
+ * not exist. The one remaining JavaScript file is this config's own sibling,
+ * `vitest.config.js`.
  *
  * Order matters. ESLint applies configs in sequence and later ones win for
  * matching files, so the plain-JS block is scoped to its own file patterns and
@@ -39,17 +39,21 @@ const config = [
   },
 
   // ---------------------------------------------------------------------
-  // The plain build. Scoped by `files` so none of it leaks onto the TSX.
+  // The remaining plain JavaScript: config files that run in Node.
   // ---------------------------------------------------------------------
 
   {
-    files: ["src/**/*.js", "e2e/**/*.js", "scripts/**/*.js", "*.config.js"],
+    files: ["*.config.js"],
     ...js.configs.recommended,
   },
 
   {
-    files: ["src/**/*.js", "e2e/**/*.js", "scripts/**/*.js", "*.config.js"],
-    languageOptions: { ecmaVersion: "latest", sourceType: "module" },
+    files: ["*.config.js"],
+    languageOptions: {
+      ecmaVersion: "latest",
+      sourceType: "module",
+      globals: globals.node,
+    },
     linterOptions: {
       // An unused disable comment is a rule that stopped applying and a comment
       // that now lies about the code.
@@ -63,37 +67,20 @@ const config = [
     },
   },
 
-  {
-    // The app itself: a browser and nothing else.
-    files: ["src/**/*.js"],
-    languageOptions: { globals: globals.browser },
-  },
-
-  {
-    // Unit tests live under `src/` by the colocation rule but run in Vitest:
-    // the jsdom suite reads the real index.html off disk through `node:fs`.
-    files: ["src/**/*.test.js"],
-    languageOptions: { globals: { ...globals.browser, ...globals.node } },
-  },
-
-  {
-    files: ["scripts/**/*.js", "*.config.js"],
-    languageOptions: { globals: globals.node },
-  },
-
-  {
-    // E2E specs straddle both: the spec body runs in Node, but a callback
-    // handed to `page.evaluate` is serialised and runs inside the page.
-    files: ["e2e/**/*.js"],
-    languageOptions: { globals: { ...globals.node, ...globals.browser } },
-  },
-
   // ---------------------------------------------------------------------
-  // The Next app.
+  // The Next app, the engine, and the E2E suite - all TypeScript.
   // ---------------------------------------------------------------------
 
   ...nextVitals,
   ...nextTs,
+
+  {
+    // E2E specs straddle two runtimes: the spec body runs in Node, but a
+    // callback handed to `page.evaluate` is serialised and runs inside the
+    // page, so both sets of globals are legitimately in scope in one file.
+    files: ["e2e/**/*.ts"],
+    languageOptions: { globals: { ...globals.node, ...globals.browser } },
+  },
 
   /**
    * The full accessibility rule set, on top of the Next config.
