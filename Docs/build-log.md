@@ -235,6 +235,10 @@ development too, so the bare origin is a 404 exactly as it is in production.
 | 2026-08-27 | The announcer is mounted for both screens, not inside the countdown | A bell that rings while the editor is open is still a bell. An announcer that unmounted with the view would miss it and then come back silent, because its "say nothing on first paint" rule would swallow the boundary it slept through. |
 | 2026-08-27 | `#schedule-error` is the editor's only live region; row errors are not live | A row error has a control to point at, so `aria-describedby` reads it at the right moment — when the offending input takes focus. A blank schedule name has no such control, so that one speaks. Hidden with `.visually-hidden` rather than `hidden`, because a live region has to be in the accessibility tree *before* its text changes. |
 | 2026-08-27 | Overlap error attribution is left as it is, and the gap closed | Opened 2026-08-26 as a Phase 3 decision. `Array.prototype.sort` is stable, so on an exact start tie the error lands on the row that appears LATER in the editor — which is the row the user just added or just typed into. That is the right row; threading edit state into a pure function would buy nothing. |
+| 2026-08-27 | The research directory was copied in WHOLE, not cherry-picked, and the provenance problem solved with an index | Extracting the paragraphs that apply would produce documents nobody could audit: a quote with its context deleted reads as authoritative and cannot be checked against its own source. Copying whole and describing accurately keeps every claim falsifiable. The cost is that the directory is mostly about other repos, which is exactly what `Docs/research/index.md` exists to say. |
+| 2026-08-27 | Inherited documents keep their prose; only cross-repo links that resolve to nothing are de-linked | Editing borrowed research to "fit" this repo destroys the thing that makes it worth keeping — that it is a record of what was actually measured somewhere else. A dead link is different: it is not a claim, it is a broken pointer, and leaving it costs a future reader the discovery that the evidence exists at all. Four such links became plain filenames with the owning repo named. |
+| 2026-08-27 | Every row of the index's "general advice" table carries a caveat, including the genuinely generic ones | With caveats on only some rows, a blank cell is ambiguous between "checked, nothing to say" and "never looked". Filling all eleven makes the column mean *we read this one*. This is the fix for code-review findings 1, 2, 6, 7 and 8 of 2026-08-27. |
+| 2026-08-27 | The two Puzzle-Lab-titled advice documents were NOT moved into the "about OTHER repos" table | That table is for documents *about* another repo — a migration that happened there, a sitemap that describes it. `ai-assisted-nextjs-security-reference.md` and `solo-dev-ai-qa-code-review-playbook.md` are general advice *addressed to* another repo, which is a different thing. Collapsing the distinction would cost the third table the precision that makes it useful; a caveat column buys the same safety without it. |
 
 ## Deviations from the plan docs
 
@@ -446,6 +450,7 @@ Lunch before Period 3" is a statement about the timetable, not about a list.
 | 2026-08-27 | Cross-tab sync is untested | `useSyncExternalStore` plus the `storage` event means editing in one tab updates a countdown left open in another. That fell out of using the right API rather than being built, and no test opens two tabs — so it is claimed, not demonstrated. Playwright can do it with two pages on one context. |
 | 2026-08-27 | The onboarding empty state is still a dead end | With no schedules the countdown says "No schedule yet" and the editor says "There is no schedule to edit". Creating one from nothing is Phase 4's "new schedule" control. Reachable today only by hand-editing `localStorage`, which is why it has an E2E test and no route. |
 | 2026-08-27 | No automated accessibility scan | `Docs/research/accessibility-responsive-qa.md` recommends `@axe-core/playwright` on every journey, with zero critical/serious violations to release, and the editor is exactly the surface that pays for it. Not added: it is a new dependency and outside the roadmap's Phase 3 list. The blocking checks today are `eslint-plugin-jsx-a11y` at `recommended`, the reflow gate, the live-region enumeration and a keyboard-only E2E pass — which the same research is explicit is not the same thing. |
+| 2026-08-27 | Three pieces of cited evidence live in the Puzzle Lab repo, not this one | `multi-zone-migration-safety-review.md` marks its rate-limit finding **VERIFIED** against method and numbers in `src/lib/rate-limit.md`; `multi-zone-cost-and-alternatives.md` reverses its own earlier position on the authority of `puzzle-lab-hub-merge-research.md` and `vercel-cron-deployment-protection-outage.md`. All three files are real and all three are one repo away. The broken links are fixed — they now name the repo — but the claims remain unauditable from inside BellTab. Copying the three in would fix it and would also import three more documents about someone else's stack; not done, and the tradeoff is the reason. |
 
 ## Closed
 
@@ -2767,3 +2772,78 @@ third of WCAG success criteria between them.
 
 No code changed. `markdownlint` passes over all twenty documents, which is the
 only gate that applies to them.
+
+### 2026-08-27 15:17 — code review of `3f709dc`, and the eight fixes
+
+Reviewed the research-library commit at effort `high` and wrote it up as
+`Docs/code-review-2026-08-27-research-index.md`. Seven findings, plus an eighth
+found while fixing. All eight fixed in this session; nothing left open from the
+review itself.
+
+**The review target had to be `HEAD~1`.** Both `git diff origin/main...HEAD` and
+`git diff HEAD` were empty — `main` was clean and pushed — so there was no
+working-tree diff to review. Worth recording because it will recur: reviewing
+straight after a merge means reviewing the last commit, not the tree.
+
+**What the review found was one defect, eight times.** `Docs/research/index.md`
+exists to say which repo each document is about, and its third table does that
+precisely. Its second table promised **"general, and safe to apply here"** and
+then listed five documents whose own H1s say *Puzzle App* or *Puzzle Lab* — four
+of them with no caveat at all. The worst was
+`ai-assisted-nextjs-security-reference.md`, filed as safe, whose staged plan is
+better-auth, rate limiting on Upstash, Neon RLS and passkey recovery: every one
+of them a decided non-goal in `Docs/belltab-plan.md` §2. That is precisely the
+`eslint10-ts7-upgrade-blockers.md` trap the index was written to flag, at larger
+scale and unflagged.
+
+**The eighth finding is the one that would actually get acted on.**
+`web-best-practices.md` and `enterprise-architecture.md` were un-caveated
+because they are genuinely repo-agnostic — no Puzzle Lab in the title, no Neon,
+no better-auth. But both recommend feature-folder/domain architecture, and
+`AGENTS.md` bans exactly that by name as an AI pitfall: *"Do NOT introduce a
+`src/features/` domain architecture."* A repo-agnostic document, filed as
+generally applicable, recommending the one refactor the repo rules forbid, is a
+worse trap than a document with "Puzzle App" in its title — because nothing
+about it looks foreign.
+
+**The fix is a third column, not a reorganization.** The second table's heading
+is now "general advice", its preamble says five of the eleven were written *for*
+the puzzle app, and every row has a **Watch out for** cell. Filling all eleven —
+including the four that just say "Repo-agnostic" plus a narrowing — is the
+point: with caveats on only some rows, a blank cell cannot be distinguished from
+an unread one.
+
+The two Puzzle-Lab-titled advice documents stayed in the second table
+deliberately. The third table is for documents *about* another repo; these are
+advice *addressed to* another repo. Merging the two senses would cost the third
+table the precision that makes it worth reading.
+
+**Four dead links, and the discovery that they were never fabricated.**
+`multi-zone-migration-safety-review.md:46` pointed at `../../src/lib/rate-limit.md`
+— from `Docs/research/` that resolves to this repo's root, where it does not and
+cannot exist. `multi-zone-cost-and-alternatives.md` had three more, at lines 5,
+52 and 97, and they are the two sources that document leans on hardest: the
+commissioned research that corrected three of its own earlier claims, and the
+cron outage that prompted the decision. All three target files turned out to be
+real, in `Puzzle-Generator/`. The paths broke when the documents moved, not when
+they were written.
+
+They are now plain filenames with the owning repo named alongside, and the index
+has a closing section recording that convention so nobody re-adds the links. The
+prose was not otherwise touched — see the Decisions row on why editing borrowed
+research to fit this repo destroys what makes it worth keeping.
+
+**The build-log entry for `3f709dc` broke the build-log rule.** It recorded the
+*what* and skipped the *why*: no **Decisions** row on a change that was almost
+entirely a why, and no **Open gaps** row for four dead links that were knowingly
+imported. Four Decisions rows and one Open gaps row were added with this session.
+The gap survives the fix — de-linking removes the broken pointer, not the fact
+that three pieces of cited evidence live one repo away, including a claim marked
+**VERIFIED** with numbers.
+
+Verified after the change: every link in `index.md` resolves, every document is
+indexed and every indexed document exists (checked both directions), and the
+enumeration of non-`http` links across all research documents is now empty where
+it previously returned exactly four. `markdownlint` passes. No code changed;
+`lint`, `typecheck`, `vitest` (213/213) and `playwright` (83 passed, 22 parked)
+were run anyway and pass.
