@@ -1,10 +1,19 @@
+import type { BlockPosition, DayState, DaySummary } from "./engine";
+import type { MinuteOfDay, Period } from "./schedule";
+
 /**
  * Every string the user reads that is derived from a number.
  *
- * Imports nothing, deliberately. The 12/24-hour preference arrives as a
- * parameter rather than being read from a module global - a formatter that
- * consults hidden state is a formatter you cannot test.
+ * Imports no VALUES, deliberately - the type imports above erase at compile
+ * time, so nothing here can run another module's code. The 12/24-hour
+ * preference arrives as a parameter rather than being read from a module
+ * global: a formatter that consults hidden state is a formatter you cannot
+ * test.
  */
+
+export interface ClockOptions {
+  hour12?: boolean;
+}
 
 /**
  * Minutes since midnight to a wall-clock label: 545 -> "9:05" or "09:05".
@@ -16,7 +25,7 @@
  * 24-hour pads the hour ("09:05"), 12-hour does not ("9:05") - that is the
  * convention in each, not an inconsistency.
  */
-export function formatClock(totalMinutes, { hour12 = true } = {}) {
+export function formatClock(totalMinutes: MinuteOfDay, { hour12 = true }: ClockOptions = {}): string {
   const hours24 = Math.floor(totalMinutes / 60) % 24;
   const minutes = String(totalMinutes % 60).padStart(2, "0");
 
@@ -27,7 +36,7 @@ export function formatClock(totalMinutes, { hour12 = true } = {}) {
 }
 
 /** A period's length, for the list: 55 -> "55m", 90 -> "1h 30m". */
-export function formatDuration(totalMinutes) {
+export function formatDuration(totalMinutes: number): string {
   if (totalMinutes < 60) return `${totalMinutes}m`;
   const hours = Math.floor(totalMinutes / 60);
   const minutes = totalMinutes % 60;
@@ -44,7 +53,15 @@ export function formatDuration(totalMinutes) {
 export const COUNTDOWN_UNITS = {
   hoursMinutes: "hr : min",
   minutesSeconds: "min : sec",
-};
+} as const;
+
+export type CountdownUnit = (typeof COUNTDOWN_UNITS)[keyof typeof COUNTDOWN_UNITS];
+
+export interface CountdownParts {
+  major: string;
+  minor: string;
+  unit: CountdownUnit;
+}
 
 /**
  * Splits a duration into the two numbers the display shows, and says what they
@@ -59,7 +76,7 @@ export const COUNTDOWN_UNITS = {
  * the number in a context where the scale is already obvious (a period row
  * that says "55m" beside it) are free to ignore it.
  */
-export function splitCountdown(totalSeconds) {
+export function splitCountdown(totalSeconds: number): CountdownParts {
   const safeSeconds = Math.max(0, Math.floor(totalSeconds));
 
   if (safeSeconds >= 3600) {
@@ -78,7 +95,7 @@ export function splitCountdown(totalSeconds) {
 }
 
 /** The line under the strip: "3 of 7 - 3:38 until dismissal". */
-export function formatDayCaption(day, position) {
+export function formatDayCaption(day: DaySummary, position: BlockPosition): string {
   if (day.phase === "empty") return "No schedule";
   if (day.phase === "after") return `${position.total} of ${position.total} · done for today`;
 
@@ -88,7 +105,7 @@ export function formatDayCaption(day, position) {
 }
 
 /** One period, spelled out: "Period 3 - 10:10 to 11:05". */
-export function formatPeriodLabel(period, options) {
+export function formatPeriodLabel(period: Period, options?: ClockOptions): string {
   return `${period.name} · ${formatClock(period.startMin, options)}–${formatClock(period.endMin, options)}`;
 }
 
@@ -99,8 +116,11 @@ export function formatPeriodLabel(period, options) {
  * system, the plan, the roadmap and the README all specify - a hyphen reads as
  * a range or a minus sign next to a number, which is the one thing this string
  * is mostly made of.
+ *
+ * The `during`/otherwise branch below needs no null check: DayState's union
+ * already guarantees a `current` during a period and a `next` before one.
  */
-export function formatTabTitle(state) {
+export function formatTabTitle(state: DayState): string {
   if (state.phase === "after") return "Done · BellTab";
   if (state.phase === "empty") return "BellTab";
 
@@ -122,10 +142,8 @@ export function formatTabTitle(state) {
  * this one ticks, and an unpadded seconds place changes the string's width
  * every ten seconds.
  */
-export function formatRemaining(totalSeconds) {
+export function formatRemaining(totalSeconds: number): string {
   const { major, minor, unit } = splitCountdown(totalSeconds);
 
-  return unit === COUNTDOWN_UNITS.hoursMinutes
-    ? `${major}h ${minor}m`
-    : `${major}m ${minor}s`;
+  return unit === COUNTDOWN_UNITS.hoursMinutes ? `${major}h ${minor}m` : `${major}m ${minor}s`;
 }

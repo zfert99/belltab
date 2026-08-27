@@ -23,17 +23,21 @@ the end of a phase.
 
 ## Current state
 
-**Working:** a plain HTML/CSS/JS app, no build step.
+**Working:** the schedule engine, in TypeScript, with no UI on top of it yet.
 
-- Three live views — **Now** (timer + period strip), **Day** (the readable
-  list), **Big** (the projector).
-- **Settings** with all three sections built: Schedules (a full editor),
-  Calendar (weekday map + dated exceptions), Preferences (theme, 12/24-hour).
-- Multiple schedules, resolved per day, persisted to `localStorage`, surviving
-  midnight rollover.
+- `src/lib/` is pure, typed and fully tested — the parser mints a branded
+  `ValidSchedule` and the engine accepts nothing else.
+- The Next.js app is a shell: a heading, a paragraph, and the design system's
+  stylesheet. It renders no time.
 
-**Not started:** sharing (versioned hash encoding, export/import), bell offset,
-wake lock, chime, PWA, and the entire Next.js/TypeScript port.
+**Retired:** the plain HTML/CSS/JS build. Phase 1 replaced the modules it
+imported with `.ts`, which a browser cannot load, so `src/index.html`,
+`src/app.js`, `src/store.js`, `src/ui/` and `scripts/serve.js` are gone. Their
+behaviour — three views, the editor, the calendar, preferences — is owed back by
+Phases 2–4 and its tests are parked, not deleted. See **Open gaps**.
+
+**Not started:** the countdown, the editor, day types, sharing, bell offset,
+wake lock, chime, PWA.
 
 ### Files
 
@@ -47,17 +51,12 @@ home for the pure engine.
 
 ```text
 src/
-  index.html  styles.css
-  app.js        entry point, wiring only        + app.test.js
-  store.js      mutable state and persistence
-  lib/          pure: no DOM, no Date           + colocated tests
-    schedule.js  engine.js  parse.js  format.js
-  ui/           everything that touches the document
-    dom.js  views.js  editor.js
+  app/          routing and entry points only, per AGENTS.md
+    layout.tsx  page.tsx  globals.css
+  lib/          pure: no DOM, no Date, no React   + colocated tests
+    schedule.ts  engine.ts  parse.ts  format.ts
 e2e/            Playwright, top-level by rule, not colocated
-  helpers.js  reflow.spec.js  confirm-dialog.spec.js  announcer.spec.js
-scripts/
-  serve.js      the dev server, no dependencies
+  helpers.ts  reflow.spec.ts  confirm-dialog.spec.ts  announcer.spec.ts
 ```
 
 `e2e/` is top-level because `AGENTS.md` exempts E2E from colocation: it tests
@@ -65,45 +64,37 @@ the assembled app in a browser, not any one module. It covers the two things
 jsdom structurally cannot — real layout, for the WCAG reflow gate, and real
 `<dialog>` lifecycle, which jsdom does not implement at all.
 
-`store.js` sits at the root rather than in either folder: it is not pure
-(localStorage, `document`) but it is not UI either, and a `state/` folder
-holding one file would be worse than the ambiguity.
-
 | File | What it is | Imports |
 | --- | --- | --- |
-| `src/index.html` | Markup and four `<template>`s. One inline script sets the theme before first paint. | — |
-| `src/styles.css` | Design tokens (palette → semantic layer), light + dark, 17 sections. | — |
-| `src/lib/schedule.js` | Seed data — four schedules, the default calendar, `PERIOD_KINDS`. No logic. | nothing |
-| `src/lib/engine.js` | What is true at a given moment. Pure; time is always an argument. | schedule |
-| `src/lib/parse.js` | The boundary. Untrusted input → validated data or structured errors. Pure. | schedule |
-| `src/lib/format.js` | Every user-visible string derived from a number. Pure. | **nothing** |
-| `src/ui/dom.js` | Every element the app writes to, looked up once. | — |
-| `src/store.js` | Mutable state on one `store` object, plus persistence. | lib/schedule, lib/parse |
-| `src/ui/views.js` | All painting, view switching, and the single `tick`. | lib/engine, lib/format, dom, store |
-| `src/ui/editor.js` | Settings: the schedule editor, calendar, preferences. | lib/parse, dom, store, views |
-| `src/app.js` | Wiring and startup. 119 lines, no logic. | dom, store, views, editor |
+| `src/app/globals.css` | Design tokens (palette → semantic layer), light + dark, 17 sections. Carried over from the retired build's `styles.css`. | — |
+| `src/app/layout.tsx` | The root layout. Imports `globals.css`; sets the viewport and `color-scheme`. | — |
+| `src/app/page.tsx` | A shell. A Server Component that reads no clock. | — |
+| `src/lib/schedule.ts` | What a schedule *is* — the types, including the `ValidSchedule` brand — plus the seed data. No logic. | nothing |
+| `src/lib/engine.ts` | What is true at a given moment. Pure; time is always an argument; takes only a `ValidSchedule`. | schedule |
+| `src/lib/parse.ts` | The boundary. Untrusted input → a branded `ValidSchedule` or structured errors. Pure. | schedule |
+| `src/lib/format.ts` | Every user-visible string derived from a number. Pure. | **types only** |
 
-Unit tests are colocated with what they validate: `lib/engine.test.js`,
-`lib/parse.test.js`, `lib/format.test.js`, and `src/app.test.js` (the jsdom
-boot test).
+Unit tests are colocated with what they validate: `lib/engine.test.ts`,
+`lib/parse.test.ts`, `lib/format.test.ts`.
 
 ### Running it
 
 ```bash
-npm run lint      # eslint - the whole repo
+npm run lint      # eslint - the whole repo, jsx-a11y at full `recommended`
+npm run typecheck # tsc --noEmit, strict
+npm run build     # next build - 2 static routes
 npm run lint:md   # markdownlint
-npm test          # vitest run - 153 unit tests
+npm test          # vitest run - 118 unit tests
 npm run watch     # vitest in watch mode
-npm run e2e       # playwright - 37 browser tests, starts its own server
+npm run e2e       # playwright - 11 live, 37 parked; builds and serves the app
 npm run e2e:ui    # playwright in UI mode
-npm run serve     # http://localhost:3000
+npm run dev       # http://localhost:3000/bell
 ```
 
-The first four are what CI runs, in that order, plus `npm audit`. There is no
-`npm run typecheck` - it needs a type checker, which arrives with the port.
+The first five are what CI runs, in that order, plus `npm audit`.
 
-A server is **required** — the app uses ES modules, and browsers refuse to load
-modules over `file://` because there is no content type without HTTP.
+The `/bell` suffix on the dev URL is not a typo: `basePath` is applied in
+development too, so the bare origin is a 404 exactly as it is in production.
 
 ---
 
@@ -165,6 +156,16 @@ modules over `file://` because there is no content type without HTTP.
 | 2026-08-26 | CI is four parallel jobs, not one sequential script | `npm ci` runs four times instead of once, which is the cost. The gain is that a failure names itself in the checks list — "E2E (reflow gate)" is a different conversation from "Lint" — and a slow browser install never delays the answer to "did the unit tests pass". |
 
 ---
+| 2026-08-27 | The engine's entry points take `ValidSchedule`, not `Schedule` | This is what makes "parse, don't validate" a compiler rule rather than a convention. `stateAt` indexes `periods[0]` and `periods[length - 1]` as the day's first and last bell without re-sorting; that is only safe because the boundary already sorted. Typing the parameter as `Schedule` would have left the guarantee as a comment. |
+| 2026-08-27 | The `ValidSchedule` brand's symbol is not exported, so minting needs `as unknown as` | A `unique symbol` property does not "sufficiently overlap" an unbranded object, so TypeScript refuses the single-step cast (TS2352). The double assertion is the point: forging a `ValidSchedule` anywhere outside `parseSchedule` has to be that conspicuous. There is exactly one such line in `src/`. |
+| 2026-08-27 | `DayState` is a discriminated union, not one shape with nullable fields | `formatTabTitle` reads `state.current.name` when the phase is `during` and `state.next.name` otherwise. Under `strict`, a nullable record forces a null check at every call site that the union makes unnecessary — and the union also makes a `during` with no `current` unrepresentable rather than merely unlikely. |
+| 2026-08-27 | The plain build is retired in the same change that replaces it, not kept alongside | Keeping both would have meant either duplicating the engine (which drifts) or a `tsc` emit step feeding a doomed app. The build log called this in advance on 2026-08-26 17:05; this is the commit that pays it. |
+| 2026-08-27 | `src/styles.css` is carried into `src/app/globals.css` rather than deleted with the rest | 1446 lines of implemented design system, most of which is tokens, dark mode, focus rings and the `overflow-wrap` hardening that are useful immediately. CSS is inert without matching markup, so the component rules cost nothing while Phases 2–3 catch up — and rebuilding markup to fit rediscovered CSS is worse than the reverse. |
+| 2026-08-27 | The E2E specs that lost their UI are parked with `test.fixme`, not deleted | They encode the two regressions this repo has actually shipped — the Escape/`<dialog>` collision and the per-keystroke announcer. The assertions and the element ids are the contract Phases 2–4 have to meet. Playwright reports them as skipped, so the count is visible in every run rather than silently absent. |
+| 2026-08-27 | Playwright runs against `npm run build && next start`, not `next dev` | The Next docs recommend it, and here it earns the cost twice: CSS ordering and chunking only take their final form in a production build, and the reflow gate is a measurement of the CSS that actually ships. A dev server would gate on a stylesheet no user receives. |
+| 2026-08-27 | `basePath` is kept out of Playwright's `baseURL` and put on the paths instead | Playwright resolves a relative navigation with `new URL(path, baseURL)`, so a `baseURL` ending in `/bell` plus `goto("/")` resolves back to the origin root — which `basePath` makes a 404. The same applies to `webServer.url`, whose readiness probe treats a 404 as "not up yet". |
+| 2026-08-27 | The E2E suite is TypeScript too | `tsconfig.json` includes `**/*.ts`, so `npm run typecheck` now compiles the suite that drives the app with the same settings as the app. A locator typo in a spec is a build failure rather than a runtime one. |
+| 2026-08-27 | `allowJs` stays in `tsconfig.json` even though nothing needs it | Removing it does not stick — `next build` writes it back and reformats the whole file on the way through. Documented in the file rather than fought. |
 
 ## Deviations from the plan docs
 
@@ -271,22 +272,53 @@ until the plain version has taught us the shape.
 
 ---
 
+### E2E coverage narrowed at the port — 2026-08-27
+
+`Docs/roadmap.md` records 37 Playwright tests as a Phase 0 achievement, and
+`AGENTS.md` calls the reflow gate blocking. Phase 1 retired the UI those tests
+drove, so the suite is now **11 live and 37 parked**. The reflow gate still runs
+at all five widths, but against a shell rather than against three views, three
+settings panels and a modal.
+
+**What is owed:** Phase 2 revives the announcer block and the Now/Day reflow
+tests; Phase 3 revives the editor and confirm-dialog blocks; Phase 4 revives the
+calendar panel. Each is a `test.fixme` to delete, not a test to rewrite.
+
+### `stateAt` takes seconds, the roadmap says minutes — 2026-08-27
+
+`Docs/roadmap.md` Phase 1 specifies `stateAt(schedule, minute)`. The
+implementation is `stateAt(schedule, nowSec)`, seconds since local midnight,
+carried over unchanged from the plain build.
+
+**Why:** storage is minutes — that invariant is untouched, and periods are still
+minute integers. The countdown is not: it displays `43:12`, and a minute-
+resolution engine could not produce the seconds place. The multiply happens once
+at the engine's front door.
+
+**What is owed:** a one-line correction to the roadmap's Phase 1 bullet. Left as
+a deviation rather than silently edited, because the roadmap's wording is what a
+reader checks the code against.
+
 ## Open gaps
 
 | Opened | Item | Notes |
 | --- | --- | --- |
 | 2026-08-26 | Fonts are not real | Fredoka / Manrope / Space Mono are named in the CSS stack but nothing loads them — "no network at runtime" rules out Google Fonts. Self-host at the Next port via `next/font`. Currently rendering system fallbacks. |
 | 2026-08-26 | 12-hour clock has no am/pm | Matches the mockups and is unambiguous for a school day. Revisit if a schedule ever crosses noon ambiguously. |
-| 2026-08-26 | No `clearInterval` anywhere | Harmless for a page that lives until closed. Becomes a timer leak on every remount once this is a React component — needs a `useEffect` cleanup at the port. |
-| 2026-08-26 | The inline theme script needs a CSP hash at the Next port | `AGENTS.md` requires baseline security headers. An inline `<script>` is fine today with no CSP, but becomes a violation the moment one ships. |
-| 2026-08-26 | Overlap errors are attributed by sort order, not edit order | On an exact `startMin` tie the error lands on the row that sorts second, which is usually but not always the row being edited. Fixing it means threading edit state into a pure function. |
+| 2026-08-26 | Overlap errors are attributed by sort order, not edit order | On an exact `startMin` tie the error lands on the row that sorts second, which is usually but not always the row being edited. Fixing it means threading edit state into a pure function. Carried into `parse.ts` unchanged at the port. |
 | 2026-08-26 | WebKit and Firefox are not covered | The E2E suite runs one project, `chrome`, against the browser already installed on the machine — no engine binaries were downloaded. `AGENTS.md` asks for real WebKit coverage, which is where `<dialog>`, `:modal` and `inert` behaviour is most likely to differ. Add the projects and `npx playwright install webkit firefox` when the download is worth it. |
 | 2026-08-26 | TypeScript is a major version behind on purpose | 6.0.3 rather than 7.0.2, because `typescript-eslint` cannot load under TS 7. This is a real cost — TS 7 is the Go rewrite — and it is deliberate, not neglect. Revisit when typescript-eslint#10940 lands; the upgrade should be a one-line version bump plus a full lint run. |
-| 2026-08-26 | Two apps share `src/` | `src/app/` is the Next scaffold; `src/index.html`, `src/app.js`, `src/store.js`, `src/ui/` and `src/lib/` are still the plain build. They do not collide — Next looks for a directory named `app` and ignores the file `app.js` — but the folder reads as confusing until Phases 1–4 delete the plain half. |
-| 2026-08-26 | `npm run dev` and `npm run serve` both want port 3000 | The Next dev server and the plain build's static server cannot run at once. Harmless while the Next app is an empty page; worth a different port on whichever one loses the argument first. |
 | 2026-08-26 | The headers have still never been verified on Vercel | `vercel.json` is gone and the list now lives in `next.config.ts`, verified against a real `next start`. What remains unverified is the deploy itself, and the hub's rewrite in Phase 7 — a second hop that can drop headers. |
 | 2026-08-26 | Only `.period__name` and `.countdown__period` are hardened against intrinsic-width blowout | Those are the two elements that render a period name today. The schedule name (`#schedule-name`) and the editor's own rows are equally user-controlled and have not been measured with a 60-character unbroken value. The reflow suite covers the editor panel, but with the seeded names, not a hostile one. |
-| 2026-08-26 | `README.md` documents the Next.js destination, not the current app | It tells a reader to run `npm run dev` and visit `localhost:3000/bell`. Neither exists: this is the plain HTML/CSS/JS build, served by `npm run serve` at `localhost:3000`. Consistent with the deliberate plain-JS-first detour, but a reader has no way to know that from the README. |
+| 2026-08-27 | The E2E suite is 11 live tests and 37 parked | Phase 1 retired the UI the parked ones drove. The reflow gate still runs at 320/375/768/1024/1440, but against a shell. Every parked block names the phase that revives it; reviving one is deleting a `.fixme`, not rewriting a test. See **Deviations**. |
+| 2026-08-27 | `src/lib/` has no consumer | Nothing under `src/app/` imports the engine, so `next build` tree-shakes all of it and the only thing exercising it is the unit suite. That is correct for Phase 1 and is exactly why the Phase 2 gate is "open it in a real browser", not "CI is green". |
+| 2026-08-27 | Most of `globals.css` is inert | 1446 lines carried over from the retired build; the shell uses the tokens, `body`, `:focus-visible`, `.screen` and `.period__name`. The rest targets markup that does not exist yet. Expect dead rules until Phase 3, and expect some of them to be wrong when the markup returns — CSS that has never been rendered has never been tested. |
+| 2026-08-27 | Next ships a live region we did not write | `div#__next-route-announcer__` is `aria-live="assertive"` `role="alert"`, injected by the App Router after hydration and not removable. It should stay silent — one route, no client navigation — but `AGENTS.md`'s "never wrap the countdown in a live region" now has a framework-owned region on the page to coexist with. The announcer spec enumerates it so a second one cannot arrive unnoticed. |
+| 2026-08-27 | Theme persistence is gone, and its replacement needs a CSP hash | The retired `index.html` set `data-theme` from `localStorage` in a render-blocking inline script, to avoid a flash of the wrong theme. `globals.css` still honours `[data-theme]`, but nothing sets it. Phase 6 owes both the toggle and a way to apply it before first paint that does not need an unhashed inline `<script>`. |
+| 2026-08-27 | Phase 2's clock will need a `clearInterval` | Carried forward from the retired build's version of this gap. There is no interval in the repo right now; the moment one lands in a React component it needs a `useEffect` cleanup, or every remount leaks a timer. |
+| 2026-08-27 | `formatDayCaption` renders `1:00` for both one minute and one hour | It destructures `{ major, minor }` from `splitCountdown` and drops `unit`, and the `#day-remaining-units` caption that compensated was deleted with the retired markup. `format.test.ts:144` asserts the ambiguous string as correct. This is the 2026-08-26 review's finding 5, reopened by the port. See `Docs/code-review-2026-08-27.md`. |
+| 2026-08-27 | `eqeqeq` and error-level `no-unused-vars` no longer reach `src/` or `e2e/` | The plain-JS block in `eslint.config.js` was narrowed to `*.config.js` along with `js.configs.recommended`, so the house rules went with it. Probed: `a == 1` in a TypeScript file is unreported, an unused binding is a warning, and `"lint": "eslint ."` has no `--max-warnings`, so CI exits 0 on both. `--max-warnings 0` is owed too. See `Docs/code-review-2026-08-27.md`. |
+| 2026-08-27 | `SCHEDULE_LIMITS.schedules` has no enforcer | Its only caller was `src/store.js`, deleted at the port; no TypeScript references it. Harmless in Phase 1 — there is no collection to cap — but the JSDoc says the caps are applied at the boundary, and by Phase 4's share-link decoder that has to be true. Owed: a `parseScheduleCollection` that applies it in `parse.ts`. |
 
 ## Closed
 
@@ -307,7 +339,7 @@ until the plain version has taught us the shape.
 | 2026-08-26 | 2026-08-26 | The announcer fires on editor keystrokes — keyed on the period's `startMin`/`endMin` instead of its name, with a one-shot resync flag raised by `refreshResolved`. Review finding 2. |
 | 2026-08-26 | 2026-08-26 | The `showModal` fallback deletes without asking — falls back to `window.confirm`, which also made the delete flow testable for the first time. Review finding 3. |
 | 2026-08-26 | 2026-08-26 | The "only live region" test does not test that — the selector now covers the implicit roles too, the three regions are enumerated by id, and `#schedule-error` became polite and idempotent. Review finding 4. |
-| 2026-08-26 | 2026-08-26 | The Day view countdown has no units — a `#day-remaining-units` caption on the summary, and `formatRemaining` on the running row. Review finding 5. |
+| 2026-08-26 | 2026-08-26 | ~~The Day view countdown has no units — a `#day-remaining-units` caption on the summary, and `formatRemaining` on the running row. Review finding 5.~~ **Superseded 2026-08-27 11:20:** the caption was deleted with the retired markup, and `formatDayCaption` reintroduced the bare `major:minor` string — see the reopened gap above. |
 | 2026-08-26 | 2026-08-26 | The `<dialog>` fixes were verified against a stub, not a browser — now covered by an `e2e/` Playwright suite running in the installed Chrome. Escape, focus trapping, inertness, Cancel, Delete and the backdrop caveat are all asserted against a real modal. |
 | 2026-08-26 | 2026-08-26 | Branch protection does not require `Typecheck` or `Next build` — added, bringing the required list to seven. |
 | 2026-08-26 | 2026-08-26 | `eslint-plugin-jsx-a11y` is not installed — now installed and running at full `recommended`, not the 6-rule subset `eslint-config-next` ships. |
@@ -317,6 +349,11 @@ until the plain version has taught us the shape.
 | 2026-08-26 | 2026-08-26 | The Day view scrolled sideways at 768px before the first bell with a 60-character period name — `overflow-wrap: anywhere` on the two elements that render a period name. Found by the reflow gate on its first CI run. |
 | 2026-08-26 | 2026-08-26 | The E2E suite is not wired into CI — `.github/workflows/ci.yml` runs lint, markdownlint, unit and E2E on every push and PR. The reflow gate is a blocking check in practice now, not only in principle. |
 | 2026-08-26 | 2026-08-26 | The 320 px reflow check had not been re-run — now a Playwright suite at 320/375/768/1024/1440 over every view, every settings panel, the open dialog, and a 60-character unbroken period name. Measured at 320: `scrollWidth === clientWidth === 320` in all four states. |
+| 2026-08-26 | 2026-08-27 | Two apps share `src/` — the plain half is deleted. `src/` is `app/` and `lib/`, both TypeScript. |
+| 2026-08-26 | 2026-08-27 | `npm run dev` and `npm run serve` both want port 3000 — `npm run serve` and `scripts/serve.js` are gone. |
+| 2026-08-26 | 2026-08-27 | `README.md` documents the Next.js destination, not the current app — the two now agree; the Stack and Local development sections were rewritten against what actually runs. |
+| 2026-08-26 | 2026-08-27 | No `clearInterval` anywhere — moot, the interval retired with the plain build. Reopened as a Phase 2 gap so the requirement is not lost with the code. |
+| 2026-08-26 | 2026-08-27 | The inline theme script needs a CSP hash — the script is gone with `index.html`, so the CSP is clean. Reopened as a Phase 6 gap: the flash-of-wrong-theme problem it solved is unsolved again. |
 
 ---
 
@@ -716,6 +753,110 @@ the page renders — is fully compatible with the header being absent, which is
 why this class of bug ships. The check costs one `curl -I`.
 
 ---
+
+### 2026-08-27 — a reflow test that asserted a guarantee nobody had made
+
+The first version of the live reflow test put a plain `<p>` holding sixty `A`s
+into `<main>` and expected the page not to scroll. It failed at 320 and 375 px,
+and for about a minute that looked like a CSS regression introduced by moving
+`styles.css` into the Next app.
+
+It was not. `globals.css` has carried a comment since 2026-08-26 saying exactly
+what happened:
+
+> `overflow-wrap: break-word` on `<body>` is not enough… break-word lets a long
+> word wrap, but it does NOT reduce the element's min-content contribution.
+
+The global rule is `break-word`; only `.period__name` and `.countdown__period`
+get `anywhere`, which is the value that shrinks min-content and therefore the
+only one an intrinsically-sized ancestor — here the body grid track — actually
+reads. A bare paragraph was never covered.
+
+Fixed by giving the injected element the class the guarantee attaches to, which
+is also the shape a real period name has.
+
+**Lesson:** a red gate is a claim about the code *and* a claim about the test. The
+test was asserting a stronger property than the design system ever promised, and
+"fix the CSS" would have been the wrong repair — it would have quietly widened a
+rule the repo had already reasoned about and deliberately scoped.
+
+### 2026-08-27 — Next ships an `aria-live="assertive"` region into every page
+
+A new test asserting the shell has no live regions failed against
+`div#__next-route-announcer__` — `aria-live="assertive"`, `role="alert"`,
+visually hidden, injected by the App Router to announce client-side route
+changes. It cannot be removed, and it did not exist in the plain build.
+
+It also does not exist immediately. A probe run straight after `goto` found
+nothing; the region arrives with hydration. A test that sampled the document at
+the wrong moment would have passed for the wrong reason and gone red the day the
+bundle got slower, so the assertion awaits it rather than racing it.
+
+**Why it matters here rather than being trivia.** `AGENTS.md` is emphatic that
+the countdown must never sit inside a live region and that period changes get a
+deliberate, boundary-only announcement. The page now has an assertive region on
+it that we did not author. It should stay silent — BellTab is one route with no
+client-side navigation — but that is a claim, not a guarantee, and it is worth
+re-testing in Phase 2 if anything ever calls `router.push`.
+
+The test now enumerates it by name, so a *second* unplanned live region still
+fails.
+
+**Lesson:** "the page contains only what I put there" stops being true the moment
+a framework arrives. An accessibility invariant expressed as "none" has to become
+"exactly this list" and name the framework's contribution explicitly.
+
+### 2026-08-27 — a ported test that could not fail for the reason it printed
+
+The plain build's "never wraps the ticking values" test read:
+
+```js
+return ids.filter((id) => document.getElementById(id)?.closest(selector) !== null);
+```
+
+For an id that does not exist, `getElementById` returns `null`, the optional
+chain short-circuits to `undefined`, and `undefined !== null` is **true**. So a
+renamed or deleted element reported itself as *wrapped in a live region* — the
+one thing the test exists to forbid — and the failure message would have sent
+the reader hunting for a live region that was never there.
+
+It never fired in the plain build because every id existed. Found while porting
+the file to TypeScript, where the `?.` had to be looked at to be typed.
+
+Fixed in the parked version: missing ids and wrapped ids are collected
+separately and asserted separately, so "this test is checking nothing" is its own
+failure with its own message.
+
+**Lesson:** `?.` plus a `!== null` comparison is a bug pattern, not an idiom.
+The optional chain produces `undefined`, and every strict comparison against
+`null` downstream of it silently means the opposite of what it reads like. A
+test whose "everything is fine" and "everything is missing" states produce the
+same verdict is worse than no test.
+
+### 2026-08-27 — `next build` rewrites `tsconfig.json` behind you
+
+`allowJs: true` was in `tsconfig.json` only so `.tsx` could import the plain
+build's `.js` modules. With the plain build retired it was dropped, along with a
+comment explaining the removal.
+
+The next `npm run build` put it back — and reformatted the entire file on the
+way through, expanding every inline array and stripping every blank line that
+separated the comments from what they annotate. The only notice was one line in
+the build output:
+
+```text
+We detected TypeScript in your project and reconfigured your tsconfig.json
+file for you.
+```
+
+Restoring `allowJs` in its original place made the next two builds leave the
+file completely untouched, verified by diffing it against a copy taken before
+the run rather than by trusting that it looked right.
+
+**Lesson:** `next build` is not read-only with respect to the repo. A tidy-up
+that removes a setting a tool expects will be reverted by that tool, at a moment
+of its choosing, in a commit where it looks like unrelated noise. The setting is
+kept and documented instead — including the note not to tidy it out again.
 
 ## Session log
 
@@ -1913,3 +2054,131 @@ This gap is worth noting as a **recurring** one rather than a one-off: every
 future CI job will land green-but-not-blocking until someone edits a settings
 page. There is no version of this repo where adding a job also enforces it, so
 the two steps have to stay linked by habit.
+
+### 2026-08-27 10:52 — Phase 1: the schedule engine, in TypeScript
+
+Branch `feat/phase-1-engine`. The port the last three entries kept pointing at.
+Four pure modules move from `.js` to `.ts`, the plain HTML/CSS/JS build is
+retired because it can no longer load them, and the E2E suite is repointed at
+the Next app.
+
+**The engine is unchanged arithmetic with a type system bolted to its front
+door.** Not a rewrite: `stateAt`, `daySummaryAt`, `periodStatusAt`,
+`blockPositionAt`, the parser and every formatter carry over line for line. What
+is new is that none of them will accept anything the boundary has not seen.
+
+| | Before | After |
+| --- | --- | --- |
+| Schedule going into the engine | any object | `ValidSchedule`, branded |
+| Parser result | `{ok, value}` / `{ok, errors}` | the same, as a discriminated union |
+| `stateAt` return | one shape, nullable fields | a five-member union keyed on `phase` |
+| Weekday map | `Array` of length 7 by convention | a seven-entry tuple the compiler knows |
+
+The three interesting ones are in **Decisions**; the short version is that the
+brand's symbol is unexported so `parseSchedule` is the only place that can
+honestly mint one, and the `DayState` union is what lets `formatTabTitle` read
+`state.current.name` with no null check and no lie.
+
+**The tests went with it, and got slightly stricter on the way.** 118 unit tests
+across three files, all passing, no fake timers anywhere — the engine still
+takes the time as an argument. Two changes worth naming:
+
+- Engine fixtures now go through `parseSchedule` instead of being object
+  literals. Casting would have let a fixture that violates the engine's own
+  invariants into the tests, which is the exact class of bug the brand exists to
+  stop.
+- A new property test walks the whole day at 13-second steps and asserts the
+  runtime shape agrees with the phase the union promises. A `during` with a null
+  `current` type-checks at every call site and crashes at one.
+
+The count fell from 153 because `src/app.test.js` — 743 lines of jsdom wiring
+tests for the retired app — went with the app it tested.
+
+**The plain build is gone.** `src/index.html`, `src/app.js`, `src/store.js`,
+`src/ui/` and `scripts/serve.js` are deleted, along with `npm run serve`. This
+was called on 2026-08-26 17:05 and is not a new decision; what is new is that
+`src/styles.css` did **not** go with them. It moved to `src/app/globals.css` and
+is imported by the root layout — 1446 lines of implemented design system whose
+tokens, focus ring and `overflow-wrap` hardening are useful the moment there is
+a page, and whose component rules cost nothing until Phase 3 writes markup for
+them.
+
+**The E2E suite is ported rather than retired**, which is the other half of the
+change and the part with the most judgement in it. Every spec drove UI that no
+longer exists. Rather than delete them:
+
+- The harness moved to the Next app: Playwright now builds and serves the real
+  thing, `basePath` is handled on the paths rather than in `baseURL`, and the
+  whole suite is TypeScript so `npm run typecheck` compiles it.
+- The reflow gate stays live at all five widths, plus a reduced version of the
+  60-character-period-name test that drives the CSS rule directly rather than
+  through the editor.
+- A new live test enumerates the page's live regions by id.
+- Everything else is `test.fixme`, with each block naming the phase that revives
+  it. 37 parked, 11 live. Playwright prints the skipped count on every run, so
+  the debt is visible rather than absent.
+
+That narrowing is a real loss and is recorded under **Deviations** with what is
+owed to reconcile it.
+
+**Four things broke or surprised, all written up under Bugs found.** In rough
+order of how much they matter later: Next injects an `aria-live="assertive"`
+route announcer into every page and it arrives only after hydration; the ported
+announcer test contained a `?.` / `!== null` bug that made a missing element
+report as a live-region violation; `next build` silently rewrites and reformats
+`tsconfig.json`; and the first version of the new reflow test asserted a
+guarantee `globals.css` had already documented itself as not making.
+
+Verified locally, everything:
+
+```text
+npm run lint        0 problems
+npm run lint:md     0 problems
+npm run typecheck   0 errors
+npm run build       ✓ 2 static routes
+npm test            118 passed
+npm run e2e         11 passed, 37 skipped (parked)
+```
+
+**What is owed next.** Phase 2: one clock, one subscriber, recomputed from
+`Date.now()` on every tick and forced on `visibilitychange` and `focus`. It is
+the first change that gives `src/lib/` a consumer — until then the engine is
+tree-shaken out of the bundle entirely, and the unit suite is the only thing
+that has ever run it.
+
+### 2026-08-27 11:20 — code review of the Phase 1 port
+
+A `/code-review high` pass over the staged working tree against `ff64e4c`,
+written up in full as `Docs/code-review-2026-08-27.md`. Three findings, all
+open; each has a row in **Open gaps** above, and the closed-gap row the review
+contradicts is marked superseded rather than deleted.
+
+The port itself came out clean — `engine.js → engine.ts` and
+`parse.js → parse.ts` are logic-identical branch for branch, `parseCalendar`
+picked up a `typeof id === "string"` guard on the way, and every gate passes on
+the tree. All three findings share a different shape: **something whose enforcer
+was deleted in this diff, without the enforcement moving with it.** The
+`#day-remaining-units` caption went with the retired markup and
+`formatDayCaption` reintroduced the ambiguity it had closed the day before; the
+plain-JS ESLint block was narrowed to `*.config.js` and took `eqeqeq` and
+error-level `no-unused-vars` off the app with it; `src/store.js` was the only
+caller of `SCHEDULE_LIMITS.schedules`.
+
+Finding 2 is the one worth naming, because it is invisible by construction: no
+line of the diff says "loose equality is now unchecked in `src/`", and the
+narrowing is justified in the file's own comment on grounds that are true for
+`no-undef` and not for `eqeqeq`. It was found by probing rather than by reading
+— a temporary `src/lib/__lintprobe.ts` with `a == 1`, an unused `const` and a
+stale disable directive, which ESLint answered with two warnings, no `eqeqeq`
+report, and exit 0.
+
+The review also cleared four things so they are not re-litigated: the
+adjacent-pair overlap check in `parseSchedule` is *sufficient* rather than
+partial (sorted starts plus `start[i] >= end[i-1]` forces strictly increasing
+ends), `stateAt`'s `periods[i - 1]` cannot underflow and its gap divisor cannot
+be zero, a fresh checkout typechecks without the gitignored `next-env.d.ts`
+(verified by moving it aside and running `tsc`), and the
+`div#__next-route-announcer__` selector works because Playwright's CSS engine
+pierces open shadow roots.
+
+**No code changed.** The findings are recorded, not fixed.

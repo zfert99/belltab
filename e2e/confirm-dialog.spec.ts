@@ -1,20 +1,24 @@
-import { test, expect } from "@playwright/test";
-import { openApp, openSettings } from "./helpers.js";
+import { test, expect, type Page } from "@playwright/test";
+import { openApp, openSettings } from "./helpers";
 
 /**
- * Findings 1 and 3 of `Docs/code-review-2026-08-26.md`, in the browser they
- * were originally measured in.
+ * PARKED in full until Phase 3, which is where deleting a schedule comes back.
  *
- * Neither is visible to the unit suite. jsdom implements <dialog>'s `open`
- * attribute but neither showModal nor close, so it takes the app's
- * unsupported-browser path on every run - which is how finding 3 went
- * unnoticed - and the Escape collision needs a real modal dispatching a real
- * key event.
+ * Findings 1 and 3 of `Docs/code-review-2026-08-26.md`, in the browser they
+ * were originally measured in. Neither is visible to the unit suite: jsdom
+ * implements <dialog>'s `open` attribute but neither showModal nor close, so it
+ * takes the app's unsupported-browser path on every run - which is how finding 3
+ * went unnoticed - and the Escape collision needs a real modal dispatching a
+ * real key event.
+ *
+ * Kept rather than deleted because these are the two regressions this repo has
+ * actually shipped, and the assertions below are the contract the rebuilt
+ * dialog has to meet. Phase 1 retired the markup, not the requirement.
  */
 
-const chipNames = (page) => page.locator("#schedule-list .schedchip").allTextContents();
+const chipNames = (page: Page) => page.locator("#schedule-list .schedchip").allTextContents();
 
-test.describe("the delete confirmation", () => {
+test.describe.fixme("the delete confirmation", () => {
   test.beforeEach(async ({ page }) => {
     await openApp(page);
     await openSettings(page, "schedules");
@@ -92,7 +96,7 @@ test.describe("the delete confirmation", () => {
     // takes focus. Asserted as a set of allowed places rather than as
     // contains(), which the first version of this test failed on the second
     // press for exactly that reason.
-    const visited = [];
+    const visited: string[] = [];
 
     for (let press = 0; press < 8; press++) {
       await page.keyboard.press("Tab");
@@ -100,9 +104,9 @@ test.describe("the delete confirmation", () => {
         await page.evaluate(() => {
           const active = document.activeElement;
           const dialog = document.getElementById("confirm-dialog");
-          if (dialog.contains(active)) return "dialog";
+          if (dialog?.contains(active)) return "dialog";
           if (active === document.body) return "body";
-          return `${active.tagName.toLowerCase()}#${active.id}`;
+          return `${active?.tagName.toLowerCase()}#${active?.id}`;
         }),
       );
     }
@@ -110,11 +114,11 @@ test.describe("the delete confirmation", () => {
     expect(visited.filter((where) => where !== "dialog" && where !== "body")).toEqual([]);
     expect(visited).toContain("dialog");
 
-    let clickError = null;
+    let clickError: Error | null = null;
     await page
       .locator("#settings-toggle")
       .click({ timeout: 1500 })
-      .catch((error) => {
+      .catch((error: Error) => {
         clickError = error;
       });
 
@@ -149,9 +153,11 @@ test.describe("the delete confirmation", () => {
     // Any weekday that pointed at the deleted schedule has to stop pointing at
     // it rather than dangling.
     await page.locator("#tab-calendar").click();
-    const weekdayValues = await page.locator("#weekday-map select").evaluateAll((selects) =>
-      selects.map((select) => select.selectedOptions[0].textContent.trim()),
-    );
+    const weekdayValues = await page
+      .locator("#weekday-map select")
+      .evaluateAll((selects) =>
+        selects.map((select) => (select as HTMLSelectElement).selectedOptions[0].textContent?.trim()),
+      );
     expect(weekdayValues).not.toContain(target);
   });
 

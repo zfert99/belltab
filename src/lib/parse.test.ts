@@ -5,19 +5,44 @@ import {
   parseIsoDate,
   resolveScheduleId,
   SCHEDULE_LIMITS,
-} from "./parse.js";
-import { DEFAULT_SCHEDULES, DEFAULT_CALENDAR } from "./schedule.js";
+  type ParseResult,
+} from "./parse";
+import { DEFAULT_SCHEDULES, DEFAULT_CALENDAR, type ScheduleId } from "./schedule";
 
-const period = (name, kind, startMin, endMin) => ({ name, kind, startMin, endMin });
-const schedule = (periods, name = "Test") => ({ name, periods });
-const firstError = (result) => ({ index: result.errors[0].index, field: result.errors[0].field });
+/**
+ * The builders take `unknown`, not `Period`, on purpose.
+ *
+ * Half the cases below are deliberately malformed - a kind of "recess", a
+ * fractional start minute, a start past midnight - and a typed builder would
+ * refuse to construct exactly the inputs the parser exists to refuse.
+ */
+const period = (name: unknown, kind: unknown, startMin: unknown, endMin: unknown) => ({
+  name,
+  kind,
+  startMin,
+  endMin,
+});
+const schedule = (periods: unknown[], name: unknown = "Test") => ({ name, periods });
 
-const KNOWN_IDS = DEFAULT_SCHEDULES.map((entry) => entry.id);
+interface ErrorSite {
+  index: number | null;
+  field: string;
+}
+
+/** The first error's site, and a clear failure if the parse unexpectedly succeeded. */
+const firstError = (result: ParseResult<unknown>): ErrorSite => {
+  if (result.ok) throw new Error("expected this input to be refused, but it parsed");
+  return { index: result.errors[0].index, field: result.errors[0].field };
+};
+
+const KNOWN_IDS: ScheduleId[] = DEFAULT_SCHEDULES.map((entry) => entry.id).filter(
+  (id): id is ScheduleId => id !== null,
+);
 
 describe("parseSchedule", () => {
   // The seed data goes through the same parser as user input, so a typo in
-  // schedule.js fails here rather than shipping as a broken default.
-  it.each(DEFAULT_SCHEDULES)("accepts the seed schedule $name", (seed) => {
+  // schedule.ts fails here rather than shipping as a broken default.
+  it.each([...DEFAULT_SCHEDULES])("accepts the seed schedule $name", (seed) => {
     expect(parseSchedule(seed).ok).toBe(true);
   });
 
@@ -35,7 +60,21 @@ describe("parseSchedule", () => {
         period("Second", "class", 540, 600),
       ]),
     );
+    if (!result.ok) throw new Error("expected this schedule to parse");
     expect(result.value.periods.map((p) => p.name)).toEqual(["First", "Second", "Third"]);
+  });
+
+  // The engine indexes `periods[0]` and `periods[length - 1]` as the day's
+  // first and last bell without re-sorting. That is only safe because this
+  // normalisation happened, so it is asserted rather than assumed.
+  it("hands the engine periods already in the day's order", () => {
+    const result = parseSchedule(
+      schedule([period("Late", "class", 600, 660), period("Early", "class", 480, 540)]),
+    );
+    if (!result.ok) throw new Error("expected this schedule to parse");
+
+    const starts = result.value.periods.map((p) => p.startMin);
+    expect([...starts].sort((a, b) => a - b)).toEqual(starts);
   });
 
   describe("overlap", () => {
@@ -43,7 +82,7 @@ describe("parseSchedule", () => {
       const result = parseSchedule(
         schedule([period("Period 4", "class", 695, 750), period("A Lunch", "lunch", 700, 730)]),
       );
-      expect(result.ok).toBe(false);
+      if (result.ok) throw new Error("expected the overlap to be refused");
       expect(result.errors[0].message).toBe(
         "A Lunch overlaps Period 4. Two periods cannot run at the same time.",
       );
@@ -75,14 +114,16 @@ describe("parseSchedule", () => {
   });
 
   describe("field errors", () => {
-    it.each([
+    const cases: Array<[string, unknown[], ErrorSite]> = [
       ["a blank period name", [period("  ", "class", 480, 540)], { index: 0, field: "name" }],
       ["an unknown kind", [period("X", "recess", 480, 540)], { index: 0, field: "kind" }],
       ["end before start", [period("X", "class", 540, 480)], { index: 0, field: "endMin" }],
       ["zero length", [period("X", "class", 540, 540)], { index: 0, field: "endMin" }],
       ["a fractional start", [period("X", "class", 480.5, 540)], { index: 0, field: "startMin" }],
       ["a start past midnight", [period("X", "class", 1441, 1450)], { index: 0, field: "startMin" }],
-    ])("rejects %s", (_label, periods, expected) => {
+    ];
+
+    it.each(cases)("rejects %s", (_label, periods, expected) => {
       const result = parseSchedule(schedule(periods));
       expect(result.ok).toBe(false);
       expect(firstError(result)).toEqual(expected);
@@ -121,6 +162,12 @@ describe("parseSchedule", () => {
         index: 0,
         field: "name",
       });
+    });
+
+    // A row that is not an object at all has to fail against its own index,
+    // not take the whole schedule down with a message naming no row.
+    it("refuses a period that is not an object, by row", () => {
+      expect(firstError(parseSchedule(schedule(["nope"])))).toEqual({ index: 0, field: "period" });
     });
   });
 });

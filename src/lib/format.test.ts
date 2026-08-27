@@ -7,12 +7,44 @@ import {
   formatDayCaption,
   formatPeriodLabel,
   formatTabTitle,
-} from "./format.js";
-import { DEFAULT_SCHEDULES } from "./schedule.js";
+  type ClockOptions,
+} from "./format";
+import type { DayState, DaySummary } from "./engine";
+import { DEFAULT_SCHEDULES, type Period } from "./schedule";
 
 const regular = DEFAULT_SCHEDULES[0];
-const h12 = { hour12: true };
-const h24 = { hour12: false };
+const h12: ClockOptions = { hour12: true };
+const h24: ClockOptions = { hour12: false };
+
+/**
+ * `DayState` is a discriminated union, so these builders spell out the whole
+ * shape rather than the two or three fields the formatter reads.
+ *
+ * That is a feature: the times a state is faked in a test are exactly the
+ * times it is easiest to fake one the engine could never produce.
+ */
+const somePeriod = (name: string): Period => ({
+  name,
+  kind: "class",
+  startMin: 545,
+  endMin: 605,
+});
+
+const during = (name: string, remainingSec: number): DayState => ({
+  phase: "during",
+  current: somePeriod(name),
+  next: null,
+  remainingSec,
+  progress: 0.5,
+});
+
+const before = (name: string, remainingSec: number): DayState => ({
+  phase: "before",
+  current: null,
+  next: somePeriod(name),
+  remainingSec,
+  progress: 0,
+});
 
 describe("formatClock", () => {
   it("defaults to 12-hour when given no options", () => {
@@ -49,7 +81,7 @@ describe("formatClock", () => {
 
   // Uniform width means switching the preference cannot shift the layout.
   it("is always five characters in 24-hour", () => {
-    const widths = new Set();
+    const widths = new Set<number>();
     for (let minute = 0; minute < 1440; minute++) widths.add(formatClock(minute, h24).length);
     expect([...widths]).toEqual([5]);
   });
@@ -102,26 +134,28 @@ describe("splitCountdown", () => {
 
 describe("formatDayCaption", () => {
   const position = { index: 3, total: 7 };
+  const day = (phase: DaySummary["phase"], remainingSec: number, progress: number): DaySummary => ({
+    phase,
+    remainingSec,
+    progress,
+  });
 
   it("counts toward the first bell before school", () => {
-    const day = { phase: "before", remainingSec: 3600, progress: 0 };
-    expect(formatDayCaption(day, position)).toBe("3 of 7 · 1:00 until first bell");
+    expect(formatDayCaption(day("before", 3600, 0), position)).toBe("3 of 7 · 1:00 until first bell");
   });
 
   it("counts toward dismissal during the day", () => {
-    const day = { phase: "during", remainingSec: 3 * 3600 + 38 * 60, progress: 0.4 };
-    expect(formatDayCaption(day, position)).toBe("3 of 7 · 3:38 until dismissal");
+    expect(formatDayCaption(day("during", 3 * 3600 + 38 * 60, 0.4), position)).toBe(
+      "3 of 7 · 3:38 until dismissal",
+    );
   });
 
   it("stops counting once the day is done", () => {
-    const day = { phase: "after", remainingSec: 0, progress: 1 };
-    expect(formatDayCaption(day, position)).toBe("7 of 7 · done for today");
+    expect(formatDayCaption(day("after", 0, 1), position)).toBe("7 of 7 · done for today");
   });
 
   it("says so when there is no schedule", () => {
-    expect(formatDayCaption({ phase: "empty", remainingSec: 0 }, { index: 0, total: 0 })).toBe(
-      "No schedule",
-    );
+    expect(formatDayCaption(day("empty", 0, 0), { index: 0, total: 0 })).toBe("No schedule");
   });
 });
 
@@ -131,30 +165,45 @@ describe("formatPeriodLabel", () => {
     expect(formatPeriodLabel(regular.periods[2], h24)).toBe("Period 2 · 09:05–10:05");
     expect(formatPeriodLabel(regular.periods[10], h12)).toBe("Period 6 · 1:35–2:30");
   });
+
+  it("defaults to 12-hour, like formatClock", () => {
+    expect(formatPeriodLabel(regular.periods[2])).toBe("Period 2 · 9:05–10:05");
+  });
 });
 
 describe("formatTabTitle", () => {
   // Number first, so it survives truncation to a few characters in a crowded
   // tab strip.
   it("puts the number first", () => {
-    const state = { phase: "during", current: { name: "Period 2" }, remainingSec: 43 * 60 };
-    expect(formatTabTitle(state)).toBe("43m · Period 2");
+    expect(formatTabTitle(during("Period 2", 43 * 60))).toBe("43m · Period 2");
   });
 
   // ceil, not floor: with 30 seconds left, "0m" reads as "it is over".
   it("rounds up, so it never reads 0m while a period is running", () => {
-    const state = { phase: "during", current: { name: "Period 2" }, remainingSec: 30 };
-    expect(formatTabTitle(state)).toBe("1m · Period 2");
+    expect(formatTabTitle(during("Period 2", 30))).toBe("1m · Period 2");
   });
 
   it("names the next period when none is running", () => {
-    const state = { phase: "before", next: { name: "Period 1" }, remainingSec: 600 };
-    expect(formatTabTitle(state)).toBe("10m · Period 1");
+    expect(formatTabTitle(before("Period 1", 600))).toBe("10m · Period 1");
   });
 
   it("has an end state and an empty state", () => {
-    expect(formatTabTitle({ phase: "after", remainingSec: 0 })).toBe("Done · BellTab");
-    expect(formatTabTitle({ phase: "empty", remainingSec: 0 })).toBe("BellTab");
+    const after: DayState = {
+      phase: "after",
+      current: null,
+      next: null,
+      remainingSec: 0,
+      progress: 1,
+    };
+    const empty: DayState = {
+      phase: "empty",
+      current: null,
+      next: null,
+      remainingSec: 0,
+      progress: 0,
+    };
+    expect(formatTabTitle(after)).toBe("Done · BellTab");
+    expect(formatTabTitle(empty)).toBe("BellTab");
   });
 });
 

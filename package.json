@@ -12,8 +12,7 @@
     "test": "vitest run",
     "watch": "vitest",
     "e2e": "playwright test",
-    "e2e:ui": "playwright test --ui",
-    "serve": "node scripts/serve.js"
+    "e2e:ui": "playwright test --ui"
   },
   "repository": {
     "type": "git",

@@ -32,9 +32,10 @@ jobs:
 
       - run: npm ci
 
-      # This build has no compiler, so `no-undef` is standing in for a type
-      # checker: it is the only thing that catches a name that does not exist
-      # before a browser does.
+      # Since Phase 1 this is about style and accessibility, not existence -
+      # `tsc` in the next job is what catches a name that does not exist. The
+      # part that cannot move there is `jsx-a11y` at full `recommended`, which
+      # AGENTS.md calls a blocking check.
       - name: ESLint
         run: npm run lint
 
@@ -110,7 +111,7 @@ jobs:
 
       - run: npm ci
 
-      # `channel: "chrome"` in playwright.config.js means real Google Chrome,
+      # `channel: "chrome"` in playwright.config.ts means real Google Chrome,
       # not the bundled Chromium, so the runner has to install it. WebKit and
       # Firefox are still owed - see Open gaps in Docs/build-log.md.
       - name: Install Chrome
@@ -118,6 +119,10 @@ jobs:
 
       # This is the WCAG 2.2 SC 1.4.10 reflow check at 320/375/768/1024/1440,
       # which AGENTS.md calls a blocking gate rather than optional polish.
+      #
+      # No separate build step: Playwright's `webServer` runs `npm run build &&
+      # next start` itself, so the suite measures the CSS that actually ships
+      # rather than a dev server's unchunked version of it.
       - name: Playwright
         run: npm run e2e
 

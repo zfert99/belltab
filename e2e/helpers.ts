@@ -1,4 +1,5 @@
-import { expect } from "@playwright/test";
+import { expect, type Page } from "@playwright/test";
+import { BASE_PATH } from "../playwright.config";
 
 /**
  * Shared setup for the E2E suites.
@@ -14,7 +15,7 @@ import { expect } from "@playwright/test";
  *
  * `new Date("2026-09-02T09:30:00")` - no offset - parses in the timezone of
  * the NODE PROCESS, while the browser is pinned to America/New_York by
- * playwright.config.js. On a machine in New York the two agree and the suite is
+ * playwright.config.ts. On a machine in New York the two agree and the suite is
  * green; on a UTC CI runner they are four hours apart, so every test here ran
  * against 05:30 while every comment in the file said 09:30. Three tests failed
  * for what looked like three unrelated reasons.
@@ -36,17 +37,24 @@ export const BEFORE_SCHOOL = "2026-09-02T07:00:00-04:00";
 /**
  * Loads the app with the clock frozen at `at`.
  *
- * clock.install must happen BEFORE goto: the app reads the clock during module
- * evaluation, and a clock installed afterwards would arrive too late to decide
- * the first paint.
+ * clock.install must happen BEFORE goto. Phase 1's page reads no clock at all,
+ * but Phase 2's countdown is a client component that reads one on mount, and a
+ * clock installed after navigation would arrive too late to decide the first
+ * paint. Installing it first now means the countdown lands in a harness that
+ * already controls time rather than one that has to be retrofitted.
  */
-export async function openApp(page, at = MID_PERIOD) {
+export async function openApp(page: Page, at: string = MID_PERIOD): Promise<void> {
   await page.clock.install({ time: new Date(at) });
-  await page.goto("/");
 
-  // The markup ships placeholders and JS fills them in. Waiting for one to be
-  // replaced is the app's own signal that it booted.
-  await expect(page.locator("#wall-clock")).not.toHaveText("--:--");
+  // `basePath: '/bell'` - the origin root is a 404, so the prefix is not
+  // optional here. See the note on BASE_PATH in playwright.config.ts for why
+  // it is not folded into `baseURL` instead.
+  await page.goto(BASE_PATH);
+
+  // The app's own signal that it booted. Phase 2 replaces this with the
+  // countdown's placeholder being filled in, which is a stronger signal; until
+  // there is one, the shell rendering at all is what there is.
+  await expect(page.getByRole("heading", { level: 1, name: "BellTab" })).toBeVisible();
 
   // Then check the browser actually believes the time the fixture names.
   //
@@ -77,7 +85,7 @@ export async function openApp(page, at = MID_PERIOD) {
  * it, and "something on the Day view at 320px" is not a bug report. Reported
  * in the failure message so a red run names the culprit.
  */
-export async function overflowingElements(page) {
+export async function overflowingElements(page: Page): Promise<string[]> {
   return page.evaluate(() => {
     const limit = document.documentElement.clientWidth + 1;
 
@@ -89,9 +97,10 @@ export async function overflowingElements(page) {
       .map((element) => {
         const box = element.getBoundingClientRect();
         const id = element.id ? `#${element.id}` : "";
-        const cls = element.className && typeof element.className === "string"
-          ? `.${element.className.trim().split(/\s+/).join(".")}`
-          : "";
+        const cls =
+          element.className && typeof element.className === "string"
+            ? `.${element.className.trim().split(/\s+/).join(".")}`
+            : "";
         return `${element.tagName.toLowerCase()}${id}${cls} [${Math.round(box.left)}..${Math.round(box.right)}]`;
       })
       .slice(0, 5);
@@ -102,7 +111,7 @@ export async function overflowingElements(page) {
  * The reflow gate: WCAG 2.2 SC 1.4.10 requires one column and no
  * two-dimensional scrolling down to 320 CSS px.
  */
-export async function expectNoHorizontalScroll(page, label) {
+export async function expectNoHorizontalScroll(page: Page, label: string): Promise<void> {
   const { scrollWidth, clientWidth } = await page.evaluate(() => ({
     scrollWidth: document.documentElement.scrollWidth,
     clientWidth: document.documentElement.clientWidth,
@@ -116,8 +125,15 @@ export async function expectNoHorizontalScroll(page, label) {
   ).toBeLessThanOrEqual(clientWidth + 1);
 }
 
-/** Opens Settings and selects one of its three panels. */
-export async function openSettings(page, panel = "schedules") {
+/**
+ * Opens Settings and selects one of its three panels.
+ *
+ * PARKED. Phase 1 retired the plain build, so nothing on the page answers to
+ * these ids yet; every caller is a `test.describe.fixme` block waiting on the
+ * phase that rebuilds the editor. Kept rather than deleted because it is the
+ * spec for the interaction Phase 3 has to restore, ids and all.
+ */
+export async function openSettings(page: Page, panel = "schedules"): Promise<void> {
   await page.locator("#settings-toggle").click();
   await expect(page.locator("#settings-view")).toBeVisible();
   await page.locator(`#tab-${panel}`).click();
