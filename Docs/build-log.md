@@ -2727,3 +2727,43 @@ from nothing.
 Every gate green: `eslint . --max-warnings 0`, `tsc --noEmit`, `next build`
 (still two static routes), `vitest run` (213), `playwright test` (83 passed / 22
 parked), `markdownlint`.
+
+### 2026-08-27 14:58 — the research library
+
+Branch `docs/research-library`. Nineteen research documents dropped into
+`Docs/research/`, plus an index that says what they are.
+
+**What they are.** One of them — `background-timers-and-schedule-modeling.md` —
+was already here and is BellTab's own evidence base; `AGENTS.md`'s domain
+invariants cite it directly. Everything added in this change was written for a
+sibling project: the Puzzle Lab app, or the Biscuit Lab hub's multi-zone
+migration. They were copied here because their conclusions travel.
+
+**Why an index was worth writing.** Their *numbers* do not travel, and one of
+them is an active trap. `eslint10-ts7-upgrade-blockers.md` explains why ESLint
+10 and TypeScript 7 were deferred — a conclusion that matches this repo's own
+open gap exactly, and for the same upstream reason (`typescript-eslint`'s
+`typescript` peer range, and `jsx-a11y` supporting no ESLint above 9). But it
+cites `typescript ^5`, a Tailwind dependency, Node 20 in CI and Dependabot
+PR #5, none of which describe BellTab: this repo is on TypeScript 6.0.3, has no
+Tailwind, and has its own Dependabot history. Read six weeks from now with no
+provenance, that document is a confident, sourced, wrong account of our own
+dependency state.
+
+So `Docs/research/index.md` splits the directory three ways: BellTab's own
+evidence, inherited references that apply here as written, and inherited
+references that are *about other repos*, each with the specific caveat. The
+Phase 7 cutover documents are in the third group and are the closest precedent
+we have for it — with the note that BellTab has no auth, which is what made
+Puzzle Lab's version of that migration hard.
+
+**One that changes nothing yet but should be read before Phase 4.**
+`accessibility-responsive-qa.md` recommends `@axe-core/playwright` on every
+journey with zero critical/serious violations to release. Phase 3 left that as
+an open gap rather than adding the dependency unasked; the editor is the surface
+that would pay for it, and the same document is explicit that the checks this
+repo does run — `jsx-a11y`, the reflow gate, a keyboard pass — cover roughly a
+third of WCAG success criteria between them.
+
+No code changed. `markdownlint` passes over all twenty documents, which is the
+only gate that applies to them.
