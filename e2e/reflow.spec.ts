@@ -98,15 +98,88 @@ for (const width of WIDTHS) {
       await expect(page.locator("main .period__name")).toHaveText("A".repeat(60));
       await expectNoHorizontalScroll(page, `${width}px page, 60-character unbroken period name`);
     });
+
+    /**
+     * The editor, which is the part `AGENTS.md` predicted would break this.
+     *
+     * It is a six-column grid of native controls at full width, and a
+     * `<input type="time">` in Chrome renders "08:00 AM" plus a picker icon
+     * whatever you ask of it. Both stacking breakpoints - one at 45rem for the
+     * columns, one at 22.5rem for the time field itself - were added because
+     * this measured them, not because they looked right.
+     */
+    test("the editor reflows to one column", async ({ page }) => {
+      await openApp(page, MID_PERIOD);
+      await openSettings(page, "schedules");
+      await expectNoHorizontalScroll(page, `${width}px settings/schedules`);
+    });
+
+    /**
+     * Period names are user input and can be absurd. `AGENTS.md` requires
+     * overflow-wrap: break-word globally for exactly this, and a single
+     * unbroken word is the shape that finds out. Sixty characters is the real
+     * worst case: both the input maxlength and SCHEDULE_LIMITS.nameChars cap
+     * a period name there, so nothing longer can reach the view.
+     *
+     * Run in TWO states, because the first version of this test ran only in
+     * MID_PERIOD and passed over a live bug: before the first bell, the Day
+     * view's first row is upcoming rather than past, and the layout it takes
+     * then overflowed at 768px. A gate that only ever sees one hour of the
+     * school day is not measuring the app, it is measuring that hour.
+     *
+     * Revived by Phase 3, minus its Day view half - that view was retired with
+     * the plain build and no phase has scheduled it back. What is live is the
+     * part that matters most anyway: the string goes in through the editor,
+     * where a user would actually put it, and has to survive both the form it
+     * was typed into and the countdown it comes out on.
+     */
+    for (const [state, at] of [
+      ["mid-period", MID_PERIOD],
+      ["before school", BEFORE_SCHOOL],
+    ]) {
+      test(`an absurd period name wraps everywhere it lands (${state})`, async ({ page }) => {
+        await openApp(page, at);
+        await openSettings(page, "schedules");
+
+        const firstName = page
+          .locator("#period-editor .editrow")
+          .first()
+          .locator('[data-field="name"]');
+        await firstName.fill("A".repeat(60));
+
+        // The SCHEDULE's name too, which is equally user-controlled and which
+        // the old version of this test never measured - it drove a hostile
+        // period name through an editor whose own title field was left on
+        // "Regular". It lands in the header, beside the wall clock.
+        await page.locator("#schedule-name-input").fill("B".repeat(60));
+
+        // The editor itself first: a 60-character value in a text input is the
+        // widest thing the form can be asked to hold.
+        await expectNoHorizontalScroll(
+          page,
+          `${width}px editor, ${state}, 60-character unbroken name`,
+        );
+
+        await page.locator("#settings-toggle").click();
+
+        // Then the countdown, which renders the same string through a
+        // different element and needs the same guarantee.
+        await expectNoHorizontalScroll(
+          page,
+          `${width}px countdown, ${state}, 60-character unbroken name`,
+        );
+      });
+    }
   });
 }
 
 /**
- * PARKED until Phases 2-4.
+ * PARKED until Phases 4 and 6.
  *
- * Everything below drove the plain build's views and editor. The assertions are
- * unchanged and the ids are the contract the rebuilt UI has to meet; each block
- * is revived by deleting its `.fixme` once the markup it names exists.
+ * What is left here needs the calendar panel, the preferences panel, Big mode,
+ * or the schedule-delete dialog. The assertions are unchanged and the ids are
+ * the contract the rebuilt UI has to meet; each block is revived by deleting
+ * its `.fixme` once the markup it names exists.
  */
 for (const width of WIDTHS) {
   test.describe(`at ${width} CSS px (parked)`, () => {
@@ -136,11 +209,11 @@ for (const width of WIDTHS) {
       await page.locator("#big-exit").click();
     });
 
-    // Revived by Phase 3 (the editor) and Phase 4 (the calendar panel).
-    test.fixme("every settings panel reflows, including the editor", async ({ page }) => {
+    // Revived by Phase 4 (the calendar panel) and Phase 6 (preferences).
+    test.fixme("the remaining settings panels reflow", async ({ page }) => {
       await openApp(page, MID_PERIOD);
 
-      for (const panel of ["schedules", "calendar", "preferences"]) {
+      for (const panel of ["calendar", "preferences"]) {
         await openSettings(page, panel);
         await expectNoHorizontalScroll(page, `${width}px settings/${panel}`);
         await page.locator("#settings-toggle").click();
@@ -167,54 +240,5 @@ for (const width of WIDTHS) {
       expect(box?.width).toBeLessThanOrEqual(width);
     });
 
-    /**
-     * Period names are user input and can be absurd. `AGENTS.md` requires
-     * overflow-wrap: break-word globally for exactly this, and a single
-     * unbroken word is the shape that finds out. Sixty characters is the real
-     * worst case: both the input maxlength and SCHEDULE_LIMITS.nameChars cap
-     * a period name there, so nothing longer can reach the view.
-     *
-     * Run in TWO states, because the first version of this test ran only in
-     * MID_PERIOD and passed over a live bug: before the first bell, the Day
-     * view's first row is upcoming rather than past, and the layout it takes
-     * then overflowed at 768px. A gate that only ever sees one hour of the
-     * school day is not measuring the app, it is measuring that hour.
-     *
-     * Revived by Phase 3. The live test above keeps the CSS half of this
-     * guarantee in the meantime; what is parked here is the half that drives
-     * it through the editor and out into two different views.
-     */
-    for (const [state, at] of [
-      ["mid-period", MID_PERIOD],
-      ["before school", BEFORE_SCHOOL],
-    ]) {
-      test.fixme(`an absurd period name wraps in every view (${state})`, async ({ page }) => {
-        await openApp(page, at);
-        await openSettings(page, "schedules");
-
-        const firstName = page
-          .locator("#period-editor .editrow")
-          .first()
-          .locator('[data-field="name"]');
-        await firstName.fill("A".repeat(60));
-
-        await page.locator("#settings-toggle").click();
-
-        // The Now view renders the running period's name too, through a
-        // different element, so it needs the same guarantee.
-        await expectNoHorizontalScroll(
-          page,
-          `${width}px Now view, ${state}, 60-character unbroken name`,
-        );
-
-        await page.locator("#view-day").click();
-        await expect(page.locator("#day-view")).toBeVisible();
-
-        await expectNoHorizontalScroll(
-          page,
-          `${width}px Day view, ${state}, 60-character unbroken name`,
-        );
-      });
-    }
   });
 }

@@ -136,20 +136,19 @@ test.describe("the period announcer", () => {
 });
 
 /**
- * PARKED until Phase 3 (the editor the keystroke test types into) and Phase 4
- * (the calendar panel).
+ * The regression that started all of this, revived by Phase 3.
  *
- * These came out of Finding 2 of `Docs/code-review-2026-08-26.md` and its
- * counterpart. The review measured the bug rather than reasoning about it,
- * because it needs a period to actually be running: typing "Chem" into the
- * running period's name wrote four successive announcements, one per keystroke.
+ * Finding 2 of `Docs/code-review-2026-08-26.md`. The review measured the bug
+ * rather than reasoning about it, because it needs a period to actually be
+ * running: typing "Chem" into the running period's name wrote four successive
+ * announcements, one per keystroke.
  *
- * The unit suite covers the half of this that does not need a form:
- * `boundaryKey` is keyed on the period's times, so renaming a running period
- * produces the same key. What is still owed here is the end-to-end proof, which
- * is what caught it the first time.
+ * The unit suite now covers the half that needs no form - `boundaryKey` is
+ * keyed on the period's TIMES, so renaming a running period produces the same
+ * key - but this is the test that caught it, and a structural fix is only worth
+ * as much as the end-to-end proof that the structure is actually wired up.
  */
-test.describe.fixme("the period announcer, driven through the editor", () => {
+test.describe("the period announcer, driven through the editor", () => {
   const announcer = (page: import("@playwright/test").Page) => page.locator("#period-announcer");
 
   test("says nothing while the running period's name is typed", async ({ page }) => {
@@ -168,7 +167,8 @@ test.describe.fixme("the period announcer, driven through the editor", () => {
     await expect(announcer(page)).toHaveText("");
   });
 
-  test("says nothing when the calendar is repointed", async ({ page }) => {
+  // PARKED until Phase 4, which is where the calendar panel is built.
+  test.fixme("says nothing when the calendar is repointed", async ({ page }) => {
     await openApp(page, MID_PERIOD);
     await openSettings(page, "calendar");
 

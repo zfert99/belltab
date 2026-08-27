@@ -53,7 +53,25 @@ export const WEEKEND = "2026-09-05T09:30:00-04:00";
  * paint. Installing it first now means the countdown lands in a harness that
  * already controls time rather than one that has to be retrofitted.
  */
-export async function openApp(page: Page, at: string = MID_PERIOD): Promise<void> {
+export interface OpenOptions {
+  /**
+   * A raw value to plant under BellTab's storage key before the app loads.
+   *
+   * Written with `addInitScript` rather than `page.evaluate` after `goto`,
+   * because the store reads storage on its first client render - a value
+   * written afterwards would arrive too late to affect the first paint, which
+   * is the moment worth testing. `null` clears the key.
+   */
+  storage?: string | null;
+}
+
+export const STORAGE_KEY = "belltab.v1";
+
+export async function openApp(
+  page: Page,
+  at: string = MID_PERIOD,
+  { storage }: OpenOptions = {},
+): Promise<void> {
   const target = new Date(at);
 
   // Installed a minute EARLY, then paused at the fixture. Two things are going
@@ -76,6 +94,16 @@ export async function openApp(page: Page, at: string = MID_PERIOD): Promise<void
   // clock.setSystemTime (a tab that slept through the interval entirely).
   await page.clock.install({ time: new Date(target.getTime() - 60_000) });
   await page.clock.pauseAt(target);
+
+  if (storage !== undefined) {
+    await page.addInitScript(
+      ([key, value]) => {
+        if (value === null) window.localStorage.removeItem(key);
+        else window.localStorage.setItem(key, value);
+      },
+      [STORAGE_KEY, storage] as const,
+    );
+  }
 
   // `basePath: '/bell'` - the origin root is a 404, so the prefix is not
   // optional here. See the note on BASE_PATH in playwright.config.ts for why
@@ -114,7 +142,16 @@ export async function openApp(page: Page, at: string = MID_PERIOD): Promise<void
   // attribute therefore waits for mount and checks the app agrees with the
   // fixture in one assertion - the two failures it separates are "the harness
   // is in the wrong timezone" above and "the app read the clock wrong" here.
-  await expect(page.locator("time#wall-clock")).toHaveAttribute("datetime", expectedWallClock);
+  //
+  // Given a longer timeout than the 5s default because this is the one wait in
+  // the suite that covers a cold start: the bundle downloading, hydrating and
+  // committing its first client render. On a machine running six workers and a
+  // Next build at once that has been measured taking longer than the default,
+  // and it fails as a mysterious "never wraps the ticking values" rather than
+  // as "the app did not boot". A broken app never satisfies this at any
+  // timeout; a busy one does, a moment later.
+  await expect(page.locator("time#wall-clock"), "the app never finished its first client render")
+    .toHaveAttribute("datetime", expectedWallClock, { timeout: 15_000 });
 }
 
 /**
@@ -165,16 +202,24 @@ export async function expectNoHorizontalScroll(page: Page, label: string): Promi
 }
 
 /**
- * Opens Settings and selects one of its three panels.
+ * Opens Settings and selects one of its panels.
  *
- * PARKED. Phase 1 retired the plain build, so nothing on the page answers to
- * these ids yet; every caller is a `test.describe.fixme` block waiting on the
- * phase that rebuilds the editor. Kept rather than deleted because it is the
- * spec for the interaction Phase 3 has to restore, ids and all.
+ * The tab click is CONDITIONAL, and that is not defensiveness. Phase 3 ships
+ * one panel, and a tablist with a single tab is a control that cannot do
+ * anything - so there is no tab strip until Phase 4 adds the calendar. Asking
+ * for `#tab-schedules` unconditionally would make this helper describe a
+ * control the app deliberately does not have; asking for `#panel-schedules`
+ * afterwards is the assertion that matters either way.
+ *
+ * Callers passing "calendar" or "preferences" are still parked, and will fail
+ * on the panel assertion until the phase that builds them.
  */
 export async function openSettings(page: Page, panel = "schedules"): Promise<void> {
   await page.locator("#settings-toggle").click();
   await expect(page.locator("#settings-view")).toBeVisible();
-  await page.locator(`#tab-${panel}`).click();
+
+  const tab = page.locator(`#tab-${panel}`);
+  if ((await tab.count()) > 0) await tab.click();
+
   await expect(page.locator(`#panel-${panel}`)).toBeVisible();
 }

@@ -2,104 +2,34 @@
 
 import type { DayState } from "@/lib/engine";
 import { formatClock, splitCountdown } from "@/lib/format";
-import type { LocalNow } from "@/lib/clock";
-import { tabTitleFor, viewForNow, type TodayView } from "@/app/_lib/today";
-import { useNow } from "@/app/_lib/useNow";
-import { PeriodAnnouncer } from "@/app/_components/PeriodAnnouncer";
+import type { TodayView } from "@/app/_lib/today";
 
 /**
- * The countdown screen: one clock, one subscriber, every other value derived.
+ * The countdown screen.
  *
- * This is the app's single client component with state. It reads the clock once
- * per second through `useNow` and hands the result down as props - the tab
- * title, the digits, the progress bar and the announcer are all views of that
- * one reading, so they cannot disagree with each other.
- *
- * The title is minute-resolution and the digits are second-resolution from the
- * same reading, which is not a contradiction: `formatTabTitle` ceils to whole
- * minutes, so 59 of every 60 renders produce an identical string and React
- * touches nothing.
+ * Presentational since Phase 3: the clock, the library and the tab title moved
+ * up to `App.tsx`, which is where the one subscriber now lives, and this
+ * renders whatever `TodayView` it is handed. `null` is the pre-mount state -
+ * the server has no device clock and a different timezone, so any time-derived
+ * value rendered there is a hydration mismatch by construction.
  *
  * Nothing below holds a remaining-time number across renders. Every value on
- * screen is recomputed from the reading, which is the repo's first invariant.
+ * screen is recomputed from one reading, which is the repo's first invariant.
  */
 
 /**
  * What the digits read before the clock has been read.
  *
  * Two characters wide in a tabular-figures face, so the placeholder occupies
- * exactly the space the real number will. The server has no device clock and a
- * different timezone, so this is what SSR emits and what the first hydration
- * render matches; the effect fills it in a frame later.
+ * exactly the space the real number will.
  */
 const PENDING = "--";
 
-export function NowView() {
-  const now = useNow();
-  const view = now === null ? null : viewForNow(now);
-
+export function NowView({ view }: { view: TodayView | null }) {
   return (
-    <>
-      {/*
-        The tab title, RENDERED rather than assigned.
-
-        React 19 hoists a `<title>` from anywhere in the tree into `<head>`, and
-        that is the only version of this that survives: writing
-        `document.title` from an effect works for one frame and is then
-        overwritten by the App Router's own metadata pass, which runs after
-        hydration. Measured, not assumed - a probe watching `<head>` recorded
-        "35m · Period 2" followed immediately by "BellTab". See the build log.
-
-        This is why `metadata` in layout.tsx no longer sets a title: two owners
-        is what caused the fight. SSR still emits one, because this component
-        renders "BellTab" until the clock has been read.
-
-        Never announced, and deliberately so. Changing the title is silent to a
-        screen reader; a per-minute announcement would be noise, and the page
-        body plus the boundary announcer are the accessible surfaces.
-      */}
-      <title>{view === null ? "BellTab" : tabTitleFor(view)}</title>
-      <header className="screen__bar">
-        <h1 className="screen__schedule">BellTab</h1>
-        <div className="screen__meta">
-          <p id="schedule-name" className="screen__clock">
-            {view?.kind === "scheduled" ? view.scheduleName : PENDING}
-          </p>
-          <WallClock now={now} />
-        </div>
-      </header>
-
-      <section className="focus">
-        <Focus view={view} />
-      </section>
-
-      <PeriodAnnouncer state={view?.kind === "scheduled" ? view.state : null} />
-    </>
-  );
-}
-
-/**
- * The device's own clock, shown so the countdown can be checked against
- * something. A tab that has been asleep and come back wrong is the failure this
- * app exists to avoid, and a wall clock beside the number is how a user notices.
- */
-function WallClock({ now }: { now: LocalNow | null }) {
-  if (now === null) {
-    return (
-      <p className="screen__clock" id="wall-clock">
-        {PENDING}:{PENDING}
-      </p>
-    );
-  }
-
-  const minutes = Math.floor(now.secOfDay / 60);
-
-  // The machine-readable value is 24-hour; the visible one follows the
-  // mockups. `<time>` wants an unambiguous string, the reader wants "9:30".
-  return (
-    <time className="screen__clock" id="wall-clock" dateTime={formatClock(minutes, { hour12: false })}>
-      {formatClock(minutes)}
-    </time>
+    <section className="focus">
+      <Focus view={view} />
+    </section>
   );
 }
 

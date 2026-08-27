@@ -2,7 +2,19 @@ import { test, expect, type Page } from "@playwright/test";
 import { openApp, openSettings } from "./helpers";
 
 /**
- * PARKED in full until Phase 3, which is where deleting a schedule comes back.
+ * PARKED in full until PHASE 4, which is where deleting a SCHEDULE comes back.
+ *
+ * Re-parked from Phase 3 on 2026-08-27. Phase 3 is the period editor - add,
+ * rename, retime, reorder, delete PERIODS - and it ships no confirmation
+ * because none of those is destructive enough to interrupt for: a deleted
+ * period is four fields and the countdown behind the editor shows the result
+ * immediately. Deleting a whole named schedule is Phase 4's, and so is this.
+ *
+ * The assertions below will need one adjustment when they are revived: the
+ * `is-settings` body class and `#focus-view` belong to the retired plain
+ * build's view switcher. Phase 3 swaps the two screens by conditional render
+ * instead, so the settings-still-standing check is `#settings-view` being
+ * attached, which is already asserted alongside them.
  *
  * Findings 1 and 3 of `Docs/code-review-2026-08-26.md`, in the browser they
  * were originally measured in. Neither is visible to the unit suite: jsdom

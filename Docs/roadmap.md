@@ -8,11 +8,12 @@ evidence behind the technical decisions is
 **Status legend:** ✅ Done · 🚧 In progress · 📋 Planned · ⛔ Blocked (prereq)
 **Tracks:** 🏗️ Setup · ⚙️ Engine · 🎨 UI · 🔀 Infra · 🔗 Integration
 
-**Status (2026-08-27, after Phase 2):** the countdown is live. One clock drives
-the digits, the progress bar, the tab title and the boundary announcer, all
-recomputed from `Date.now()` and forced to recompute on `visibilitychange` and
-`focus`. All five empty states render. The schedule is hard-coded, which is what
-Phase 3 and Phase 4 change.
+**Status (2026-08-27, after Phase 3):** the countdown is live and the schedule
+is the user's. One clock drives the digits, the progress bar, the tab title and
+the boundary announcer, all recomputed from `Date.now()`. The editor adds,
+renames, retimes, reorders and deletes periods, blocks overlap at input time,
+and persists to `localStorage`. What is still seeded is the *set* of schedules
+and the calendar pointing at them, which is Phase 4.
 
 > **Superseded 2026-08-27 13:50.** The paragraph below described `main` between
 > Phase 1 and Phase 2 and is kept because the Phase 2 plan was written against
@@ -25,12 +26,14 @@ Phase 3 and Phase 4 change.
 > yet. The UI is rebuilt on the engine phase by phase from here, starting with
 > the countdown.
 
-**Testing:** 155 Vitest tests over the pure engine, the parser, the formatters,
-the clock reader and the day resolver, plus 49 live Playwright tests in `e2e/`
-running in a real Chrome. The reflow gate that Phase 0 calls for now runs all
-four Now-view states at 320/375/768/1024/1440. A further **33 Playwright tests
-are parked** — each names the phase that revives it, except the Day view's,
-which names none; see **Open gaps** in `Docs/build-log.md`.
+**Testing:** 213 Vitest tests over the pure engine, the parser, the formatters,
+the clock reader, the day resolver, the editor's draft model and the storage
+boundary, plus 83 live Playwright tests in `e2e/` running in a real Chrome. The
+reflow gate that Phase 0 calls for runs the four Now-view states *and the
+editor* at 320/375/768/1024/1440, with a 60-character unbroken name typed into
+both a period and the schedule. A further **22 Playwright tests are parked** —
+each names the phase that revives it, except the Day view's, which names none;
+see **Open gaps** in `Docs/build-log.md`.
 
 The repo is at `github.com/zfert99/belltab`, with `main` protected by GitHub
 Flow (one PR per change, squash-merged).
@@ -75,8 +78,8 @@ retires it, since a browser cannot load a `.ts` module directly.
 | **0** | Scaffold — Next.js, `basePath`, CI, test harness, a11y gate | 🏗️ | ✅ Done |
 | **1** | The schedule engine — pure, typed, fully tested | ⚙️ | ✅ Done |
 | **2** | The countdown — one clock, the display, the tab title | 🎨 | ✅ Done |
-| **3** | The editor — build and edit a schedule, overlap blocking | 🎨 | 🚧 Next |
-| **4** | Day types — the **editing UI** for schedules and the calendar | 🎨 | 📋 Planned |
+| **3** | The editor — build and edit a schedule, overlap blocking | 🎨 | ✅ Done |
+| **4** | Day types — the **editing UI** for schedules and the calendar | 🎨 | 🚧 Next |
 | **5** | Sharing — versioned hash encoding, export/import | ⚙️ | 📋 Planned |
 | **6** | Comfort — bell offset, wake lock, chime, PWA, theme | 🎨 | 📋 Planned |
 | **7** | Cutover — hub rewrite, origin host, project card, sitemap | 🔀 | 📋 Planned |
@@ -198,20 +201,47 @@ want a link into an editor that does not exist yet, the unreachable
 
 ## Phase 3 — The editor 🎨
 
-- Add, rename, retime, reorder, and delete periods.
-- Overlap blocking at input time, naming the colliding period.
-- Field-level errors bound with `aria-describedby`; keyboard-operable reordering.
-- Persist to `localStorage`; a corrupt or missing value degrades to the empty
-  state.
+- ✅ Add, rename, retime, reorder and delete periods. The fourth field is a
+  **length**, not an end time — which is how a schedule is described, and which
+  makes `start >= end` unreachable by typing.
+- ✅ Overlap blocking at input time, naming the colliding period:
+  *"Period 2 overlaps Period 1. Two periods cannot run at the same time."*
+- ✅ Field-level errors bound with `aria-describedby` and marked `aria-invalid`.
+  One live region, `#schedule-error`, for the one error with no control to
+  point at.
+- ✅ Keyboard-operable reordering — two buttons that move the **times**, since
+  periods are stored sorted and a list reorder would be undone by the next
+  parse. See **Deviations**.
+- ✅ Persist to `localStorage` through `useSyncExternalStore`, which makes
+  hydration safe by construction and syncs across tabs. Every failure path —
+  absent, unparseable, wrong shape, a schedule that no longer validates —
+  degrades to the seeded library.
 
-**Gate:** a schedule can be built from scratch with the keyboard alone, and no
-input sequence can produce an invalid schedule.
+**Gate: met.** `e2e/editor.spec.ts` builds with the keyboard alone — no
+`click()` anywhere in that block — and the invalid half is argued structurally:
+every mutation runs the draft through `parseSchedule` and commits only on `ok`,
+so there is no path from the editor to the store that skips the parser. The E2E
+suite proves the wiring: a half-typed overlap reaches the screen as a message
+and not as a saved schedule, and the countdown behind it keeps running on the
+last version that made sense.
+
+Carried forward as open gaps rather than done: Safari (still), no automated axe
+scan, no undo, a seventy-two-stop tab chain through the form, untested cross-tab
+sync, and an onboarding empty state that is still a dead end until Phase 4 can
+create a schedule from nothing.
 
 ## Phase 4 — Day types 🎨
 
 Phase 2 already **reads** the weekday map and the date overrides, because the
-"no schedule today" empty state cannot exist without them. What this phase adds
-is the UI that edits them, and multiple schedules to point at.
+"no schedule today" empty state cannot exist without them, and Phase 3 persists
+them. What this phase adds is the UI that edits them, and multiple schedules to
+point at.
+
+It is also where the parked `confirm-dialog.spec.ts` comes back: deleting a
+whole named schedule is the first genuinely destructive action in the app, and
+that suite is the contract its dialog has to meet. Phase 3 ships no confirmation
+because deleting a period is four fields with the result visible immediately
+behind the editor.
 
 - Multiple named schedules; duplicate-and-tweak as the primary authoring move.
 - The weekday default map, editable.
