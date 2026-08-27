@@ -222,6 +222,15 @@ body {
   line-height: 1.2;
 }
 
+/* The empty states are first-class screens, not blanks: with no number under
+   it, a 1.5rem line in the middle of the card reads as a page that failed to
+   load. Scaled up so "School's out" is legible from the same distance the
+   countdown is, but well under the countdown's own clamp - it is a sentence,
+   not a glanceable number. */
+.countdown__period--message {
+  font-size: clamp(2rem, 8vw, 3.5rem);
+}
+
 .countdown__time {
   font-family: var(--font-display);
   /* Scales with the viewport because the primary use is "read from
@@ -288,7 +297,11 @@ body {
 .bounds__edge {
   font-family: var(--font-mono);
   font-size: 0.75rem;
-  font-weight: 500;
+  /* 400, not the 500 the scale used to ask for. Space Mono ships 400 and 700
+     only, so `font-weight: 500` resolved to 400 anyway and the declaration was
+     describing something the browser was never going to do. The design system's
+     Mono S row was corrected to match. */
+  font-weight: 400;
   line-height: 1;
   color: var(--fg-soft);
   font-variant-numeric: tabular-nums;

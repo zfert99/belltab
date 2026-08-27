@@ -3,8 +3,10 @@ import {
   openApp,
   openSettings,
   expectNoHorizontalScroll,
+  AFTER_SCHOOL,
   MID_PERIOD,
   BEFORE_SCHOOL,
+  WEEKEND,
 } from "./helpers";
 
 /**
@@ -19,10 +21,11 @@ import {
  * 320 CSS px is 400% zoom on a 1280px display, which is the width the success
  * criterion actually names.
  *
- * Phase 1 retired the plain build, so most of what this file used to measure -
- * the Day view, Big mode, the settings panels, the confirm dialog - has no
- * markup to measure until Phases 2-4 rebuild it. Those blocks are parked at the
- * bottom rather than deleted; each names the phase that revives it.
+ * Phase 2 gave it something to measure again: the countdown number is
+ * `clamp(4rem, 18vw, 11rem)`, which is the single widest thing this app draws
+ * and the reason the clamp has an upper bound at all. Big mode, the settings
+ * panels and the confirm dialog still have no markup; those blocks are parked
+ * at the bottom rather than deleted, and each names the phase that revives it.
  */
 
 const WIDTHS = [320, 375, 768, 1024, 1440];
@@ -35,6 +38,28 @@ for (const width of WIDTHS) {
       await openApp(page, MID_PERIOD);
       await expectNoHorizontalScroll(page, `${width}px page`);
     });
+
+    /**
+     * Every state the Now view has, at every width.
+     *
+     * The first version of the parked test below ran only at MID_PERIOD and
+     * passed over a live overflow that only appeared before the first bell. A
+     * gate that sees one hour of the school day is measuring that hour, not the
+     * app - and these four states render genuinely different markup: two of
+     * them have no digits at all, and the "before" state is the one on the
+     * hr : min scale.
+     */
+    for (const [state, at] of [
+      ["mid-period", MID_PERIOD],
+      ["before school", BEFORE_SCHOOL],
+      ["after school", AFTER_SCHOOL],
+      ["weekend", WEEKEND],
+    ]) {
+      test(`the countdown reflows to one column (${state})`, async ({ page }) => {
+        await openApp(page, at);
+        await expectNoHorizontalScroll(page, `${width}px countdown, ${state}`);
+      });
+    }
 
     /**
      * The `overflow-wrap: anywhere` fix, measured rather than grepped.
@@ -87,7 +112,8 @@ for (const width of WIDTHS) {
   test.describe(`at ${width} CSS px (parked)`, () => {
     test.use({ viewport: { width, height: 720 } });
 
-    // Revived by Phase 2 (the countdown and Day view) and Phase 6 (Big mode).
+    // Revived by Phase 6 (Big mode); the Day view has no phase scheduled. The
+    // Now view half of this is live above.
     test.fixme("Now, Day and Big all reflow to one column", async ({ page }) => {
       await openApp(page, MID_PERIOD);
       await expectNoHorizontalScroll(page, `${width}px Now view`);

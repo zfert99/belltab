@@ -157,3 +157,47 @@ export function formatRemaining(totalSeconds: number): string {
 
   return unit === COUNTDOWN_UNITS.hoursMinutes ? `${major}h ${minor}m` : `${major}m ${minor}s`;
 }
+
+/**
+ * What a screen-reader user is told when a bell rings.
+ *
+ * The tab title announces nothing and the countdown must never be live
+ * (`AGENTS.md`), so a `aria-live="polite"` region firing only at boundaries is
+ * the only way the bell is conveyed at all. Empty string means "say nothing":
+ * before the first bell nothing has happened yet, and an empty schedule has no
+ * bells to ring.
+ */
+export function announcementFor(state: DayState): string {
+  switch (state.phase) {
+    case "during":
+      return `${state.current.name} has started.`;
+    case "gap":
+      return `${state.next.name} is next.`;
+    case "after":
+      return "School is out.";
+    default:
+      return "";
+  }
+}
+
+/**
+ * A string that changes exactly when a bell rings, and at no other time.
+ *
+ * Keyed on the period's TIMES, never on its name. The retired build keyed the
+ * announcer on the name and re-announced on every keystroke while the running
+ * period was being renamed in the editor - four announcements for "Chem". See
+ * the announcer spec and Bugs found in Docs/build-log.md.
+ *
+ * A gap is identified by the period it leads to, because that is what changes
+ * when the gap ends.
+ */
+export function boundaryKey(state: DayState): string {
+  switch (state.phase) {
+    case "during":
+      return `during:${state.current.startMin}-${state.current.endMin}`;
+    case "gap":
+      return `gap:${state.next.startMin}`;
+    default:
+      return state.phase;
+  }
+}

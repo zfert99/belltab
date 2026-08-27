@@ -7,6 +7,8 @@ import {
   formatDayCaption,
   formatPeriodLabel,
   formatTabTitle,
+  announcementFor,
+  boundaryKey,
   type ClockOptions,
 } from "./format";
 import type { DayState, DaySummary } from "./engine";
@@ -262,5 +264,95 @@ describe("formatRemaining", () => {
   // a negative number, if a repaint lands a moment late.
   it("floors at zero rather than going negative", () => {
     expect(formatRemaining(-30)).toBe("0m 00s");
+  });
+});
+
+describe("announcementFor", () => {
+  it("names the period that just started", () => {
+    expect(announcementFor(during("Period 2", 600))).toBe("Period 2 has started.");
+  });
+
+  it("names what is coming during a gap", () => {
+    // Nothing has started, so "has started" would be a lie; what a listener
+    // needs to know in a hole in the day is what the next bell is for.
+    expect(
+      announcementFor({
+        phase: "gap",
+        current: null,
+        next: somePeriod("Period 3"),
+        remainingSec: 240,
+        progress: 0.5,
+      }),
+    ).toBe("Period 3 is next.");
+  });
+
+  it("says the day is over once", () => {
+    expect(
+      announcementFor({ phase: "after", current: null, next: null, remainingSec: 0, progress: 1 }),
+    ).toBe("School is out.");
+  });
+
+  it("says nothing before the first bell or with no schedule", () => {
+    // Silence is the correct output, not a missing case: before school nothing
+    // has happened yet, and an empty schedule has no bells to ring.
+    expect(announcementFor(before("Period 1", 3600))).toBe("");
+    expect(
+      announcementFor({ phase: "empty", current: null, next: null, remainingSec: 0, progress: 0 }),
+    ).toBe("");
+  });
+});
+
+describe("boundaryKey", () => {
+  it("does not change when a running period is renamed", () => {
+    // The regression this exists for: the retired build keyed the announcer on
+    // the name, so typing "Chem" over "Period 2" in the editor produced four
+    // announcements. Same times, same key, no announcement.
+    expect(boundaryKey(during("Period 2", 600))).toBe(boundaryKey(during("Chem", 600)));
+  });
+
+  it("does not change as a period counts down", () => {
+    expect(boundaryKey(during("Period 2", 3599))).toBe(boundaryKey(during("Period 2", 1)));
+  });
+
+  it("changes when the running period does", () => {
+    const first: DayState = {
+      phase: "during",
+      current: { name: "Period 2", kind: "class", startMin: 545, endMin: 605 },
+      next: null,
+      remainingSec: 60,
+      progress: 0.9,
+    };
+    const second: DayState = {
+      phase: "during",
+      current: { name: "Period 3", kind: "class", startMin: 610, endMin: 665 },
+      next: null,
+      remainingSec: 3300,
+      progress: 0,
+    };
+
+    expect(boundaryKey(first)).not.toBe(boundaryKey(second));
+  });
+
+  it("identifies a gap by the period it leads to", () => {
+    const gap = (nextName: string, nextStart: number): DayState => ({
+      phase: "gap",
+      current: null,
+      next: { name: nextName, kind: "class", startMin: nextStart, endMin: nextStart + 55 },
+      remainingSec: 240,
+      progress: 0.5,
+    });
+
+    // Renaming the period a gap leads to is not a bell either.
+    expect(boundaryKey(gap("Period 3", 610))).toBe(boundaryKey(gap("Chem", 610)));
+    expect(boundaryKey(gap("Period 3", 610))).not.toBe(boundaryKey(gap("Period 3", 620)));
+  });
+
+  it("gives the phases with no period their own keys", () => {
+    const flat = (phase: "before" | "after" | "empty"): DayState =>
+      phase === "before"
+        ? before("Period 1", 3600)
+        : { phase, current: null, next: null, remainingSec: 0, progress: phase === "after" ? 1 : 0 };
+
+    expect(new Set([boundaryKey(flat("before")), boundaryKey(flat("after")), boundaryKey(flat("empty"))]).size).toBe(3);
   });
 });

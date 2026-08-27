@@ -1,23 +1,23 @@
+import { NowView } from "@/app/_components/NowView";
+
 /**
- * A shell, not the app.
+ * The route, and nothing else.
  *
- * Phase 1 landed the schedule engine - `src/lib/` is typed, parsed at the
- * boundary and covered by the unit suite - and retired the plain HTML/CSS/JS
- * build that used to render it, because a browser cannot load a `.ts` module.
- * The countdown itself arrives in Phase 2.
+ * A Server Component that reads no clock and renders no time. `AGENTS.md` keeps
+ * `src/app/` for routing and entry points, and is explicit that a whole route
+ * must not become a Client Component because one child ticks - so the boundary
+ * is drawn at `NowView`, which is the only thing here that needs a device
+ * clock.
  *
- * Nothing here reads the clock. A time-dependent value rendered on the server
- * hydrate-mismatches by definition, so the countdown arrives as a client
- * component rather than being retrofitted onto this file.
+ * The `<main>` landmark and the card that is the whole app live HERE rather
+ * than inside `NowView`, because `body` centres a single grid item: a bare
+ * `<main>` wrapping a `width: 100%` card would shrink to its content first and
+ * take the card's max-width with it.
  */
 export default function Page() {
   return (
     <main className="screen">
-      <h1>BellTab</h1>
-      <p>
-        The schedule engine has landed. The countdown, the day view and the
-        editor are rebuilt on top of it in the phases after this one.
-      </p>
+      <NowView />
     </main>
   );
 }
