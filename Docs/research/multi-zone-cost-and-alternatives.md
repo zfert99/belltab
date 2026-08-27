@@ -2,7 +2,7 @@
 
 **Status:** 📋 Decision doc. **Decided: no structural change now; single-app is the end-state when a
 lull appears.** Written 2026-08-07 after the cron outage, then revised the same day against
-commissioned research ([puzzle-lab-hub-merge-research.md](puzzle-lab-hub-merge-research.md)), which
+commissioned research (`puzzle-lab-hub-merge-research.md`, in the Puzzle Lab repo), which
 corrected three things this doc originally got wrong.
 
 The prompting question was simple — *"if I make four more projects, do they each need a Vercel
@@ -49,7 +49,7 @@ Per Large project, in this repo today:
 | Operational | split logs, version skew across two deployments |
 
 Plus the failures actually hit: the post-cutover `fetch()` 404s, and the
-[cron outage](vercel-cron-deployment-protection-outage.md).
+cron outage (`vercel-cron-deployment-protection-outage.md`, in the Puzzle Lab repo).
 
 ## Finding 3 — three corrections the research made to this doc
 
@@ -94,7 +94,7 @@ the risk.
 
 **Do the write-up now instead.** ✅ **Done, 2026-08-07** — published as
 [**Thirteen hours, no error**](https://biscuitlab.net/log/thirteen-hours-no-error), not under the
-working title this doc first proposed. It leads with the [cron outage](vercel-cron-deployment-protection-outage.md)
+working title this doc first proposed. It leads with the cron outage (`vercel-cron-deployment-protection-outage.md`, in the Puzzle Lab repo)
 rather than the architecture, because the outage is the part that earns a reader's attention, and it
 carries Finding 2's measurements, Finding 3's passkey/rpID reasoning, and the triggers below. Per
 the Build Log rule that publishes to the `Biscuit-Website` repo's `/log`. This captured most of the
