@@ -8,19 +8,29 @@ evidence behind the technical decisions is
 **Status legend:** ✅ Done · 🚧 In progress · 📋 Planned · ⛔ Blocked (prereq)
 **Tracks:** 🏗️ Setup · ⚙️ Engine · 🎨 UI · 🔀 Infra · 🔗 Integration
 
-**Status (2026-08-27):** the plain HTML/CSS/JS build that ran ahead of the
-roadmap is **retired**. Phase 1 ported its engine to TypeScript, which a browser
-cannot load directly, so the app it powered went with it. What is on `main` is
-the Next.js scaffold plus a fully typed, fully tested `src/lib/` — and a page
-that renders no time yet. The UI is rebuilt on the engine phase by phase from
-here, starting with the countdown.
+**Status (2026-08-27, after Phase 2):** the countdown is live. One clock drives
+the digits, the progress bar, the tab title and the boundary announcer, all
+recomputed from `Date.now()` and forced to recompute on `visibilitychange` and
+`focus`. All five empty states render. The schedule is hard-coded, which is what
+Phase 3 and Phase 4 change.
 
-**Testing:** 118 Vitest tests over the pure engine, the parser and the
-formatters, plus 11 live Playwright tests in `e2e/` running in a real Chrome.
-The reflow gate that Phase 0 calls for is among them and passes at
-320/375/768/1024/1440. A further **37 Playwright tests are parked** — they drove
-UI Phase 1 removed, and each names the phase that revives it. See
-`Docs/build-log.md` for what that narrowing costs and what is owed.
+> **Superseded 2026-08-27 13:50.** The paragraph below described `main` between
+> Phase 1 and Phase 2 and is kept because the Phase 2 plan was written against
+> it.
+>
+> The plain HTML/CSS/JS build that ran ahead of the roadmap is **retired**.
+> Phase 1 ported its engine to TypeScript, which a browser cannot load directly,
+> so the app it powered went with it. What is on `main` is the Next.js scaffold
+> plus a fully typed, fully tested `src/lib/` — and a page that renders no time
+> yet. The UI is rebuilt on the engine phase by phase from here, starting with
+> the countdown.
+
+**Testing:** 155 Vitest tests over the pure engine, the parser, the formatters,
+the clock reader and the day resolver, plus 49 live Playwright tests in `e2e/`
+running in a real Chrome. The reflow gate that Phase 0 calls for now runs all
+four Now-view states at 320/375/768/1024/1440. A further **33 Playwright tests
+are parked** — each names the phase that revives it, except the Day view's,
+which names none; see **Open gaps** in `Docs/build-log.md`.
 
 The repo is at `github.com/zfert99/belltab`, with `main` protected by GitHub
 Flow (one PR per change, squash-merged).
@@ -64,9 +74,9 @@ retires it, since a browser cannot load a `.ts` module directly.
 | **D** | Docs & planning — plan, agent rules, design system, research | 🏗️ | ✅ Done |
 | **0** | Scaffold — Next.js, `basePath`, CI, test harness, a11y gate | 🏗️ | ✅ Done |
 | **1** | The schedule engine — pure, typed, fully tested | ⚙️ | ✅ Done |
-| **2** | The countdown — one clock, the display, the tab title | 🎨 | 🚧 Next |
-| **3** | The editor — build and edit a schedule, overlap blocking | 🎨 | 📋 Planned |
-| **4** | Day types — named schedules, weekday map, date overrides | 🎨 | 📋 Planned |
+| **2** | The countdown — one clock, the display, the tab title | 🎨 | ✅ Done |
+| **3** | The editor — build and edit a schedule, overlap blocking | 🎨 | 🚧 Next |
+| **4** | Day types — the **editing UI** for schedules and the calendar | 🎨 | 📋 Planned |
 | **5** | Sharing — versioned hash encoding, export/import | ⚙️ | 📋 Planned |
 | **6** | Comfort — bell offset, wake lock, chime, PWA, theme | 🎨 | 📋 Planned |
 | **7** | Cutover — hub rewrite, origin host, project card, sitemap | 🔀 | 📋 Planned |
@@ -158,17 +168,33 @@ E2E suite is 11 live tests where it was 37.
 
 The first genuinely useful build. Schedule is hard-coded.
 
-- One clock, one subscriber; recompute from `Date.now()` on every tick and force
-  a recompute on `visibilitychange` and `focus`.
-- The countdown display, progress bar, and "next up" line.
-- `document.title` at **minute** resolution, number first: `43m · Period 2`.
-- All five empty states from the design system.
-- Client-only rendering of every time-dependent value — a stable placeholder,
-  then fill after mount, so nothing hydrate-mismatches.
+- ✅ One clock, one subscriber — `src/app/_lib/useNow.ts`, the only
+  `setInterval` in the repo. Recomputes from `new Date()` on every tick and on
+  `visibilitychange` and `focus`. Nothing holds a remaining-time number.
+- ✅ The countdown display, progress bar, period bounds and "next up" line, on
+  the CSS carried over from the retired build — most of which had never been
+  rendered before this phase.
+- ✅ The tab title at **minute** resolution, number first: `35m · Period 2`.
+  Rendered as a `<title>` rather than assigned to `document.title`, which the
+  App Router's metadata pass overwrites a frame later. See **Bugs found**.
+- ✅ All five empty states, reachable from the seeded calendar alone. Two of
+  them read the weekday map, which is a phase early — see **Deviations**.
+- ✅ Client-only rendering of every time-dependent value. `useNow` returns
+  `null` until mount and the components render a stable placeholder for it.
+- ✅ The period announcer, keyed on the period's times so a rename cannot
+  trigger it. Four of its parked E2E tests are live again.
 
-**Gate:** open it in a real browser, background the tab for ten minutes, come
-back, and the number is right. Verify in Safari specifically — its throttling
-thresholds are the thinnest evidence in the research.
+**Gate: met in Chrome, not yet in Safari.** `e2e/countdown.spec.ts` moves the
+clock without firing a timer, asserts the display is stale, and asserts that
+`visibilitychange` or `focus` alone corrects it — across ten minutes, across two
+period boundaries, and across Friday night into Saturday. What that does *not*
+cover is Safari, whose throttling thresholds are the thinnest evidence in the
+research and whose engine is still not in the Playwright projects. Carried
+forward as an open gap.
+
+Carried forward as open gaps rather than done: Safari, the two empty states that
+want a link into an editor that does not exist yet, the unreachable
+`no-schedules` screen, and the design system's 150ms period-change crossfade.
 
 ## Phase 3 — The editor 🎨
 
@@ -183,8 +209,12 @@ input sequence can produce an invalid schedule.
 
 ## Phase 4 — Day types 🎨
 
+Phase 2 already **reads** the weekday map and the date overrides, because the
+"no schedule today" empty state cannot exist without them. What this phase adds
+is the UI that edits them, and multiple schedules to point at.
+
 - Multiple named schedules; duplicate-and-tweak as the primary authoring move.
-- The weekday default map.
+- The weekday default map, editable.
 - Explicit date overrides, shown as a small editable list.
 - A "use this schedule today" control.
 - The resolver, in priority order, with room reserved for a future cycle layer.

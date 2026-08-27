@@ -18,5 +18,16 @@ export default defineConfig({
     // `// @vitest-environment jsdom` pragma at the top, per AGENTS.md.
     environment: "node",
     include: ["src/**/*.test.{ts,tsx}"],
+
+    // The timezone is pinned for the same reason playwright.config.ts pins the
+    // browser's. `src/lib/clock.ts` reads LOCAL wall-clock fields - that is the
+    // whole reason this app needs no timezone plumbing - and a suite running in
+    // whatever zone the machine happens to be in cannot assert anything about a
+    // DST transition, because a UTC runner has none. America/New_York is a zone
+    // that actually has one.
+    //
+    // A property of the HARNESS, not of the app: nothing under `src/` reads a
+    // timezone. These tests only need local and UTC to genuinely disagree.
+    env: { TZ: "America/New_York" },
   },
 });

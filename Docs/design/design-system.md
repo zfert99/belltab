@@ -70,6 +70,10 @@ period state by color alone; the label always says what it is.
 
 Self-host via `next/font`. No external font requests.
 
+**Mono S is weight 400, corrected from 500 on 2026-08-27.** Space Mono is not a
+variable font and ships 400 and 700 only, so a 500 declaration resolved to 400
+in every browser regardless. The scale now says what actually renders.
+
 ### Scale
 
 | Role | Size | Weight | Line-height | Use |
@@ -80,7 +84,7 @@ Self-host via `next/font`. No external font requests.
 | Body L | 1.125rem | 500 | 1.5 | "Next up" line, intro copy |
 | Body M | 1rem | 400 | 1.6 | Default body |
 | Body S | 0.875rem | 500 | 1.4 | Labels, captions |
-| Mono S | 0.75rem | 500 | 1 | Times, meta |
+| Mono S | 0.75rem | 400 | 1 | Times, meta |
 
 The countdown scales with the viewport because the primary display mode is
 "across the room." Sentence case everywhere in UI copy.

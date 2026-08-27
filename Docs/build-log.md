@@ -23,13 +23,17 @@ the end of a phase.
 
 ## Current state
 
-**Working:** the schedule engine, in TypeScript, with no UI on top of it yet.
+**Working:** the countdown. Phase 2 put a UI on the engine, so the app is
+genuinely useful for the first time — against a hard-coded schedule.
 
 - `src/lib/` is pure, typed and fully tested — the parser mints a branded
   `ValidSchedule` and the engine accepts nothing else.
-- The Next.js app is a shell: a heading, a paragraph, and the design system's
-  stylesheet. It renders no time. Since 2026-08-27 the stylesheet's three font
-  tokens resolve to real self-hosted faces rather than to system fallbacks.
+- One clock (`_lib/useNow.ts`) drives everything: the digits, the progress bar,
+  the tab title and the boundary announcer are all derived views of one reading
+  per second, recomputed from `Date.now()` and forced to recompute on
+  `visibilitychange` and `focus`.
+- All five empty states render, reachable from the seeded calendar alone.
+- The stylesheet's three font tokens resolve to real self-hosted faces.
 
 **Retired:** the plain HTML/CSS/JS build. Phase 1 replaced the modules it
 imported with `.ts`, which a browser cannot load, so `src/index.html`,
@@ -37,8 +41,8 @@ imported with `.ts`, which a browser cannot load, so `src/index.html`,
 behaviour — three views, the editor, the calendar, preferences — is owed back by
 Phases 2–4 and its tests are parked, not deleted. See **Open gaps**.
 
-**Not started:** the countdown, the editor, day types, sharing, bell offset,
-wake lock, chime, PWA.
+**Not started:** the editor, day types (the calendar is *read* but not
+editable), sharing, bell offset, wake lock, chime, PWA.
 
 ### Files
 
@@ -54,11 +58,20 @@ home for the pure engine.
 src/
   app/          routing and entry points only, per AGENTS.md
     layout.tsx  page.tsx  globals.css
-  lib/          pure: no DOM, no Date, no React   + colocated tests
-    schedule.ts  engine.ts  parse.ts  format.ts
+    _lib/         app-layer glue: knows about React and the hard-coded library
+      today.ts  useNow.ts                        + colocated tests
+    _components/  the client tree
+      NowView.tsx  PeriodAnnouncer.tsx
+  lib/          pure: no DOM, no React; `Date` only as an argument
+    schedule.ts  engine.ts  parse.ts  format.ts  clock.ts   + colocated tests
 e2e/            Playwright, top-level by rule, not colocated
   helpers.ts  reflow.spec.ts  confirm-dialog.spec.ts  announcer.spec.ts
+  countdown.spec.ts
 ```
+
+`_lib/` and `_components/` are Next.js **private folders** — the leading
+underscore keeps them out of routing. `AGENTS.md` names them as the colocation
+mechanism and bans a `src/features/` split at this size.
 
 `e2e/` is top-level because `AGENTS.md` exempts E2E from colocation: it tests
 the assembled app in a browser, not any one module. It covers the two things
@@ -73,21 +86,34 @@ jsdom structurally cannot — real layout, for the WCAG reflow gate, and real
 | `src/lib/schedule.ts` | What a schedule *is* — the types, including the `ValidSchedule` brand — plus the seed data. No logic. | nothing |
 | `src/lib/engine.ts` | What is true at a given moment. Pure; time is always an argument; takes only a `ValidSchedule`. | schedule |
 | `src/lib/parse.ts` | The boundary. Untrusted input → a branded `ValidSchedule` or structured errors. Pure. | schedule |
-| `src/lib/format.ts` | Every user-visible string derived from a number. Pure. | **types only** |
+| `src/lib/format.ts` | Every user-visible string derived from a number, plus the announcer's copy and its boundary key. Pure. | **types only** |
+| `src/lib/clock.ts` | The only file that reads a `Date` — and it takes one as an argument. Wall-clock fields to integers. Pure. | **types only** |
+| `src/app/_lib/today.ts` | Which schedule is running and what it is doing. Parses the hard-coded library once, resolves the calendar, calls `stateAt`. Pure. | clock, engine, format, parse, schedule |
+| `src/app/_lib/useNow.ts` | The one clock. The single `setInterval` in the repo, plus the two lifecycle listeners. | clock |
+| `src/app/_components/NowView.tsx` | The countdown screen. One subscriber; every value a prop. | today, useNow, format, clock, engine |
+| `src/app/_components/PeriodAnnouncer.tsx` | The `aria-live` region that fires only at bells. | format, engine |
 
 Unit tests are colocated with what they validate: `lib/engine.test.ts`,
-`lib/parse.test.ts`, `lib/format.test.ts`.
+`lib/parse.test.ts`, `lib/format.test.ts`, `lib/clock.test.ts`,
+`app/_lib/today.test.ts`.
+
+The two `_components/` files have no unit tests, deliberately. They are thin
+renderers over pure functions that are covered directly, and the behaviour that
+is *not* a pure function — a real interval, a real `visibilitychange`, a real
+`<head>` — is exactly what jsdom cannot model. `e2e/countdown.spec.ts` covers it
+in a browser with a controllable clock instead. Revisit at Phase 3, where a form
+is worth Testing Library.
 
 ### Running it
 
 ```bash
 npm run lint      # eslint - the whole repo, jsx-a11y at full `recommended`
 npm run typecheck # tsc --noEmit, strict
-npm run build     # next build - 2 static routes
+npm run build     # next build - 2 static routes, still fully static
 npm run lint:md   # markdownlint
-npm test          # vitest run - 118 unit tests
+npm test          # vitest run - 155 unit tests
 npm run watch     # vitest in watch mode
-npm run e2e       # playwright - 11 live, 37 parked; builds and serves the app
+npm run e2e       # playwright - 49 live, 33 parked; builds and serves the app
 npm run e2e:ui    # playwright in UI mode
 npm run dev       # http://localhost:3000/bell
 ```
@@ -173,6 +199,15 @@ development too, so the bare origin is a 404 exactly as it is in production.
 | 2026-08-27 | `parseScheduleCollection` refuses an over-cap list rather than truncating it | The retired `src/store.js` sliced to the cap, silently. A share link carrying 51 schedules is a link the sender can fix once they are told; a link that silently arrives with 50 is one nobody ever finds out about. It also matches how `periods` already behaves one level down. |
 | 2026-08-27 | One bad entry refuses the whole collection instead of yielding the good ones | A caller handed three schedules back from a four-schedule import has no way to learn that. `localStorage` still degrades cleanly — a caller that wants "empty state on corruption" reads `ok: false` and starts empty, which is a decision it makes explicitly rather than one the parser makes for it. |
 | 2026-08-27 | `next/font` is wired with `variable`, not `className` | `globals.css` already routes every rule through `--font-display` / `--font-body` / `--font-mono`. A `className` on `<html>` sets one family for the whole tree and leaves those three tokens still pointing at fonts nothing loads — the exact state this change exists to end. |
+| 2026-08-27 | The tab title is a **rendered** `<title>`, not `document.title = …` | Next's App Router runs a metadata pass after hydration that overwrites an imperative write. Measured, not guessed: a `<head>` MutationObserver recorded `35m · Period 2` immediately followed by `BellTab`. React 19 hoists a `<title>` from any component, so the app owns the tag and `metadata` in `layout.tsx` no longer sets a title. Two owners was the bug. |
+| 2026-08-27 | `setInterval(1000)` rather than a `setTimeout` chain aimed at the next wall-clock second | The chain is marginally prettier — the seconds digit would flip when the device's does — but the drift it fixes is sub-second and invisible, while `page.clock.fastForward` walks a chain tick by tick and would render five hours of school day one second at a time. Correctness here comes from recomputing, never from tick alignment. |
+| 2026-08-27 | `useNow` returns `LocalNow \| null`, and `null` is what SSR renders | The server has no device clock and is in a different timezone, so any time-derived value rendered there is a hydration mismatch by construction. A placeholder filled in after mount is the only honest shape, and it is what `AGENTS.md` asks for. |
+| 2026-08-27 | Phase 2 **reads** the calendar, though Phase 4 owns editing it | The design system's "no schedule today" is one of the five empty states Phase 2 must ship, and it cannot exist without weekday resolution. `resolveScheduleId` and `DEFAULT_CALENDAR` both shipped in Phase 1, so this is wiring, not new behaviour. Nothing is editable. Recorded under **Deviations**. |
+| 2026-08-27 | A gap reads "Between periods", not the design document's "Passing" | The seeded schedules model passing as a real period with `kind: "passing"`, so during passing the engine is in its `during` phase and the label is the period's own name. What is left in the `gap` phase is a genuine hole in the day, which may be two hours. Recorded under **Deviations**. |
+| 2026-08-27 | The announcer adjusts state **during render**, not in a `useEffect` | An effect would fire on every tick and have to re-derive whether that tick was a boundary — which is the exact shape the keystroke bug had. React documents render-phase adjustment for deriving state from changed input, and it makes "only at a bell" structural. |
+| 2026-08-27 | The unit suite is pinned to `TZ=America/New_York` | Same reason `playwright.config.ts` pins the browser. `clock.ts` reads local wall-clock fields, and a UTC runner has no DST transition to assert against — the DST tests would pass by asserting nothing. A property of the harness; nothing under `src/` reads a timezone. |
+| 2026-08-27 | Progress-bar width is rounded to a whole percent | An unrounded fraction rewrites the inline style every second, and a 300ms width transition restarted every second is a permanent crawl — which the design system's "nothing may loop, pulse, or breathe" rules out. |
+| 2026-08-27 | No Testing Library, no component unit tests, in this phase | The branching is already pure and covered (`today.ts`, `format.ts`); what is left in the components is a real interval, a real `visibilitychange` and a real `<head>`, none of which jsdom models. Playwright with a controllable clock tests those honestly. Phase 3's form is where the dependency earns itself. |
 
 ## Deviations from the plan docs
 
@@ -311,6 +346,40 @@ written as an explicit *"Corrected from `stateAt(schedule, minute)`"* note
 rather than a silent edit, so the reason survives next to the signature. The
 code did not move; the doc did.
 
+### The gap label — 2026-08-27
+
+`Docs/design/design-system.md` gives the between-periods empty state as
+`Passing — Period 3 in 4m`. The app renders **"Between periods"**.
+
+The two are not describing the same thing. All four seeded schedules model
+passing as a real period with `kind: "passing"`, so while passing is running the
+engine is in its `during` phase and the label shows the period's own name —
+"Passing" — exactly as the design document wants. The engine's `gap` phase is
+what is left over: a hole a schedule simply does not cover, which the plan
+explicitly permits and which can be two hours long. Calling that "Passing" is a
+lie the label is free to avoid.
+
+**Owed to reconcile:** either the design document gains a sentence separating the
+two cases, or the app is given a way to tell a short gap from a long one. The
+former is likely right. Not blocking.
+
+### The calendar is read a phase early — 2026-08-27
+
+`Docs/roadmap.md` puts the weekday map and date overrides in Phase 4 and says
+Phase 2's schedule is hard-coded. Phase 2 ships `_lib/today.ts`, which resolves
+the current day through `resolveScheduleId` against `DEFAULT_CALENDAR`.
+
+The reason is the empty states. Phase 2 owes all five, and "no schedule today"
+cannot be produced by a hard-coded single schedule — every hour of every day
+resolves to *something*. Weekend resolution is the only thing that makes the
+screen reachable, and both pieces it needs shipped in Phase 1.
+
+The schedule library is still frozen at `DEFAULT_SCHEDULES` and nothing in the
+UI can change either it or the calendar, which is the part Phase 4 owns.
+
+**Owed to reconcile:** Phase 4's entry in the roadmap should say "the editing UI
+for the calendar", not "the calendar". Done in the same change.
+
 ## Open gaps
 
 | Opened | Item | Notes |
@@ -321,19 +390,24 @@ code did not move; the doc did.
 | 2026-08-26 | TypeScript is a major version behind on purpose | 6.0.3 rather than 7.0.2, because `typescript-eslint` cannot load under TS 7. This is a real cost — TS 7 is the Go rewrite — and it is deliberate, not neglect. Revisit when typescript-eslint#10940 lands; the upgrade should be a one-line version bump plus a full lint run. |
 | 2026-08-26 | The headers have still never been verified on Vercel | `vercel.json` is gone and the list now lives in `next.config.ts`, verified against a real `next start`. What remains unverified is the deploy itself, and the hub's rewrite in Phase 7 — a second hop that can drop headers. |
 | 2026-08-26 | Only `.period__name` and `.countdown__period` are hardened against intrinsic-width blowout | Those are the two elements that render a period name today. The schedule name (`#schedule-name`) and the editor's own rows are equally user-controlled and have not been measured with a 60-character unbroken value. The reflow suite covers the editor panel, but with the seeded names, not a hostile one. |
-| 2026-08-27 | The E2E suite is 11 live tests and 37 parked | Phase 1 retired the UI the parked ones drove. The reflow gate still runs at 320/375/768/1024/1440, but against a shell. Every parked block names the phase that revives it; reviving one is deleting a `.fixme`, not rewriting a test. See **Deviations**. |
-| 2026-08-27 | `src/lib/` has no consumer | Nothing under `src/app/` imports the engine, so `next build` tree-shakes all of it and the only thing exercising it is the unit suite. That is correct for Phase 1 and is exactly why the Phase 2 gate is "open it in a real browser", not "CI is green". |
 | 2026-08-27 | `next build` now needs the network | `next/font/google` fetches the three families at BUILD time. Runtime is still network-free — that invariant is untouched, and the emitted HTML was checked for Google hosts — but an offline `npm run build` now fails where it used to succeed. Next caches the downloads, so this bites a cold checkout rather than a rebuild. Self-hosting the `.woff2` files in-repo with `next/font/local` would remove it; not done, because it means committing binaries and hand-tracking upstream revisions. |
-| 2026-08-27 | Space Mono has no 500 weight, and the design system asks for one | `Docs/design/design-system.md`'s scale specifies weight 500 for the Mono S row (times, meta). Space Mono ships 400 and 700 only, so `font-weight: 500` on a mono element resolves to 400 rather than synthesising. Nothing renders it yet. Owed by Phase 2: either correct the design doc to 400, or pick a mono with the weight. |
-| 2026-08-27 | Most of `globals.css` is inert | 1446 lines carried over from the retired build; the shell uses the tokens, `body`, `:focus-visible`, `.screen` and `.period__name`. The rest targets markup that does not exist yet. Expect dead rules until Phase 3, and expect some of them to be wrong when the markup returns — CSS that has never been rendered has never been tested. |
 | 2026-08-27 | Next ships a live region we did not write | `div#__next-route-announcer__` is `aria-live="assertive"` `role="alert"`, injected by the App Router after hydration and not removable. It should stay silent — one route, no client navigation — but `AGENTS.md`'s "never wrap the countdown in a live region" now has a framework-owned region on the page to coexist with. The announcer spec enumerates it so a second one cannot arrive unnoticed. |
 | 2026-08-27 | Theme persistence is gone, and its replacement needs a CSP hash | The retired `index.html` set `data-theme` from `localStorage` in a render-blocking inline script, to avoid a flash of the wrong theme. `globals.css` still honours `[data-theme]`, but nothing sets it. Phase 6 owes both the toggle and a way to apply it before first paint that does not need an unhashed inline `<script>`. |
-| 2026-08-27 | Phase 2's clock will need a `clearInterval` | Carried forward from the retired build's version of this gap. There is no interval in the repo right now; the moment one lands in a React component it needs a `useEffect` cleanup, or every remount leaks a timer. |
+| 2026-08-27 | The E2E suite is 49 live and 33 parked | Up from 11/37. What is still parked needs the editor (Phase 3), the calendar UI (Phase 4) or Big mode (Phase 6). The Day view's parked assertions name no phase at all — see the row below. |
+| 2026-08-27 | The Day view has no phase | The retired plain build shipped one (day progress bar, eleven period rows, a Now/Day switcher) and `Docs/roadmap.md` never scheduled it back. Its parked reflow assertions and the `#day-remaining` id therefore point at nothing with a date on it. Either schedule it or delete the parked block; leaving it is how a test file starts lying. |
+| 2026-08-27 | Roughly half of `globals.css` is still inert | Phase 2 gave the tokens, `body`, `.screen`, `.screen__bar`, `.countdown`, `.progress` and `.bounds` a first render — the first time most of them have been exercised at all. Everything from section 9 down (views, the strip, Big mode, settings, the editor, the calendar, the dialog) still targets markup that does not exist. Expect some of it to be wrong when the markup returns. |
+| 2026-08-27 | The Phase 2 gate is unverified in Safari | The roadmap's gate names Safari specifically, because its throttling thresholds are the thinnest evidence in the research. What has been verified is Chrome, with a scripted clock: `visibilitychange` and `focus` both recompute correctly across a ten-minute sleep and across two period boundaries. A real Safari tab, backgrounded for real minutes, is still owed — and WebKit is still not in the Playwright projects. |
+| 2026-08-27 | Two empty states have no call to action | The design system asks the "no schedule today" screen for a link to pick a schedule and the "no schedule at all" screen for the onboarding path into the editor. Both render honest copy and no link, because there is nowhere to link to until Phase 3. |
+| 2026-08-27 | The `no-schedules` empty state is unreachable | It renders only when the parsed library is empty, and the library is `DEFAULT_SCHEDULES` frozen at module load — which `parse.test.ts` proves always parses. So the screen exists, is typed, and is covered by unit tests, but no E2E can reach it until Phase 3 wires localStorage and a corrupt value can produce it. |
+| 2026-08-27 | The design system's period-change crossfade is not implemented | `Docs/design/design-system.md` section 4 asks for a single 150ms crossfade of the period name at a boundary. The name swaps instantly. The global `prefers-reduced-motion` block already covers the reduced path, so adding it is additive; not doing it is the honest state today. |
 
 ## Closed
 
 | Opened | Closed | Item |
 | --- | --- | --- |
+| 2026-08-27 | 2026-08-27 | `src/lib/` has no consumer — `_lib/today.ts` and `_components/NowView.tsx` import the engine, the parser, the formatters and the new clock reader. It is in the bundle and on the screen. |
+| 2026-08-27 | 2026-08-27 | Phase 2's clock will need a `clearInterval` — `useNow` returns a cleanup that clears the interval and removes both listeners. Strict Mode's double mount in development is what would have caught its absence. |
+| 2026-08-27 | 2026-08-27 | Space Mono has no 500 weight — resolved in the design document's favour of reality: the Mono S row is now weight 400, with a note saying why, and `.bounds__edge` declares 400 rather than a 500 no browser was going to honour. |
 | 2026-08-26 | 2026-08-26 | `splitCountdown` ambiguity — the countdown now carries a `min : sec` / `hr : min` label, and `splitCountdown` returns the unit alongside the numbers. |
 | 2026-08-26 | 2026-08-26 | Glyph icons — `⚙`, `←` and `×` replaced with inline SVG. |
 | 2026-08-26 | 2026-08-26 | `els` staleness — no longer reachable: every rebuild uses `replaceChildren()` on a container, so no reference in `dom.js` is ever replaced. The invariant is now documented in the file. |
@@ -871,6 +945,69 @@ the run rather than by trusting that it looked right.
 that removes a setting a tool expects will be reverted by that tool, at a moment
 of its choosing, in a commit where it looks like unrelated noise. The setting is
 kept and documented instead — including the note not to tidy it out again.
+
+### 2026-08-27 — the App Router overwrites `document.title` a frame after you set it
+
+**What broke.** `useTabTitle` was a four-line hook: a `useEffect` writing
+`document.title` whenever the formatted string changed. It worked in the sense
+that the write happened. Six E2E tests failed anyway, all of them asserting a
+title, all of them reading `BellTab`.
+
+**How it was found.** Not by reasoning — by watching. A throwaway spec attached
+a `MutationObserver` to `<head>` and recorded every change:
+
+```text
+SEEN: ["35m · Period 2","BellTab"]
+```
+
+Our write landed first and Next's metadata pass overwrote it immediately after.
+`document.title` was never wrong for more than a frame, which is exactly why
+this is the kind of bug a foreground eyeball misses: with a live clock the next
+tick would have corrected it a second later, and only a frozen test clock holds
+the wrong state still long enough to see.
+
+**The fix.** Stop writing the title imperatively and *render* it. React 19
+hoists a `<title>` from anywhere in the tree into `<head>`, so `NowView` returns
+one as its first child, and `metadata` in `layout.tsx` no longer sets a title at
+all. SSR still emits `<title>BellTab</title>`, because the component renders that
+until the clock has been read. Verified in the built HTML and by re-running the
+probe: one title element, one value, no second write.
+
+**The lesson.** Two owners of one piece of DOM is the bug, not the ordering
+between them. The framework was always going to win the race; the fix was to
+stop racing. And "it works when I look at it" is not evidence when the thing you
+are looking at self-corrects once a second.
+
+### 2026-08-27 — an installed Playwright clock is not a stopped one
+
+**What broke.** A test fast-forwarded one second, asserted the seconds place
+read `59`, fast-forwarded 59 more and asserted `00`. It failed with a call log
+that is the whole story:
+
+```text
+6 × locator resolved to <span id="countdown-seconds">59</span>
+2 × ... 58
+2 × ... 57
+2 × ... 56
+2 × ... 55
+```
+
+The countdown was running underneath the assertion. `page.clock.install({ time })`
+sets the clock and leaves it **ticking at real speed**; it is `pauseAt` that
+stops it. Phase 1's tests never noticed because nothing on the page moved.
+
+**The second half.** Adding `await page.clock.pauseAt(new Date(at))` straight
+after `install` then failed intermittently — one test per run, never the same
+one — with `clock.pauseAt: Cannot fast-forward to the past`. Between the two
+calls a few milliseconds of real time elapse, so pausing *at* the install time is
+pausing behind the clock. Fixed by installing a minute early and pausing at the
+fixture: nothing is loaded yet, so the minute being skipped fires no timers.
+
+**The lesson.** Both halves were invisible until something on the page moved
+once a second, and both would have been flaky-in-CI rather than red-locally if
+the countdown had ticked slower. A test harness that controls time needs its own
+assertion that time is *not* moving; here that is the staleness check in
+`countdown.spec.ts`, which fails loudly if the clock ever starts running again.
 
 ## Session log
 
@@ -2259,3 +2396,85 @@ verification needs a deploy.
 Every gate green on the tree: `eslint . --max-warnings 0`, `markdownlint`,
 `tsc --noEmit`, `vitest run` (126, up from 118), `next build`, and
 `playwright test` (11 passed / 37 parked).
+
+### 2026-08-27 13:50 — Phase 2: the countdown
+
+Branch `feat/phase-2-countdown`. The engine gets a face. This is the first
+change since the port that a user could tell had happened.
+
+**The one clock.** `src/app/_lib/useNow.ts` holds the only `setInterval` in the
+repo. It re-reads `new Date()` every second and returns a `LocalNow` — a second
+of the day, an ISO date and a weekday, as integers. Nothing anywhere holds a
+remaining-time number and reduces it; every value on screen is
+`deadline − now` recomputed from that reading, which is the repo's first
+invariant and the reason the whole design works in a throttled tab. It also
+listens for `visibilitychange` and `focus`, because a hidden tab is woken about
+once a minute and a frozen one not at all, so the number a user sees when they
+come back has to be right on the *first* repaint rather than a minute later.
+The effect returns a cleanup that clears the interval and removes both
+listeners, which closes a gap carried since 2026-08-26.
+
+**`src/lib/clock.ts`, the only file that touches `Date`.** And it takes one as
+an argument, so it is as testable as the rest of `src/lib/`. Two details are
+load-bearing and both are about DST: seconds-since-midnight is computed from
+`getHours/getMinutes/getSeconds` rather than by subtracting epoch milliseconds
+(a 23- or 25-hour local day would put every afternoon period an hour out), and
+the ISO date is hand-formatted from local getters rather than
+`toISOString().slice(0, 10)` (which names tomorrow for every local evening east
+of Greenwich). The unit suite is now pinned to `TZ=America/New_York` so those
+two tests can actually fail; on a UTC runner they were asserting nothing.
+
+**`src/app/_lib/today.ts`, the seam.** Parses `DEFAULT_SCHEDULES` through
+`parseScheduleCollection` at module load — seed data gets no exemption from the
+boundary — resolves the day through `resolveScheduleId` against
+`DEFAULT_CALENDAR`, and calls `stateAt`. Returns a three-way union rather than a
+shape with nullable fields, because "no school today" and "no schedules at all"
+are different screens with different copy. Reading the calendar is a phase early
+and is recorded under **Deviations**; the alternative was shipping four of the
+five empty states.
+
+**The screen.** `_components/NowView.tsx` is the single client component with
+state; `page.tsx` stays a Server Component and owns the `<main class="screen">`
+card. Existing CSS covered the markup almost exactly — `.countdown`,
+`.countdown__time`, `.countdown__units`, `.progress`, `.bounds` and the header
+bar all came over from the retired build and rendered correctly on first try,
+which is the first evidence any of it works. Two rules changed: a
+`.countdown__period--message` size for the empty-state headlines, which at
+1.5rem in an otherwise blank card read as a page that had failed to load rather
+than as a designed screen; and `.bounds__edge` dropped `font-weight: 500`, which
+Space Mono was never going to honour.
+
+**The announcer** is back, as `_components/PeriodAnnouncer.tsx`. It adjusts state
+during render rather than in an effect, keyed on `boundaryKey(state)` — which is
+built from the period's *times*, never its name. That is the 2026-08-26
+keystroke bug made structurally impossible rather than merely fixed, and
+`format.test.ts` asserts it directly: renaming a running period produces the
+same key.
+
+**The tab title** is a rendered `<title>`, not a `document.title` write, for a
+reason that took a `MutationObserver` to find. See **Bugs found**.
+
+**Tests.** 155 unit (up from 126 — `clock.test.ts`, `today.test.ts`, and
+`announcementFor`/`boundaryKey` cases in `format.test.ts`) and 49 live E2E (up
+from 11), with 33 still parked. The new `e2e/countdown.spec.ts` is where the
+Phase 2 gate lives: it moves the clock *without firing a timer*
+(`clock.setSystemTime`), asserts the display is stale, and then asserts that
+`visibilitychange` or `focus` alone corrects it — including across two period
+boundaries the tab slept through, and across Friday night into Saturday. A
+decrementing counter fails every one of those. The reflow gate now runs all four
+Now-view states at all five widths instead of one state at five widths, and four
+of the announcer's parked tests are live again.
+
+**Screenshotted, not assumed:** all four states at 1100px and 320px, light and
+dark. The 320px column holds, the "Next:" line drops to its own row as the
+stylesheet intended, and dark mode's butterscotch fill reads correctly on the
+dark card.
+
+**Not done.** Safari. The roadmap's gate names it specifically, and WebKit is
+still not in the Playwright projects — recorded as an open gap rather than
+quietly counted as met. The two empty states the design system wants a link on
+have copy and no link, because there is nowhere to link until Phase 3.
+
+Every gate green: `eslint . --max-warnings 0`, `tsc --noEmit`, `next build`
+(still two static routes), `vitest run` (155), `playwright test` (49 passed / 33
+parked), `markdownlint`.

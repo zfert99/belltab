@@ -34,6 +34,16 @@ export const MID_PERIOD = "2026-09-02T09:30:00-04:00";
 /** The same Wednesday at 07:00, before the 08:00 first bell. */
 export const BEFORE_SCHOOL = "2026-09-02T07:00:00-04:00";
 
+/** The same Wednesday at 15:00, after the 14:30 last bell. */
+export const AFTER_SCHOOL = "2026-09-02T15:00:00-04:00";
+
+/**
+ * Saturday 5 September 2026, 09:30 - the same hour of the school day, on a day
+ * the default calendar points at nothing. The pair is what separates "no school
+ * today" from "the day is over".
+ */
+export const WEEKEND = "2026-09-05T09:30:00-04:00";
+
 /**
  * Loads the app with the clock frozen at `at`.
  *
@@ -44,16 +54,34 @@ export const BEFORE_SCHOOL = "2026-09-02T07:00:00-04:00";
  * already controls time rather than one that has to be retrofitted.
  */
 export async function openApp(page: Page, at: string = MID_PERIOD): Promise<void> {
-  await page.clock.install({ time: new Date(at) });
+  const target = new Date(at);
+
+  // Installed a minute EARLY, then paused at the fixture. Two things are going
+  // on here and both are load-bearing.
+  //
+  // `install` alone does not stop the clock - it keeps ticking at real speed,
+  // so the countdown would count down underneath every assertion and a test
+  // expecting "35:00" would race the wall clock. `pauseAt` is what stops it.
+  //
+  // The minute of headroom is because `pauseAt` jumps FORWARD and refuses to go
+  // back: installing at the fixture and pausing at the same instant means
+  // pausing a few milliseconds in the past, which throws "Cannot fast-forward
+  // to the past" on whichever test happens to be slow that run. Nothing is
+  // loaded yet, so the minute being skipped fires no timers.
+  //
+  // Pausing is also the more honest model of what this app has to survive. A
+  // hidden tab gets roughly one wakeup a minute and a frozen one gets none, so
+  // "no timer fires until a test asks for one" is the normal condition, not an
+  // artificial one. Time moves here only via clock.fastForward (a tick) or
+  // clock.setSystemTime (a tab that slept through the interval entirely).
+  await page.clock.install({ time: new Date(target.getTime() - 60_000) });
+  await page.clock.pauseAt(target);
 
   // `basePath: '/bell'` - the origin root is a 404, so the prefix is not
   // optional here. See the note on BASE_PATH in playwright.config.ts for why
   // it is not folded into `baseURL` instead.
   await page.goto(BASE_PATH);
 
-  // The app's own signal that it booted. Phase 2 replaces this with the
-  // countdown's placeholder being filled in, which is a stronger signal; until
-  // there is one, the shell rendering at all is what there is.
   await expect(page.getByRole("heading", { level: 1, name: "BellTab" })).toBeVisible();
 
   // Then check the browser actually believes the time the fixture names.
@@ -76,6 +104,17 @@ export async function openApp(page: Page, at: string = MID_PERIOD): Promise<void
     browserWallClock,
     `clock skew: the fixture names ${expectedWallClock} in America/New_York, but the browser believes ${browserWallClock}. Check the UTC offset on the fixture.`,
   ).toBe(expectedWallClock);
+
+  // Then wait for the app to have read that clock for itself.
+  //
+  // This is the boot signal, and a stronger one than "the shell rendered":
+  // every time-dependent value starts as a placeholder, because the server has
+  // no device clock, and `#wall-clock` is a `<p>` until it is filled in and a
+  // `<time>` afterwards. Waiting for the element WITH its machine-readable
+  // attribute therefore waits for mount and checks the app agrees with the
+  // fixture in one assertion - the two failures it separates are "the harness
+  // is in the wrong timezone" above and "the app read the clock wrong" here.
+  await expect(page.locator("time#wall-clock")).toHaveAttribute("datetime", expectedWallClock);
 }
 
 /**

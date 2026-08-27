@@ -47,7 +47,6 @@ const spaceMono = Space_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "BellTab",
   description: "A school bell schedule countdown that lives in your browser tab.",
 };
 

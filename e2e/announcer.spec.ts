@@ -10,10 +10,9 @@ import { openApp, openSettings, MID_PERIOD, BEFORE_SCHOOL } from "./helpers";
  * it wrong in either direction is a real failure: silent, and the app is unusable
  * without sight; chatty, and it reads a ticking number aloud once a second.
  *
- * Phase 1 retired the plain build that implemented it, so the behavioural tests
- * are parked below and revived by Phase 2. What stays live is the invariant
- * that survives having no UI: the page's live regions are an enumerated list,
- * and nothing joins it by accident.
+ * Phase 2 rebuilt it as `_components/PeriodAnnouncer.tsx`, so most of this file
+ * is live again. What is still parked needs the editor (Phase 3) and the
+ * calendar UI (Phase 4) to type into.
  */
 
 const LIVE_REGION_SELECTOR = '[aria-live], [role="alert"], [role="status"], [role="log"]';
@@ -29,42 +28,37 @@ const LIVE_REGION_SELECTOR = '[aria-live], [role="alert"], [role="status"], [rol
  * region - which is why this is awaited rather than sampled.
  *
  * It should stay permanently silent here: BellTab is a single route with no
- * client-side navigation, so there is no route change to announce. That claim
- * is worth re-testing in Phase 2 if anything ever calls `router.push`.
+ * client-side navigation, so there is no route change to announce. Still true
+ * after Phase 2 - nothing calls `router.push`.
  */
 const NEXT_ROUTE_ANNOUNCER = "div#__next-route-announcer__";
 
-test("the shell ships no live regions beyond Next's route announcer", async ({ page }) => {
+/** Ours, and the only one this app is allowed to own until Phase 3. */
+const PERIOD_ANNOUNCER = "p#period-announcer";
+
+test("the page ships exactly two live regions", async ({ page }) => {
   await openApp(page, MID_PERIOD);
 
-  // Awaited, not assumed: the region arrives with hydration, and asserting
+  // Awaited, not assumed: Next's region arrives with hydration, and asserting
   // before it lands would pass for the wrong reason and then fail the day the
   // bundle got slower.
   await expect(page.locator(NEXT_ROUTE_ANNOUNCER)).toBeAttached();
 
-  // Not a placeholder assertion. Phase 2 adds exactly one clock-driven live
+  // Not a placeholder assertion. Phase 2 added exactly one clock-driven live
   // region and Phase 3 adds two form-error slots; every one of those is a
   // decision, and this is what makes a fourth arriving unnoticed impossible.
+  // Sorted, because DOM order between our region and a framework-injected one
+  // is not a guarantee worth asserting.
   const regions = await page
     .locator(LIVE_REGION_SELECTOR)
     .evaluateAll((elements) =>
       elements.map((element) => `${element.tagName.toLowerCase()}#${element.id || "(no id)"}`),
     );
 
-  expect(regions).toEqual([NEXT_ROUTE_ANNOUNCER]);
+  expect(regions.sort()).toEqual([NEXT_ROUTE_ANNOUNCER, PERIOD_ANNOUNCER].sort());
 });
 
-/**
- * PARKED until Phase 2 (the announcer itself) and Phase 3 (the editor the
- * keystroke test types into).
- *
- * These came out of Finding 2 of `Docs/code-review-2026-08-26.md` and its
- * counterpart. The review measured the bug rather than reasoning about it,
- * because it needs a period to actually be running: typing "Chem" into the
- * running period's name wrote four successive announcements, one per keystroke.
- * The assertions below are the contract the rebuilt announcer has to meet.
- */
-test.describe.fixme("the period announcer", () => {
+test.describe("the period announcer", () => {
   const announcer = (page: import("@playwright/test").Page) => page.locator("#period-announcer");
 
   test("is silent on first paint", async ({ page }) => {
@@ -72,33 +66,6 @@ test.describe.fixme("the period announcer", () => {
 
     // Describing the period you are already in, the instant the page loads, is
     // noise rather than news.
-    await expect(announcer(page)).toHaveText("");
-  });
-
-  test("says nothing while the running period's name is typed", async ({ page }) => {
-    await openApp(page, MID_PERIOD);
-    await openSettings(page, "schedules");
-
-    // Period 2 is 09:05-10:05 and the clock is at 09:30, so this row is the
-    // one under the countdown - the exact case the review reproduced.
-    const runningName = page.locator("#period-editor .editrow").nth(2).locator('[data-field="name"]');
-    await expect(runningName).toHaveValue("Period 2");
-
-    await runningName.fill("");
-    await runningName.pressSequentially("Chem", { delay: 20 });
-
-    await expect(runningName).toHaveValue("Chem");
-    await expect(announcer(page)).toHaveText("");
-  });
-
-  test("says nothing when the calendar is repointed", async ({ page }) => {
-    await openApp(page, MID_PERIOD);
-    await openSettings(page, "calendar");
-
-    const wednesday = page.locator("#weekday-map select").nth(3);
-    await wednesday.selectOption("");
-    await expect(page.locator("#calendar-today")).toContainText("no school");
-
     await expect(announcer(page)).toHaveText("");
   });
 
@@ -127,7 +94,10 @@ test.describe.fixme("the period announcer", () => {
     await page.clock.fastForward("05:10:00");
     await expect(announcer(page)).toHaveText("School is out.");
 
-    // Another ten minutes of the same state must not repeat it.
+    // Another ten minutes of the same state must not repeat it. The region is
+    // emptied by hand: React holds the same text in its own tree, so if it
+    // rewrote the node on any of the ticks that follow, the string would come
+    // back and this would fail.
     await announcer(page).evaluate((element) => (element.textContent = ""));
     await page.clock.fastForward("10:00");
     await expect(announcer(page)).toHaveText("");
@@ -144,18 +114,16 @@ test.describe.fixme("the period announcer", () => {
    * element would have reported itself as WRAPPED rather than as absent, and
    * the failure message would have sent the reader looking for a live region
    * that was never there. Found while porting; see Bugs found in the build log.
+   *
+   * `day-remaining` is deliberately absent from the list: the Day view it
+   * belonged to was retired with the plain build and no phase has scheduled it
+   * back. Add it here on the day it returns.
    */
   test("never wraps the ticking values", async ({ page }) => {
     await openApp(page, MID_PERIOD);
 
     const { missing, wrapped } = await page.evaluate((selector) => {
-      const ids = [
-        "countdown-minutes",
-        "countdown-seconds",
-        "period-name",
-        "wall-clock",
-        "day-remaining",
-      ];
+      const ids = ["countdown-minutes", "countdown-seconds", "period-name", "wall-clock"];
       return {
         missing: ids.filter((id) => document.getElementById(id) === null),
         wrapped: ids.filter((id) => document.getElementById(id)?.closest(selector) != null),
@@ -165,4 +133,50 @@ test.describe.fixme("the period announcer", () => {
     expect(missing, "these ids no longer exist; the test is checking nothing").toEqual([]);
     expect(wrapped).toEqual([]);
   });
+});
+
+/**
+ * PARKED until Phase 3 (the editor the keystroke test types into) and Phase 4
+ * (the calendar panel).
+ *
+ * These came out of Finding 2 of `Docs/code-review-2026-08-26.md` and its
+ * counterpart. The review measured the bug rather than reasoning about it,
+ * because it needs a period to actually be running: typing "Chem" into the
+ * running period's name wrote four successive announcements, one per keystroke.
+ *
+ * The unit suite covers the half of this that does not need a form:
+ * `boundaryKey` is keyed on the period's times, so renaming a running period
+ * produces the same key. What is still owed here is the end-to-end proof, which
+ * is what caught it the first time.
+ */
+test.describe.fixme("the period announcer, driven through the editor", () => {
+  const announcer = (page: import("@playwright/test").Page) => page.locator("#period-announcer");
+
+  test("says nothing while the running period's name is typed", async ({ page }) => {
+    await openApp(page, MID_PERIOD);
+    await openSettings(page, "schedules");
+
+    // Period 2 is 09:05-10:05 and the clock is at 09:30, so this row is the
+    // one under the countdown - the exact case the review reproduced.
+    const runningName = page.locator("#period-editor .editrow").nth(2).locator('[data-field="name"]');
+    await expect(runningName).toHaveValue("Period 2");
+
+    await runningName.fill("");
+    await runningName.pressSequentially("Chem", { delay: 20 });
+
+    await expect(runningName).toHaveValue("Chem");
+    await expect(announcer(page)).toHaveText("");
+  });
+
+  test("says nothing when the calendar is repointed", async ({ page }) => {
+    await openApp(page, MID_PERIOD);
+    await openSettings(page, "calendar");
+
+    const wednesday = page.locator("#weekday-map select").nth(3);
+    await wednesday.selectOption("");
+    await expect(page.locator("#calendar-today")).toContainText("no school");
+
+    await expect(announcer(page)).toHaveText("");
+  });
+
 });
