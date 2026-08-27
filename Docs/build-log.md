@@ -28,7 +28,8 @@ the end of a phase.
 - `src/lib/` is pure, typed and fully tested — the parser mints a branded
   `ValidSchedule` and the engine accepts nothing else.
 - The Next.js app is a shell: a heading, a paragraph, and the design system's
-  stylesheet. It renders no time.
+  stylesheet. It renders no time. Since 2026-08-27 the stylesheet's three font
+  tokens resolve to real self-hosted faces rather than to system fallbacks.
 
 **Retired:** the plain HTML/CSS/JS build. Phase 1 replaced the modules it
 imported with `.ts`, which a browser cannot load, so `src/index.html`,
@@ -166,6 +167,12 @@ development too, so the bare origin is a 404 exactly as it is in production.
 | 2026-08-27 | `basePath` is kept out of Playwright's `baseURL` and put on the paths instead | Playwright resolves a relative navigation with `new URL(path, baseURL)`, so a `baseURL` ending in `/bell` plus `goto("/")` resolves back to the origin root — which `basePath` makes a 404. The same applies to `webServer.url`, whose readiness probe treats a 404 as "not up yet". |
 | 2026-08-27 | The E2E suite is TypeScript too | `tsconfig.json` includes `**/*.ts`, so `npm run typecheck` now compiles the suite that drives the app with the same settings as the app. A locator typo in a spec is a build failure rather than a runtime one. |
 | 2026-08-27 | `allowJs` stays in `tsconfig.json` even though nothing needs it | Removing it does not stick — `next build` writes it back and reformats the whole file on the way through. Documented in the file rather than fought. |
+| 2026-08-27 | The house lint rules are re-asserted in a block scoped to `src/**` and `e2e/**`, not by widening the plain-JS block back to the repo | `js.configs.recommended` genuinely should not apply to TypeScript — `tsc` subsumes `no-undef`. `eqeqeq`, error-level unused-vars and `reportUnusedDisableDirectives` are a different question and none of them come from `eslint-config-next`. Splitting them says which half of the Phase 1 narrowing was right. |
+| 2026-08-27 | `npm run lint` gains `--max-warnings 0` | Half of finding 2 was severity and half was the runner: `eslint-config-next` reports unused variables at `warn`, and a script with no warning ceiling exits 0 on every one of them. Raising the rule to `error` fixes one rule; the flag fixes the class. |
+| 2026-08-27 | `formatDayCaption` is built from `formatRemaining`, not from `splitCountdown`'s raw numbers | The unit used to live in a sibling element (`#day-remaining-units`) that the port deleted. Rebuilding that dependency would mean the caption is only correct if Phase 3's markup remembers to render a second element beside it; spelling the units into the string makes it correct on its own, wherever it is rendered. |
+| 2026-08-27 | `parseScheduleCollection` refuses an over-cap list rather than truncating it | The retired `src/store.js` sliced to the cap, silently. A share link carrying 51 schedules is a link the sender can fix once they are told; a link that silently arrives with 50 is one nobody ever finds out about. It also matches how `periods` already behaves one level down. |
+| 2026-08-27 | One bad entry refuses the whole collection instead of yielding the good ones | A caller handed three schedules back from a four-schedule import has no way to learn that. `localStorage` still degrades cleanly — a caller that wants "empty state on corruption" reads `ok: false` and starts empty, which is a decision it makes explicitly rather than one the parser makes for it. |
+| 2026-08-27 | `next/font` is wired with `variable`, not `className` | `globals.css` already routes every rule through `--font-display` / `--font-body` / `--font-mono`. A `className` on `<html>` sets one family for the whole tree and leaves those three tokens still pointing at fonts nothing loads — the exact state this change exists to end. |
 
 ## Deviations from the plan docs
 
@@ -284,7 +291,7 @@ settings panels and a modal.
 tests; Phase 3 revives the editor and confirm-dialog blocks; Phase 4 revives the
 calendar panel. Each is a `test.fixme` to delete, not a test to rewrite.
 
-### `stateAt` takes seconds, the roadmap says minutes — 2026-08-27
+### `stateAt` takes seconds, the roadmap says minutes — RESOLVED 2026-08-27 13:06
 
 `Docs/roadmap.md` Phase 1 specifies `stateAt(schedule, minute)`. The
 implementation is `stateAt(schedule, nowSec)`, seconds since local midnight,
@@ -299,11 +306,15 @@ at the engine's front door.
 a deviation rather than silently edited, because the roadmap's wording is what a
 reader checks the code against.
 
+**Resolved 2026-08-27 13:06:** the correction is in `Docs/roadmap.md` Phase 1,
+written as an explicit *"Corrected from `stateAt(schedule, minute)`"* note
+rather than a silent edit, so the reason survives next to the signature. The
+code did not move; the doc did.
+
 ## Open gaps
 
 | Opened | Item | Notes |
 | --- | --- | --- |
-| 2026-08-26 | Fonts are not real | Fredoka / Manrope / Space Mono are named in the CSS stack but nothing loads them — "no network at runtime" rules out Google Fonts. Self-host at the Next port via `next/font`. Currently rendering system fallbacks. |
 | 2026-08-26 | 12-hour clock has no am/pm | Matches the mockups and is unambiguous for a school day. Revisit if a schedule ever crosses noon ambiguously. |
 | 2026-08-26 | Overlap errors are attributed by sort order, not edit order | On an exact `startMin` tie the error lands on the row that sorts second, which is usually but not always the row being edited. Fixing it means threading edit state into a pure function. Carried into `parse.ts` unchanged at the port. |
 | 2026-08-26 | WebKit and Firefox are not covered | The E2E suite runs one project, `chrome`, against the browser already installed on the machine — no engine binaries were downloaded. `AGENTS.md` asks for real WebKit coverage, which is where `<dialog>`, `:modal` and `inert` behaviour is most likely to differ. Add the projects and `npx playwright install webkit firefox` when the download is worth it. |
@@ -312,13 +323,12 @@ reader checks the code against.
 | 2026-08-26 | Only `.period__name` and `.countdown__period` are hardened against intrinsic-width blowout | Those are the two elements that render a period name today. The schedule name (`#schedule-name`) and the editor's own rows are equally user-controlled and have not been measured with a 60-character unbroken value. The reflow suite covers the editor panel, but with the seeded names, not a hostile one. |
 | 2026-08-27 | The E2E suite is 11 live tests and 37 parked | Phase 1 retired the UI the parked ones drove. The reflow gate still runs at 320/375/768/1024/1440, but against a shell. Every parked block names the phase that revives it; reviving one is deleting a `.fixme`, not rewriting a test. See **Deviations**. |
 | 2026-08-27 | `src/lib/` has no consumer | Nothing under `src/app/` imports the engine, so `next build` tree-shakes all of it and the only thing exercising it is the unit suite. That is correct for Phase 1 and is exactly why the Phase 2 gate is "open it in a real browser", not "CI is green". |
+| 2026-08-27 | `next build` now needs the network | `next/font/google` fetches the three families at BUILD time. Runtime is still network-free — that invariant is untouched, and the emitted HTML was checked for Google hosts — but an offline `npm run build` now fails where it used to succeed. Next caches the downloads, so this bites a cold checkout rather than a rebuild. Self-hosting the `.woff2` files in-repo with `next/font/local` would remove it; not done, because it means committing binaries and hand-tracking upstream revisions. |
+| 2026-08-27 | Space Mono has no 500 weight, and the design system asks for one | `Docs/design/design-system.md`'s scale specifies weight 500 for the Mono S row (times, meta). Space Mono ships 400 and 700 only, so `font-weight: 500` on a mono element resolves to 400 rather than synthesising. Nothing renders it yet. Owed by Phase 2: either correct the design doc to 400, or pick a mono with the weight. |
 | 2026-08-27 | Most of `globals.css` is inert | 1446 lines carried over from the retired build; the shell uses the tokens, `body`, `:focus-visible`, `.screen` and `.period__name`. The rest targets markup that does not exist yet. Expect dead rules until Phase 3, and expect some of them to be wrong when the markup returns — CSS that has never been rendered has never been tested. |
 | 2026-08-27 | Next ships a live region we did not write | `div#__next-route-announcer__` is `aria-live="assertive"` `role="alert"`, injected by the App Router after hydration and not removable. It should stay silent — one route, no client navigation — but `AGENTS.md`'s "never wrap the countdown in a live region" now has a framework-owned region on the page to coexist with. The announcer spec enumerates it so a second one cannot arrive unnoticed. |
 | 2026-08-27 | Theme persistence is gone, and its replacement needs a CSP hash | The retired `index.html` set `data-theme` from `localStorage` in a render-blocking inline script, to avoid a flash of the wrong theme. `globals.css` still honours `[data-theme]`, but nothing sets it. Phase 6 owes both the toggle and a way to apply it before first paint that does not need an unhashed inline `<script>`. |
 | 2026-08-27 | Phase 2's clock will need a `clearInterval` | Carried forward from the retired build's version of this gap. There is no interval in the repo right now; the moment one lands in a React component it needs a `useEffect` cleanup, or every remount leaks a timer. |
-| 2026-08-27 | `formatDayCaption` renders `1:00` for both one minute and one hour | It destructures `{ major, minor }` from `splitCountdown` and drops `unit`, and the `#day-remaining-units` caption that compensated was deleted with the retired markup. `format.test.ts:144` asserts the ambiguous string as correct. This is the 2026-08-26 review's finding 5, reopened by the port. See `Docs/code-review-2026-08-27.md`. |
-| 2026-08-27 | `eqeqeq` and error-level `no-unused-vars` no longer reach `src/` or `e2e/` | The plain-JS block in `eslint.config.js` was narrowed to `*.config.js` along with `js.configs.recommended`, so the house rules went with it. Probed: `a == 1` in a TypeScript file is unreported, an unused binding is a warning, and `"lint": "eslint ."` has no `--max-warnings`, so CI exits 0 on both. `--max-warnings 0` is owed too. See `Docs/code-review-2026-08-27.md`. |
-| 2026-08-27 | `SCHEDULE_LIMITS.schedules` has no enforcer | Its only caller was `src/store.js`, deleted at the port; no TypeScript references it. Harmless in Phase 1 — there is no collection to cap — but the JSDoc says the caps are applied at the boundary, and by Phase 4's share-link decoder that has to be true. Owed: a `parseScheduleCollection` that applies it in `parse.ts`. |
 
 ## Closed
 
@@ -354,6 +364,10 @@ reader checks the code against.
 | 2026-08-26 | 2026-08-27 | `README.md` documents the Next.js destination, not the current app — the two now agree; the Stack and Local development sections were rewritten against what actually runs. |
 | 2026-08-26 | 2026-08-27 | No `clearInterval` anywhere — moot, the interval retired with the plain build. Reopened as a Phase 2 gap so the requirement is not lost with the code. |
 | 2026-08-26 | 2026-08-27 | The inline theme script needs a CSP hash — the script is gone with `index.html`, so the CSP is clean. Reopened as a Phase 6 gap: the flash-of-wrong-theme problem it solved is unsolved again. |
+| 2026-08-27 | 2026-08-27 | `eqeqeq`, error-level unused-vars and the disable-directive check do not reach `src/` or `e2e/` — a block scoped to `src/**/*.{ts,tsx}` and `e2e/**/*.ts` re-asserts all three, and `npm run lint` gained `--max-warnings 0`. Re-probed: `a == 1` is an error, an unused binding is an error, a stale disable directive is an error, and the run exits 1. Review finding 2. |
+| 2026-08-27 | 2026-08-27 | `formatDayCaption` renders `1:00` for both one minute and one hour — the caption is now built from `formatRemaining`, so 60 s reads `1m 00s` and 3600 s reads `1h 00m`. The test that pinned the ambiguous string is corrected, and a new test asserts the two durations cannot render alike. Review finding 1. |
+| 2026-08-27 | 2026-08-27 | `SCHEDULE_LIMITS.schedules` has no enforcer — `parseScheduleCollection` in `parse.ts` applies it at the boundary, refusing rather than truncating, with seven tests including exactly-at-cap and one-over. Review finding 3, closed early rather than deferred to Phase 4. |
+| 2026-08-26 | 2026-08-27 | Fonts are not real — Fredoka, Manrope and Space Mono are self-hosted via `next/font/google`, injected as `--font-fredoka` / `--font-manrope` / `--font-space-mono` and consumed by the three tokens in `globals.css`. Verified against the built output: fifteen `.woff2` files under `/bell/_next/static/media/`, four preloaded, and zero references to `fonts.gstatic.com` or `fonts.googleapis.com` in the emitted HTML. |
 
 ---
 
@@ -2182,3 +2196,66 @@ be zero, a fresh checkout typechecks without the gitignored `next-env.d.ts`
 pierces open shadow roots.
 
 **No code changed.** The findings are recorded, not fixed.
+
+### 2026-08-27 13:06 — the open gaps that did not need a UI
+
+Branch `fix/open-gaps-2026-08-27`. The review of the Phase 1 port left three
+findings recorded and unfixed, plus a list of open gaps of mixed feasibility.
+This change works the ones that can be finished **without markup that does not
+exist yet** — which is all three review findings and the fonts — and deliberately
+leaves the rest.
+
+**Finding 2 first, because everything else was written under it.**
+`eslint.config.js` gains a fourth block, scoped to `src/**/*.{ts,tsx}` and
+`e2e/**/*.ts`, re-asserting `eqeqeq`, `@typescript-eslint/no-unused-vars` at
+`error`, and `reportUnusedDisableDirectives`. It sits *after* the Next configs on
+purpose: `eslint-config-next` reports unused variables at `warn`, and a later
+block is how a flat config wins rather than merges. `package.json` gained
+`--max-warnings 0`, which is the other half — the rule severity and the runner's
+warning ceiling are two separate ways for the same problem to pass.
+
+Re-ran the review's probe rather than trusting the diff, since that is how the
+gap was found in the first place. A throwaway `src/lib/__lintprobe.ts` with
+`a == 1`, an unused `const` and a stale `eslint-disable-next-line no-console`
+now answers with three errors across two runs and **exit 1**, where before it
+was two warnings and exit 0.
+
+**Finding 1: the Day caption.** `formatDayCaption` was rebuilt on
+`formatRemaining` instead of on `splitCountdown`'s bare `major`/`minor`. The
+alternative — a units slot in Phase 3's markup — recreates the exact dependency
+that broke: the caption would be correct only as long as some future component
+remembers to render a second element beside it. Spelling the units into the
+string makes it correct wherever it lands. `format.test.ts` had been *pinning*
+the bug (it asserted `"3 of 7 · 1:00 until first bell"` for one hour as
+correct); it now asserts `1h 00m`, and a new test asserts one minute and one
+hour cannot render alike.
+
+**Finding 3: the cap with no enforcer.** `parseScheduleCollection` in
+`parse.ts`, seven tests. It refuses over the cap rather than truncating —
+`src/store.js` used to `slice()` silently, and a link that quietly arrives five
+schedules short is one nobody ever finds out about. It refuses the whole
+collection when any entry is bad, for the same reason. The review suggested an
+Open-gaps row now and the function in Phase 4; the function is pure, takes no
+clock and needs no UI, so there was no reason to wait.
+
+**Fonts.** `next/font/google` in `layout.tsx` for Fredoka, Manrope and Space
+Mono, wired with `variable` rather than `className` so the three tokens in
+`globals.css` keep their fallback stacks. Verified against the built output, not
+by inspection: fifteen `.woff2` files under `/bell/_next/static/media/`, four
+preloaded, metric-compatible `@font-face … Fallback` rules generated for all
+three, and `grep -c "gstatic\|googleapis" .next/server/app/index.html` → `0`.
+Runtime stays network-free; the *build* no longer is, which is a new Open-gaps
+row rather than a footnote.
+
+**Not attempted, and why.** WebKit and Firefox E2E coverage is still owed, but
+the behaviour it exists to catch — `<dialog>`, `:modal`, `inert` — is in the 37
+parked tests, so adding the projects today buys two more engines running the same
+eleven shell assertions at the price of two browser downloads in every CI run.
+It is worth doing when Phase 3 revives the dialog block, not before. The overlap
+error-attribution gap needs edit state threaded into a pure function and is a
+Phase 3 decision. TypeScript 7 is blocked upstream. The Vercel header
+verification needs a deploy.
+
+Every gate green on the tree: `eslint . --max-warnings 0`, `markdownlint`,
+`tsc --noEmit`, `vitest run` (126, up from 118), `next build`, and
+`playwright test` (11 passed / 37 parked).

@@ -50,9 +50,14 @@
      linked here: "no network at runtime" is a project rule, so they get
      self-hosted when we move to Next's font pipeline. Until then these
      fall through to the platform's nearest equivalent. */
-  --font-display: "Fredoka", ui-rounded, "Segoe UI Variable Display", system-ui, sans-serif;
-  --font-body: "Manrope", system-ui, -apple-system, "Segoe UI", sans-serif;
-  --font-mono: "Space Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+  /* The three families are loaded by next/font in layout.tsx, which self-hosts
+     them at build time and injects --font-fredoka / --font-manrope /
+     --font-space-mono. Those variables carry the generated family name AND its
+     metric-compatible fallback, so the stacks below are a second line of
+     defence for the case where the class on <html> is missing entirely. */
+  --font-display: var(--font-fredoka), ui-rounded, "Segoe UI Variable Display", system-ui, sans-serif;
+  --font-body: var(--font-manrope), system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: var(--font-space-mono), ui-monospace, "Cascadia Mono", Consolas, monospace;
 }
 
 /* Dark tokens apply when the OS asks for dark AND the user has not

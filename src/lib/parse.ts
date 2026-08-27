@@ -225,6 +225,62 @@ export function parseSchedule(input: unknown): ParseResult<ValidSchedule> {
 }
 
 /**
+ * A list of schedules in, a list of validated schedules or structured errors
+ * out.
+ *
+ * This is the enforcer for `SCHEDULE_LIMITS.schedules`, which until now was the
+ * one cap in that object with no code applying it: its only caller was the
+ * collection loader in the retired `src/store.js`, and it was deleted with the
+ * plain build, leaving a documented boundary that silently was not one. See
+ * Docs/code-review-2026-08-27.md, finding 3.
+ *
+ * The cap REFUSES rather than truncates, matching `periods` above. Silently
+ * dropping schedule 51 from a link someone was sent is a worse answer than
+ * saying the link is too big - the user can see and fix the second one.
+ *
+ * Errors are one per bad entry, indexed by the entry's position in the list.
+ * The per-field detail that the editor binds with `aria-describedby` belongs to
+ * `parseSchedule`, which the editor calls on one schedule at a time; a
+ * collection arrives from localStorage, a JSON import or a share link, where
+ * there is no form control to point at.
+ */
+export function parseScheduleCollection(input: unknown): ParseResult<ValidSchedule[]> {
+  if (!Array.isArray(input)) {
+    return {
+      ok: false,
+      errors: [{ index: null, field: "schedules", message: "That is not a list of schedules." }],
+    };
+  }
+
+  if (input.length > SCHEDULE_LIMITS.schedules) {
+    return {
+      ok: false,
+      errors: [
+        {
+          index: null,
+          field: "schedules",
+          message: `There cannot be more than ${SCHEDULE_LIMITS.schedules} schedules.`,
+        },
+      ],
+    };
+  }
+
+  const errors: ParseError[] = [];
+  const value: ValidSchedule[] = [];
+
+  (input as unknown[]).forEach((raw, index) => {
+    const result = parseSchedule(raw);
+    if (result.ok) {
+      value.push(result.value);
+      return;
+    }
+    errors.push({ index, field: "schedule", message: result.errors[0].message });
+  });
+
+  return errors.length > 0 ? { ok: false, errors } : { ok: true, value };
+}
+
+/**
  * The calendar, validated against the schedules that actually exist.
  *
  * A weekday or override pointing at a deleted schedule is not an error worth

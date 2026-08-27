@@ -141,12 +141,26 @@ describe("formatDayCaption", () => {
   });
 
   it("counts toward the first bell before school", () => {
-    expect(formatDayCaption(day("before", 3600, 0), position)).toBe("3 of 7 · 1:00 until first bell");
+    expect(formatDayCaption(day("before", 3600, 0), position)).toBe(
+      "3 of 7 · 1h 00m until first bell",
+    );
   });
 
   it("counts toward dismissal during the day", () => {
     expect(formatDayCaption(day("during", 3 * 3600 + 38 * 60, 0.4), position)).toBe(
-      "3 of 7 · 3:38 until dismissal",
+      "3 of 7 · 3h 38m until dismissal",
+    );
+  });
+
+  // The regression this caption was written to prevent: one minute and one hour
+  // both rendered as "1:00" while the caption carried no unit, which is the
+  // whole reason splitCountdown returns one. They have to differ here.
+  it("distinguishes an hour from a minute", () => {
+    expect(formatDayCaption(day("before", 60, 0), position)).toBe(
+      "3 of 7 · 1m 00s until first bell",
+    );
+    expect(formatDayCaption(day("before", 3600, 0), position)).not.toBe(
+      formatDayCaption(day("before", 60, 0), position),
     );
   });
 

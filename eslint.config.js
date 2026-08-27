@@ -14,8 +14,9 @@ import jsxA11y from "eslint-plugin-jsx-a11y";
  * `vitest.config.js`.
  *
  * Order matters. ESLint applies configs in sequence and later ones win for
- * matching files, so the plain-JS block is scoped to its own file patterns and
- * the Next configs come after.
+ * matching files, so the plain-JS block is scoped to its own file patterns, the
+ * Next configs come after, and the house-rule block after those - it has to win
+ * over `eslint-config-next`'s `warn`-level `no-unused-vars`, not merge with it.
  *
  * Version ceilings worth knowing before upgrading anything here:
  *   - `eslint-plugin-jsx-a11y` has no ESLint 10 support at any version, which
@@ -80,6 +81,41 @@ const config = [
     // page, so both sets of globals are legitimately in scope in one file.
     files: ["e2e/**/*.ts"],
     languageOptions: { globals: { ...globals.node, ...globals.browser } },
+  },
+
+  /**
+   * The house rules, re-asserted over the TypeScript the app is actually made
+   * of.
+   *
+   * Phase 1 narrowed the plain-JS block above to `*.config.js`, which was right
+   * for `js.configs.recommended` - `tsc` subsumes `no-undef` - and wrong for
+   * these three, because nothing else in the chain supplies them:
+   *
+   *   - `eqeqeq` is not a type error. `tsc` permits `==` between compatible
+   *     types and `eslint-config-next` does not enable the rule, so loose
+   *     equality was silently unflagged across `src/` and `e2e/`. In a repo
+   *     whose whole product is arithmetic that has to be exactly right, that is
+   *     the wrong rule to lose.
+   *   - `@typescript-eslint/no-unused-vars` ships from the Next config at
+   *     `warn`, and `npm run lint` had no `--max-warnings`, so it could not
+   *     fail a build. It is an error here; `--max-warnings 0` in package.json
+   *     closes the other half.
+   *   - `reportUnusedDisableDirectives` is a linterOptions setting, not a rule,
+   *     so it does not inherit from any preset at all. A stale disable comment
+   *     is a rule that stopped applying and a comment that now lies.
+   *
+   * Found by probing rather than by reading: no line of the diff that removed
+   * them said so. See Docs/code-review-2026-08-27.md, finding 2.
+   */
+  {
+    files: ["src/**/*.{ts,tsx}", "e2e/**/*.ts"],
+    linterOptions: {
+      reportUnusedDisableDirectives: "error",
+    },
+    rules: {
+      eqeqeq: ["error", "always", { null: "ignore" }],
+      "@typescript-eslint/no-unused-vars": ["error", { argsIgnorePattern: "^_" }],
+    },
   },
 
   /**
