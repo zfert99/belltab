@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   parseSchedule,
+  parseScheduleCollection,
   parseCalendar,
   parseIsoDate,
   resolveScheduleId,
@@ -169,6 +170,67 @@ describe("parseSchedule", () => {
     it("refuses a period that is not an object, by row", () => {
       expect(firstError(parseSchedule(schedule(["nope"])))).toEqual({ index: 0, field: "period" });
     });
+  });
+});
+
+describe("parseScheduleCollection", () => {
+  const valid = (name: string) => ({
+    name,
+    periods: [period("Period 1", "class", 480, 535)],
+  });
+
+  it("accepts the whole seed set", () => {
+    const result = parseScheduleCollection([...DEFAULT_SCHEDULES]);
+    if (!result.ok) throw new Error("the seed schedules should parse as a collection");
+    expect(result.value).toHaveLength(DEFAULT_SCHEDULES.length);
+  });
+
+  it("accepts an empty list", () => {
+    const result = parseScheduleCollection([]);
+    if (!result.ok) throw new Error("an empty collection is a clean empty state, not an error");
+    expect(result.value).toEqual([]);
+  });
+
+  it("refuses anything that is not a list", () => {
+    expect(firstError(parseScheduleCollection(null))).toEqual({ index: null, field: "schedules" });
+    expect(firstError(parseScheduleCollection({ 0: valid("A") }))).toEqual({
+      index: null,
+      field: "schedules",
+    });
+  });
+
+  // The cap this function exists for. Between the port and this commit,
+  // SCHEDULE_LIMITS.schedules was documented as a boundary and enforced by
+  // nothing - the deleted src/store.js was its only caller.
+  it("accepts exactly the cap and refuses one more", () => {
+    const atCap = Array.from({ length: SCHEDULE_LIMITS.schedules }, (_, i) => valid(`S${i}`));
+    expect(parseScheduleCollection(atCap).ok).toBe(true);
+
+    const overCap = [...atCap, valid("one too many")];
+    expect(firstError(parseScheduleCollection(overCap))).toEqual({
+      index: null,
+      field: "schedules",
+    });
+  });
+
+  // Refuses rather than truncates: silently dropping schedule 51 from a link
+  // someone was sent is a worse answer than saying the link is too big.
+  it("does not truncate an oversized list", () => {
+    const overCap = Array.from({ length: SCHEDULE_LIMITS.schedules + 5 }, (_, i) => valid(`S${i}`));
+    const result = parseScheduleCollection(overCap);
+    expect(result.ok).toBe(false);
+  });
+
+  it("indexes a bad entry by its position in the list", () => {
+    const collection = [valid("good"), schedule([period("Period 1", "class", 535, 480)])];
+    expect(firstError(parseScheduleCollection(collection))).toEqual({ index: 1, field: "schedule" });
+  });
+
+  // One bad schedule refuses the collection rather than yielding a shorter one.
+  // A caller that got back three of four would have no way to know.
+  it("refuses the whole collection when any entry is bad", () => {
+    const result = parseScheduleCollection([valid("good"), null, valid("also good")]);
+    expect(result.ok).toBe(false);
   });
 });
 
