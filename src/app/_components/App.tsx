@@ -3,12 +3,16 @@
 import { useEffect, useRef, useState } from "react";
 import { useNow } from "@/app/_lib/useNow";
 import { saveLibrary, useLibrary } from "@/app/_lib/libraryStore";
+import { addSchedule } from "@/app/_lib/library";
+import { clearShareFragment, incomingSchedule } from "@/app/_lib/shareLink";
+import type { ValidSchedule } from "@/lib/schedule";
 import { tabTitleFor, viewForNow } from "@/app/_lib/today";
 import { formatClock } from "@/lib/format";
 import type { LocalNow } from "@/lib/clock";
 import { NowView } from "@/app/_components/NowView";
 import { SettingsView, type PanelId } from "@/app/_components/SettingsView";
 import { PeriodAnnouncer } from "@/app/_components/PeriodAnnouncer";
+import { ShareOffer } from "@/app/_components/ShareOffer";
 import { BackIcon, GearIcon } from "@/app/_components/icons";
 
 /**
@@ -36,6 +40,68 @@ export function App() {
   const settingsOpen = openPanel !== null;
 
   const view = now === null ? null : viewForNow(library, now);
+
+  /**
+   * A schedule somebody sent, waiting to be accepted or dismissed.
+   *
+   * Read on mount AND on `hashchange`, and the second one is not belt and
+   * braces. Pasting a link into a tab that is already on BellTab changes only
+   * the fragment, which is a SAME-DOCUMENT navigation: nothing reloads, React
+   * never remounts, and a mount-only read would leave the user staring at their
+   * own schedule wondering where the shared one went. Measured, not assumed -
+   * the first version of this was mount-only and the browser test caught it.
+   *
+   * No loop: `replaceState`, which is how the fragment is cleared afterwards,
+   * deliberately does not fire `hashchange`.
+   *
+   * Client-only by necessity rather than by preference: there is no
+   * `window.location` on the server, and a fragment is never sent to one anyway.
+   * That is the property the whole sharing design rests on.
+   */
+  const [offer, setOffer] = useState<
+    { kind: "schedule"; schedule: ValidSchedule } | { kind: "error"; message: string } | null
+  >(null);
+
+  useEffect(() => {
+    // The decode is asynchronous - it runs a decompression stream - so Strict
+    // Mode's double mount can land two of them, and a fast paste can land a
+    // second before the first resolves. The flag drops anything that comes back
+    // after this effect is done with.
+    let live = true;
+
+    const readFragment = () => {
+      void incomingSchedule().then((result) => {
+        if (!live || result === null) return;
+
+        setOffer(
+          result.ok
+            ? { kind: "schedule", schedule: result.value }
+            : { kind: "error", message: result.errors[0].message },
+        );
+      });
+    };
+
+    readFragment();
+    window.addEventListener("hashchange", readFragment);
+
+    return () => {
+      live = false;
+      window.removeEventListener("hashchange", readFragment);
+    };
+  }, []);
+
+  const resolveOffer = (accept: boolean) => {
+    if (accept && offer?.kind === "schedule") {
+      saveLibrary(addSchedule(library, offer.schedule));
+      setOpenPanel("schedules");
+    }
+
+    setOffer(null);
+    // Off the address bar either way. A refresh should not re-offer it, and
+    // more importantly the URL should stop carrying somebody's schedule into
+    // this browser's history - AGENTS.md, on full URLs and history sync.
+    clearShareFragment();
+  };
 
   const toggleRef = useRef<HTMLButtonElement | null>(null);
   const headingRef = useRef<HTMLHeadingElement | null>(null);
@@ -89,6 +155,14 @@ export function App() {
         stopped just because it is not on screen.
       */}
       <title>{view === null ? "BellTab" : tabTitleFor(view)}</title>
+
+      {offer !== null && (
+        <ShareOffer
+          offer={offer}
+          onAdd={() => resolveOffer(true)}
+          onDismiss={() => resolveOffer(false)}
+        />
+      )}
 
       <header className="screen__bar">
         <h1 className="screen__schedule">BellTab</h1>

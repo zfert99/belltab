@@ -2,11 +2,14 @@ import { describe, expect, it } from "vitest";
 import { SCHEDULE_LIMITS } from "@/lib/parse";
 import {
   DEFAULT_LIBRARY,
+  addSchedule,
   createSchedule,
   deleteSchedule,
   duplicateSchedule,
   loadLibrary,
+  parseLibrary,
   removeOverride,
+  replaceLibrary,
   serializeLibrary,
   setOverride,
   setWeekday,
@@ -352,5 +355,153 @@ describe("the calendar mutators", () => {
     const library = setOverride(setWeekday(DEFAULT_LIBRARY, 3, "delayed"), "2026-09-14", "assembly");
 
     expect(loadLibrary(serializeLibrary(library))).toEqual(library);
+  });
+});
+
+/**
+ * Import, which is `loadLibrary` with the opposite attitude to failure.
+ *
+ * A corrupt `localStorage` value must degrade silently, because refusing to
+ * open is worse than opening on the seeds. A file the user deliberately CHOSE
+ * must not: silently replacing their library with seed data because a byte was
+ * wrong is the worst answer available. Same parse, different caller.
+ */
+describe("parseLibrary", () => {
+  const message = (raw: string) => {
+    const result = parseLibrary(raw);
+    if (result.ok) throw new Error(`expected "${raw.slice(0, 30)}" to be refused`);
+    return result.errors[0].message;
+  };
+
+  it("accepts what serializeLibrary wrote", () => {
+    const result = parseLibrary(serializeLibrary(DEFAULT_LIBRARY));
+    if (!result.ok) throw new Error("a library BellTab wrote must import");
+
+    expect(result.value).toEqual(DEFAULT_LIBRARY);
+  });
+
+  it.each([
+    ["not JSON at all", "this is not json"],
+    ["truncated JSON", '{"schedules":[{"name":"Reg'],
+  ])("refuses %s and says it is not JSON", (_label, raw) => {
+    expect(message(raw)).toContain("not JSON");
+  });
+
+  it.each([
+    ["a bare string", '"hello"'],
+    ["a number", "42"],
+    ["null", "null"],
+    ["an array", "[]"],
+  ])("refuses %s as not a backup", (_label, raw) => {
+    expect(message(raw)).toContain("not a BellTab backup");
+  });
+
+  it("quotes the parser's own reason when a schedule is unreadable", () => {
+    // The user picked this file. "Something was wrong" is not a useful answer,
+    // and the boundary already produced a better one.
+    const raw = '{"schedules":[{"name":"X","periods":[{"kind":"class","startMin":0,"endMin":5}]}]}';
+
+    expect(message(raw)).toContain("cannot read");
+    expect(message(raw)).toContain("Give the period a name.");
+  });
+
+  it("keeps a calendar pointing at a schedule the backup does not contain, as no school", () => {
+    // Deliberately NOT all-or-nothing, exactly as on load: a dangling pointer
+    // degrades to a screen the app renders properly.
+    const result = parseLibrary(
+      '{"schedules":[{"id":"a","name":"A","periods":[]}],"calendar":{"weekdays":["gone","a",null,null,null,null,null],"overrides":[]}}',
+    );
+    if (!result.ok) throw new Error("a dangling weekday must not refuse the whole backup");
+
+    expect(result.value.calendar.weekdays[0]).toBeNull();
+    expect(result.value.calendar.weekdays[1]).toBe("a");
+  });
+
+  it("agrees with loadLibrary on everything it refuses", () => {
+    // The two share a parser, and this is what pins that they still do: every
+    // input loadLibrary degrades on is one parseLibrary reports.
+    for (const raw of ["", "42", "[]", '{"schedules":"regular"}']) {
+      expect(parseLibrary(raw).ok).toBe(false);
+      expect(loadLibrary(raw)).toEqual(DEFAULT_LIBRARY);
+    }
+  });
+});
+
+describe("addSchedule", () => {
+  const shared = { id: null, name: "From a friend", periods: [] };
+
+  it("appends it and gives it an id of its own", () => {
+    const next = addSchedule(DEFAULT_LIBRARY, shared);
+    const added = next.schedules[next.schedules.length - 1];
+
+    expect(next.schedules).toHaveLength(DEFAULT_LIBRARY.schedules.length + 1);
+    expect(added.name).toBe("From a friend");
+    expect(new Set(next.schedules.map((entry) => entry.id)).size).toBe(next.schedules.length);
+  });
+
+  /**
+   * The hostile case, and the reason `addSchedule` strips the id rather than
+   * trusting it.
+   *
+   * A hand-crafted link can claim any id it likes. If it claimed `regular` and
+   * that id were honoured, the recipient's Monday-to-Friday would silently start
+   * running a stranger's schedule - the calendar points by id, and the id is all
+   * it compares.
+   */
+  it("cannot claim an id the recipient already uses", () => {
+    const next = addSchedule(DEFAULT_LIBRARY, { ...shared, id: "regular" });
+    const added = next.schedules[next.schedules.length - 1];
+
+    expect(added.id).not.toBe("regular");
+    expect(next.schedules[0].id).toBe("regular");
+    expect(next.schedules[0].name).toBe("Regular");
+  });
+
+  it("leaves the calendar alone, so a shared schedule runs on no day", () => {
+    expect(addSchedule(DEFAULT_LIBRARY, shared).calendar).toEqual(DEFAULT_LIBRARY.calendar);
+  });
+
+  it("refuses past the schedule cap", () => {
+    let library: Library = { schedules: [], calendar: DEFAULT_LIBRARY.calendar };
+    for (let n = 0; n < SCHEDULE_LIMITS.schedules; n++) library = createSchedule(library, `S${n}`);
+
+    expect(addSchedule(library, shared)).toBe(library);
+  });
+});
+
+describe("replaceLibrary", () => {
+  it("replaces the schedules and the calendar together", () => {
+    const backup = parseLibrary(
+      '{"schedules":[{"id":"only","name":"Only","periods":[]}],"calendar":{"weekdays":[null,"only",null,null,null,null,null],"overrides":[]}}',
+    );
+    if (!backup.ok) throw new Error("fixture should parse");
+
+    const next = replaceLibrary(DEFAULT_LIBRARY, backup.value);
+
+    expect(next.schedules.map((entry) => entry.name)).toEqual(["Only"]);
+    expect(next.calendar.weekdays[1]).toBe("only");
+    // Wednesday pointed at "regular", which the backup does not contain.
+    expect(next.calendar.weekdays[3]).toBeNull();
+  });
+
+  it("runs an imported library through the same boundary as a typed one", () => {
+    // Not taken at its word: ids are minted and caps applied on the way in.
+    const next = replaceLibrary(DEFAULT_LIBRARY, {
+      schedules: [],
+      calendar: DEFAULT_LIBRARY.calendar,
+    });
+
+    expect(next.schedules).toEqual([]);
+    expect(next.calendar.weekdays).toEqual([null, null, null, null, null, null, null]);
+  });
+
+  it("survives a round trip through export and import", () => {
+    const edited = setOverride(setWeekday(DEFAULT_LIBRARY, 3, "delayed"), "2026-09-14", "assembly");
+
+    const exported = serializeLibrary(edited);
+    const imported = parseLibrary(exported);
+    if (!imported.ok) throw new Error("a library BellTab exported must import");
+
+    expect(replaceLibrary(DEFAULT_LIBRARY, imported.value)).toEqual(edited);
   });
 });

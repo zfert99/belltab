@@ -54,8 +54,8 @@ imported with `.ts`, which a browser cannot load, so `src/index.html`,
 behaviour — three views, the editor, the calendar, preferences — is owed back by
 Phases 2–4 and its tests are parked, not deleted. See **Open gaps**.
 
-**In progress:** sharing. The encode/decode pipeline and its fixture suite are
-built and tested; the share-link UI and JSON export/import are not.
+- Sharing: a link per schedule, decoded on arrival and added only when the
+  recipient presses a button, and JSON export/import as the durable backup.
 
 **Not started:** bell offset, wake lock, chime, PWA, theme.
 
@@ -74,18 +74,19 @@ src/
   app/          routing and entry points only, per AGENTS.md
     layout.tsx  page.tsx  globals.css
     _lib/         app-layer glue: knows about React and about the stored shape
-      library.ts  libraryStore.ts  draft.ts
+      library.ts  libraryStore.ts  draft.ts  shareLink.ts
       today.ts  useNow.ts                        + colocated tests
     _components/  the client tree
-      App.tsx  NowView.tsx  PeriodAnnouncer.tsx
-      SettingsView.tsx  SchedulesPanel.tsx  CalendarPanel.tsx
+      App.tsx  NowView.tsx  PeriodAnnouncer.tsx  ShareOffer.tsx
+      SettingsView.tsx  SchedulesPanel.tsx  CalendarPanel.tsx  BackupPanel.tsx
       ScheduleEditor.tsx  PeriodRow.tsx  ConfirmDialog.tsx  icons.tsx
   lib/          pure: no DOM, no React; `Date` only as an argument
     schedule.ts  engine.ts  parse.ts  format.ts  clock.ts   + colocated tests
     share.ts  share.fixtures.ts                             + colocated tests
 e2e/            Playwright, top-level by rule, not colocated
   helpers.ts  reflow.spec.ts  confirm-dialog.spec.ts  announcer.spec.ts
-  countdown.spec.ts  editor.spec.ts  calendar.spec.ts
+  countdown.spec.ts  editor.spec.ts  calendar.spec.ts  share.spec.ts
+  a11y.spec.ts
 ```
 
 `_lib/` and `_components/` are Next.js **private folders** — the leading
@@ -191,6 +192,14 @@ development too, so the bare origin is a 404 exactly as it is in production.
 | 2026-09-01 | Cross-engine coverage was SPLIT OUT rather than merged with the rest | The axe scan, the cross-tab test and the Day view deletion were verified and independent; three-engine coverage was one unverified assertion away from done and had already cost three CI cycles on a build that cannot be run locally. Banking the finished work beats holding it hostage. The spike lives on `test/three-engines` with everything it found. |
 | 2026-09-01 | The axe gate fails on critical and serious, and reports the rest | The bar `Docs/research/accessibility-responsive-qa.md` sets. Failing on `minor` makes a gate people route around; reporting them in the failure message keeps them visible when something else breaks. |
 | 2026-09-01 | The E2E job's NAME is treated as an interface | Branch protection requires "E2E (reflow gate)" by exact string, so renaming the job silently removes the gate rather than failing loudly. It now runs three engines and an axe sweep under a name that undersells it, and the workflow says why. |
+| 2026-09-01 | A shared schedule is never added without a press | A link that wrote to somebody's library on arrival would make every URL in a group chat a change to their app. Requiring acceptance is what keeps `AGENTS.md`'s "a malicious link produces, at worst, a silly schedule" true — the worst it can do is show its own name and be dismissed. |
+| 2026-09-01 | The fragment is cleared with `replaceState` once the offer is resolved, either way | A refresh must not re-offer a declined schedule, and the URL must stop carrying somebody else's schedule into this browser's history and history sync. `replaceState` rather than assigning `location.hash`, which leaves a bare `#` and pushes an entry, so Back would walk through every link ever dismissed. |
+| 2026-09-01 | The incoming fragment is read on `hashchange` as well as on mount | Pasting a link into a tab already on BellTab is a SAME-DOCUMENT navigation: nothing reloads and React never remounts. The mount-only first version did nothing at all in that case, which the browser test caught. No loop, because `replaceState` deliberately does not fire `hashchange`. |
+| 2026-09-01 | The share link is built from `location` at call time, never from a constant | It then carries whatever origin and `basePath` the app is actually served from. A hard-coded `biscuitlab.net/bell` would produce links that do not work in development and would keep working just well enough that nobody noticed. |
+| 2026-09-01 | The copied link is shown in a read-only input whether or not the clipboard accepted it | The Clipboard API needs a secure context and can be refused by policy, so `copyText` returns a boolean rather than throwing: the user's goal is the link, not the clipboard. Showing it always also gives somebody who was told "copied" a way to check. |
+| 2026-09-01 | A backup is uncompressed JSON, while a link is compressed | Different jobs. A link has to fit in a URL; a file does not, and a file people can read is worth more than a file that is small. Both are the same shape, so devtools and the export show the same thing. |
+| 2026-09-01 | Import parses BEFORE it confirms | Asking "replace everything?" and then discovering the file was unreadable is the wrong order to find that out in. |
+| 2026-09-01 | `parseLibrary` reports, `loadLibrary` degrades, and they share one parser | A corrupt `localStorage` value must not stop the app opening. A file the user deliberately CHOSE must not be swallowed — silently replacing their library with seed data is the worst answer available. Same parse, opposite attitude to failure. |
 | 2026-09-01 | A share payload carries no `id` | An id is an identity within ONE library. Carrying it across would either collide with something the recipient has or quietly claim a name like `regular` that means a different day to them. `parseScheduleCollection` mints a fresh one on import, which is what that boundary is for. |
 | 2026-09-01 | The share fixtures' expectations are written out in full, never derived from `DEFAULT_SCHEDULES` | Deriving them would let an edit to the seed data silently rewrite what a historical payload is supposed to MEAN, and the suite would stay green while the forever-compatibility guarantee stopped being checked. Verbosity in a fixture file is the price of it being evidence. |
 | 2026-09-01 | The decoded-size cap is enforced WHILE the stream is read, not after `arrayBuffer()` | A check that runs after the buffer is full is a check that runs after the damage. `inflate` reads chunk by chunk and cancels, which is the only version that stops a decompression bomb rather than measuring one. |
@@ -497,7 +506,8 @@ Lunch before Period 3" is a statement about the timetable, not about a list.
 | 2026-08-27 | The editor is a long tab chain | Twelve rows of six controls is seventy-two stops between the schedule name and the bottom of the form, and the keyboard test needs a 120-press budget to cross it. Nothing is unreachable and nothing is trapped, so this is not a failure — but a skip link, or grouping each row so a screen reader can jump by row, would make it usable rather than merely operable. |
 | 2026-08-27 | There is no undo | Deleting a *period* is still immediate and unconfirmed, and the only way back is to retype it. Deliberate for a four-field row whose result is visible behind the editor. Deleting a whole *schedule* now goes through a modal confirmation, which is the half of this gap Phase 4 closed; a real undo is still owed and would remove the need for the dialog. |
 | 2026-08-27 | The schedule name field has no visible label | It carries a `.visually-hidden` "Schedule name", so assistive tech is fine, but sighted users see a large text box containing "Regular" and have to infer what it is. The retired build had the same shape. A visible label or a placeholder is owed. |
-| 2026-09-01 | Phase 5 is half built: there is no share UI and no JSON export/import | `src/lib/share.ts` encodes and decodes and is fully tested, and nothing calls it. What is owed is the button that copies a link, the read of `location.hash` on load that offers the schedule it carries, and the JSON export/import the plan names as the durable backup. Knowingly unfinished rather than forgotten — the pure half was banked on its own because it is the half that carries the forever-compatibility promise. |
+| 2026-09-01 | The clipboard-refused path is shown but never asserted | `copyText` returns a boolean and the panel shows a different sentence when the Clipboard API is unavailable, refused by permission policy, or called outside a secure context. The E2E reads the link out of the read-only input, which works either way and is engine-independent — so the branch renders on some engines and is asserted on none. |
+| 2026-09-01 | An import cannot be undone | It replaces every schedule and the whole calendar, behind a confirmation that says so. Exporting first is the answer the panel gives, and it puts the export above the import for that reason. A real undo would be better and is the same gap as the one open for deleting a period. |
 | 2026-09-01 | The share pipeline has never been round-tripped through a real messaging app | The Phase 5 gate in `Docs/roadmap.md` is "a link survives a round trip through a messaging app and still decodes", and what is tested is a round trip through memory. base64url was chosen precisely so nothing needs escaping, and the suite asserts the alphabet — but an app that helpfully wraps, truncates or link-ifies a 260-character fragment is a real hazard the unit tests cannot see. |
 | 2026-09-01 | The axe scan is critical/serious only, at one viewport | `e2e/a11y.spec.ts` fails on `critical` and `serious` and only reports `moderate` and `minor`, which is the release bar `Docs/research/accessibility-responsive-qa.md` names — and a deliberate line, since a gate that fails on `minor` is a gate people start skipping. It also runs at the default viewport only, because small-screen layout is the reflow gate's job. Neither limit is a claim that the app is clean below them. |
 | 2026-09-01 | "WebKit" is not one browser, and none of them is Safari | Measured, not assumed: the development machine's WebKit build reports `type === "text"` for both `<input type="time">` and `type="date"` and renders bare text boxes; the Linux CI runner's build implements them. Real Safari has shipped `type="time"` since 14.1 and is a third thing again. The app handles all of it — the parser was always doing the work — but any sentence of the form "X works in WebKit" now has to say which WebKit, and none of them is evidence about a Mac. |
@@ -3542,3 +3552,63 @@ remedies differ: one is "update BellTab", the other is "ask for the link again".
 
 Unit tests: 252 to 279. `npm run lint`, `npm run typecheck` and `npx vitest run`
 pass.
+
+### 2026-09-01 17:05 — Phase 5, part 2: the share UI and JSON backup
+
+The half of Phase 5 that touches a page. `_lib/shareLink.ts` for the two ends of
+the pipeline, `ShareOffer.tsx` for what a recipient sees, `BackupPanel.tsx` for
+export and import, and a third settings tab to put it in.
+
+**A link out.** Copy share link sits with Duplicate and Delete, because it acts
+on the selected schedule. The URL is built from `location` at call time, so it
+carries whatever origin and `basePath` the app is being served from — a
+hard-coded host would break in development and keep working just well enough
+that nobody noticed. Measured in a browser: **284 characters** for the
+eleven-period seeded day, whole URL included.
+
+The link is shown in a read-only input whether or not the clipboard took it. The
+Clipboard API needs a secure context and can be refused by policy, so `copyText`
+returns a boolean instead of throwing — the user's goal is the link, not the
+clipboard.
+
+**A link in.** An arriving schedule is OFFERED, never added. A link that wrote to
+somebody's library on arrival would make every URL in a group chat a change to
+their app; requiring a press is what keeps `AGENTS.md`'s "a malicious link
+produces, at worst, a silly schedule" true. The name is rendered as text, and
+`addSchedule` strips the id before minting a new one — so a hand-crafted link
+claiming `regular` cannot take over the recipient's Monday-to-Friday, which is
+its own unit test.
+
+Either answer clears the fragment with `replaceState`: a refresh must not
+re-offer a declined schedule, and the URL must stop carrying somebody else's
+schedule into this browser's history.
+
+**The bug the browser found.** The first version read `location.hash` on mount
+only. Pasting a link into a tab already showing BellTab changes just the
+fragment, which is a same-document navigation — nothing reloads, React never
+remounts, and the app did nothing at all. It now listens for `hashchange` too,
+and the comment that used to claim a listener was unnecessary was simply wrong.
+No loop, because `replaceState` does not fire `hashchange`.
+
+**A file both ways.** Export writes the same plain JSON `localStorage` holds,
+dated from the device clock. Import replaces everything, so it goes through the
+delete dialog — and it parses BEFORE it confirms, because asking "replace
+everything?" and then discovering the file was unreadable is the wrong order to
+find that out in.
+
+That needed `parseLibrary`, which is `loadLibrary` with the opposite attitude to
+failure: storage degrades silently because refusing to open is worse than
+opening on the seeds, while a file the user chose must never be swallowed. One
+parser, two callers, and a test that pins they still agree on what they refuse.
+
+**Tests: 288 to 305 unit, and `e2e/share.spec.ts` adds ten.** The E2E covers a
+link out and back in, adding, dismissing, the paste-into-an-open-tab case, a
+damaged link, a link from a future version, and the export/import round trip
+including a cancelled import and a file that is not a backup. It reads the link
+from the read-only input rather than the system clipboard, because
+`grantPermissions(["clipboard-write"])` is Chromium-only and the test should mean
+the same thing on all three engines.
+
+396 Playwright tests across three engines, 30 parked. `npm run lint`,
+`npm run typecheck`, `npx vitest run`, `npx markdownlint-cli` and
+`npm run build` all pass.

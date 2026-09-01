@@ -4,12 +4,14 @@ import {
   parseIsoDate,
   parseScheduleCollection,
   type IdentifiedSchedule,
+  type ParseResult,
 } from "@/lib/parse";
 import {
   DEFAULT_CALENDAR,
   DEFAULT_SCHEDULES,
   type Calendar,
   type IsoDate,
+  type Schedule,
   type ScheduleId,
 } from "@/lib/schedule";
 
@@ -94,22 +96,54 @@ export const DEFAULT_LIBRARY: Library = {
 export function loadLibrary(raw: string | null): Library {
   if (raw === null) return DEFAULT_LIBRARY;
 
+  const parsed = parseLibrary(raw);
+  return parsed.ok ? parsed.value : DEFAULT_LIBRARY;
+}
+
+/**
+ * The same parse, but it TELLS YOU when it fails.
+ *
+ * `loadLibrary` swallows every error on purpose - a corrupt `localStorage` value
+ * must degrade to a clean state rather than refuse to open the app. An IMPORT is
+ * the opposite situation: the user picked that file deliberately, and silently
+ * replacing their library with the seed data because a byte was wrong would be
+ * the worst possible answer.
+ *
+ * So the parsing lives here, once, and the two callers differ only in what they
+ * do with a failure. The errors are worded for somebody who just chose a file.
+ */
+export function parseLibrary(raw: string): ParseResult<Library> {
+  const fail = (message: string): ParseResult<Library> => ({
+    ok: false,
+    errors: [{ index: null, field: "library", message }],
+  });
+
   let decoded: unknown;
   try {
     decoded = JSON.parse(raw);
   } catch {
-    return DEFAULT_LIBRARY;
+    return fail("That file is not JSON. A BellTab backup is the file the Export button writes.");
   }
 
-  if (typeof decoded !== "object" || decoded === null) return DEFAULT_LIBRARY;
+  if (typeof decoded !== "object" || decoded === null || Array.isArray(decoded)) {
+    return fail("That file is JSON, but it is not a BellTab backup.");
+  }
 
   const source = decoded as { schedules?: unknown; calendar?: unknown };
   const schedules = parseScheduleCollection(source.schedules);
-  if (!schedules.ok) return DEFAULT_LIBRARY;
+  if (!schedules.ok) {
+    return fail(`That backup has a schedule BellTab cannot read: ${schedules.errors[0].message}`);
+  }
 
   return {
-    schedules: schedules.value,
-    calendar: parseCalendar(source.calendar, idsOf(schedules.value)),
+    ok: true,
+    value: {
+      schedules: schedules.value,
+      // Deliberately not all-or-nothing, exactly as on load: a calendar
+      // pointing at a schedule the backup does not contain degrades to "no
+      // school", which is a screen the app renders properly.
+      calendar: parseCalendar(source.calendar, idsOf(schedules.value)),
+    },
   };
 }
 
@@ -302,4 +336,42 @@ export function removeOverride(library: Library, date: IsoDate): Library {
     ...library.calendar,
     overrides: library.calendar.overrides.filter((entry) => entry.date !== date),
   });
+}
+
+/**
+ * A schedule from OUTSIDE this library, appended.
+ *
+ * The route a share link takes. It goes through `rebuild` like every other
+ * structural change, which is what mints it an id that cannot collide with one
+ * the recipient already has - the sender's id was dropped at the encoder, and
+ * even a hand-crafted link claiming `regular` gets renumbered here because the
+ * existing schedule claims it first.
+ *
+ * The calendar is untouched. A schedule somebody sent you runs on no day until
+ * you say so, which is the same rule `duplicateSchedule` follows and for the
+ * same reason.
+ */
+export function addSchedule(library: Library, schedule: Schedule): Library {
+  if (library.schedules.length >= SCHEDULE_LIMITS.schedules) return library;
+
+  return rebuild(
+    [...library.schedules, { ...schedule, id: null }],
+    library.calendar,
+    library,
+  );
+}
+
+/**
+ * A whole library, replacing the one that is there.
+ *
+ * Import is the one genuinely destructive action in the app - it discards every
+ * schedule and the entire calendar - which is why the UI puts a confirmation in
+ * front of it. This function does not: it is the mutator, and guarding it here
+ * as well would put the warning somewhere the user cannot read it.
+ *
+ * Runs through `rebuild` rather than being taken at its word, so an imported
+ * library gets the same id and cap guarantees as one that was typed.
+ */
+export function replaceLibrary(library: Library, next: Library): Library {
+  return rebuild(next.schedules, next.calendar, library);
 }

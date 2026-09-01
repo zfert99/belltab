@@ -42,8 +42,9 @@ An older note, kept for the same reason:
 
 **Testing:** 252 Vitest tests over the pure engine, the parser, the formatters,
 the clock reader, the day resolver, the editor's draft model, the storage
-boundary and the six library mutators, plus **396 Playwright tests across three
-engines** — Chrome, WebKit and Firefox — of which 366 run and 30 are parked.
+boundary, the library mutators and the share codec, plus **426 Playwright tests
+across three engines** — Chrome, WebKit and Firefox — of which 396 run and 30
+are parked.
 
 The reflow gate that Phase 0 calls for runs the four Now-view states, the
 editor, the calendar panel and the confirm dialog at 320/375/768/1024/1440, with
@@ -101,8 +102,8 @@ retires it, since a browser cannot load a `.ts` module directly.
 | **2** | The countdown — one clock, the display, the tab title | 🎨 | ✅ Done |
 | **3** | The editor — build and edit a schedule, overlap blocking | 🎨 | ✅ Done |
 | **4** | Day types — the **editing UI** for schedules and the calendar | 🎨 | ✅ Done |
-| **5** | Sharing — versioned hash encoding, export/import | ⚙️ | 🚧 Next |
-| **6** | Comfort — bell offset, wake lock, chime, PWA, theme | 🎨 | 📋 Planned |
+| **5** | Sharing — versioned hash encoding, export/import | ⚙️ | ✅ Done |
+| **6** | Comfort — bell offset, wake lock, chime, PWA, theme | 🎨 | 🚧 Next |
 | **7** | Cutover — hub rewrite, origin host, project card, sitemap | 🔀 | 📋 Planned |
 
 ---
@@ -315,16 +316,37 @@ deleted is the one running today.
 
 ## Phase 5 — Sharing ⚙️
 
-- `JSON.stringify` → `CompressionStream('deflate-raw')` → base64url → hash.
-- Version prefix from the first encoded link; a version dispatch table at parse
-  time.
-- Size and period-count caps before parsing, so a hostile link cannot wedge the
-  tab.
-- Share-link UI and JSON export/import.
-- The round-trip fixture suite: every historical payload in the fixture file must
-  still parse, forever. Entries are added, never removed.
+- ✅ `JSON.stringify` → `CompressionStream('deflate-raw')` → base64url → hash.
+  Measured: **284 characters** for the whole URL of the eleven-period seeded
+  day, and a test pins the payload under 600 so a change that bloats it has to
+  argue for itself.
+- ✅ Version prefix, and a dispatch table keyed on it. The table is a `Map`
+  rather than an object literal, because an object's prototype made
+  `constructor` a working version marker — see the code review.
+- ✅ Caps before parsing: the whole fragment, the version segment, the encoded
+  payload, and the decoded bytes. The last is checked WHILE the stream is read
+  rather than after `arrayBuffer()`, because a check that runs after the buffer
+  is full runs after the damage.
+- ✅ Share-link UI and JSON export/import. A link is offered, never added
+  silently; the fragment is cleared once resolved; import parses before it
+  confirms and replaces everything behind the delete dialog.
+- ✅ The round-trip fixture suite. Five real payloads with what each must still
+  decode to, written out in full rather than derived from `DEFAULT_SCHEDULES` —
+  deriving them would let a seed edit silently rewrite what a historical payload
+  MEANS while the suite stayed green.
 
-**Gate:** a link survives a round trip through a messaging app and still decodes.
+**Gate: met in a browser, not yet through a messaging app.**
+`e2e/share.spec.ts` copies a link out of one page, opens it in another, and adds
+the schedule — plus the paste-into-an-open-tab case, a damaged link, a link from
+a future version, and the export/import round trip. base64url was chosen so
+nothing needs escaping and the alphabet is asserted.
+
+What is still owed is the literal gate: a real messaging app, which may wrap,
+truncate or link-ify a 284-character URL in ways no unit test can see. Carried
+forward as an open gap.
+
+Carried forward as open gaps rather than done: the clipboard-refused branch
+renders but is never asserted, and an import cannot be undone.
 
 ## Phase 6 — Comfort 🎨
 
