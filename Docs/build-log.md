@@ -180,12 +180,11 @@ development too, so the bare origin is a 404 exactly as it is in production.
 | 2026-09-01 | Dated exceptions render the ISO date, in mono, rather than a friendly one | It is what the user typed, what storage holds and what the Phase 5 export will write, and it is unambiguous in every locale. Formatting it would need a weekday computed from a date string without constructing a `Date` — which parses "2026-09-14" as UTC midnight and names the previous day west of Greenwich. |
 | 2026-09-01 | `body` gets `grid-template-columns: minmax(0, 1fr)` | The structural half of the reflow gate. An `auto` track sizes to its content's max-content, so anything inside the card that wants to be wide grows the track past the viewport — the card's own `max-width` never gets a say. See Bugs found. |
 | 2026-09-01 | The settings layout goes two-column at 60rem, not 40rem | Measured, not chosen: the editor stacks its six columns at 45rem and the nav takes up to 13rem, so a two-column settings layout narrower than about 59rem hands the editor less room than it thinks it has. |
-| 2026-09-01 | The E2E suite runs three engines, not one | `AGENTS.md` chose Playwright over Cypress for "real WebKit coverage and free parallelization" and then ran one engine for four phases. WebKit found two real defects in its first run. |
 | 2026-09-01 | `<select>` overflow is clipped at the CONTAINER, with padding and a negative margin | WebKit paints an over-long option outside the control and ignores the control's own `overflow`; only an ancestor clips it. Clipping each `<label>` would clip the focus ring the select draws outside itself, and WebKit has no `overflow-clip-margin` to spare it. The padding buys the ring 5px inside the clip box and the negative margin returns them to the layout. |
 | 2026-09-01 | Native date and time inputs carry a `placeholder` | Chrome and Firefox render segmented controls and ignore it; WebKit renders a bare text box where it is the only thing saying what shape the field wants. Progressive enhancement in the honest direction — the parser already refused bad input, this stops the user having to discover the format by failing. |
-| 2026-09-01 | The suite pins `locale: "en-GB"` beside the timezone it already pinned | It controls exactly one thing: whether a native time control has a meridiem segment. Under `en-US` the keystrokes are `0300PM` and the CI runner's WebKit rejected them, so the test was measuring a control's meridiem handling rather than this app. Safe because the app formats every time it shows by integer arithmetic — no `Intl`, no `toLocaleString` in `src/`. |
 | 2026-09-01 | A browser-behaviour claim names the PLATFORM it was measured on, not just the engine | `AGENTS.md` already required a citation or a test. This branch produced a test, generalised it from one build to "WebKit", and was contradicted by CI within the hour. The rule needed a second half. |
-| 2026-09-01 | The keyboard test asks the ELEMENT what it is, not the project name | `element.type === "time"` decides which keystrokes to send. Branching on "is this the webkit project" would keep passing on the day WebKit ships the control and quietly stop testing the segmented path. |
+| 2026-09-01 | The keyboard test steps the time field with an ARROW, and asks the element what it is | Typing into a segmented time control means typing into its segments, and what that costs varies by build and by locale — two CI round trips went into discovering that the assertion was measuring a browser rather than BellTab. ArrowUp is the specified part. The element check (`element.type === "time"`) covers builds that render no time control at all. |
+| 2026-09-01 | Cross-engine coverage was SPLIT OUT rather than merged with the rest | The axe scan, the cross-tab test and the Day view deletion were verified and independent; three-engine coverage was one unverified assertion away from done and had already cost three CI cycles on a build that cannot be run locally. Banking the finished work beats holding it hostage. The spike lives on `test/three-engines` with everything it found. |
 | 2026-09-01 | The axe gate fails on critical and serious, and reports the rest | The bar `Docs/research/accessibility-responsive-qa.md` sets. Failing on `minor` makes a gate people route around; reporting them in the failure message keeps them visible when something else breaks. |
 | 2026-09-01 | The E2E job's NAME is treated as an interface | Branch protection requires "E2E (reflow gate)" by exact string, so renaming the job silently removes the gate rather than failing loudly. It now runs three engines and an axe sweep under a name that undersells it, and the workflow says why. |
 | 2026-09-01 | The invalid-field style lives in its own section at the END of `globals.css`, with the element named in each selector | It has to beat every rule that sets a `border` shorthand on a control, and shorthand rules are (0,2,1). Naming the element matches that; being last wins the tie. The previous (0,2,0) selector had never painted anything. |
@@ -483,9 +482,10 @@ Lunch before Period 3" is a statement about the timetable, not about a list.
 | 2026-08-27 | Next ships a live region we did not write | `div#__next-route-announcer__` is `aria-live="assertive"` `role="alert"`, injected by the App Router after hydration and not removable. It should stay silent — one route, no client navigation — but `AGENTS.md`'s "never wrap the countdown in a live region" now has a framework-owned region on the page to coexist with. The announcer spec enumerates it so a second one cannot arrive unnoticed. |
 | 2026-08-27 | Theme persistence is gone, and its replacement needs a CSP hash | The retired `index.html` set `data-theme` from `localStorage` in a render-blocking inline script, to avoid a flash of the wrong theme. `globals.css` still honours `[data-theme]`, but nothing sets it. Phase 6 owes both the toggle and a way to apply it before first paint that does not need an unhashed inline `<script>`. |
 | 2026-09-01 | The Day view's dead code outlived its tests | The parked assertions are gone (see Closed), but the view left residue behind: `formatDayCaption` in `src/lib/format.ts` is exported, fully tested and imported by nothing, and `globals.css` still carries `.day__summary`, `.day__remaining` and their siblings. Deliberately left rather than swept up in the same change — deleting a tested pure function is a different decision from deleting a test that named no phase, and it should be made on purpose. |
-| 2026-08-27 | The Phase 2 gate is unverified on a real Safari | Narrowed 2026-09-01. WebKit is now a Playwright project and the whole countdown suite passes on it, including the scripted-clock tests that move time without firing a timer. What that does **not** cover is a real Safari tab on a real device, backgrounded for real minutes — the throttling and freezing thresholds are the thinnest evidence in the research, and Playwright's WebKit is not Safari (see the row below). Still owed, and now the only part of this gap that is. |
+| 2026-08-26 | WebKit and Firefox are not in the Playwright projects | `AGENTS.md` chose Playwright over Cypress for "real WebKit coverage" and the suite still runs one engine. A spike on `test/three-engines` added both, and it earned its keep immediately — two real defects, whose fixes shipped on this branch (see Bugs found). What that branch still owes before it can merge is a keyboard test that survives a segmented time control on the Linux runner's WebKit, which is a build nobody here can run locally: three CI round trips went into typed keystrokes before the arrow-key version, and it is unverified. |
+| 2026-08-27 | The Phase 2 gate is unverified in Safari | The roadmap's gate names Safari specifically, because its throttling thresholds are the thinnest evidence in the research. What is verified is Chrome, with a scripted clock: `visibilitychange` and `focus` both recompute correctly across a ten-minute sleep and across two period boundaries. The `test/three-engines` spike ran the same suite green on WebKit, which is a data point and not the gate — a real Safari tab on a real device, backgrounded for real minutes, is what is owed, and Playwright's WebKit is not Safari (see the row below). |
 | 2026-08-27 | The design system's period-change crossfade is not implemented | `Docs/design/design-system.md` section 4 asks for a single 150ms crossfade of the period name at a boundary. The name swaps instantly. The global `prefers-reduced-motion` block already covers the reduced path, so adding it is additive; not doing it is the honest state today. |
-| 2026-09-01 | The E2E suite is 122 live and 10 parked, per engine | 396 tests in total across Chrome, WebKit and Firefox: 366 run, 30 parked. Everything still parked needs the preferences panel or Big mode, both Phase 6, and every block names its phase. |
+| 2026-09-01 | The E2E suite is 122 live and 10 parked | Up from 111/10, in Chrome. Everything still parked needs the preferences panel or Big mode, both Phase 6, and every block names its phase. Running the same suite on three engines takes it to 396; see the gap above. |
 | 2026-08-27 | The editor is a long tab chain | Twelve rows of six controls is seventy-two stops between the schedule name and the bottom of the form, and the keyboard test needs a 120-press budget to cross it. Nothing is unreachable and nothing is trapped, so this is not a failure — but a skip link, or grouping each row so a screen reader can jump by row, would make it usable rather than merely operable. |
 | 2026-08-27 | There is no undo | Deleting a *period* is still immediate and unconfirmed, and the only way back is to retype it. Deliberate for a four-field row whose result is visible behind the editor. Deleting a whole *schedule* now goes through a modal confirmation, which is the half of this gap Phase 4 closed; a real undo is still owed and would remove the need for the dialog. |
 | 2026-08-27 | The schedule name field has no visible label | It carries a `.visually-hidden` "Schedule name", so assistive tech is fine, but sighted users see a large text box containing "Regular" and have to infer what it is. The retired build had the same shape. A visible label or a placeholder is owed. |
@@ -502,7 +502,6 @@ Lunch before Period 3" is a statement about the timetable, not about a list.
 
 | Opened | Closed | Item |
 | --- | --- | --- |
-| 2026-08-26 | 2026-09-01 | WebKit and Firefox are not covered — both are Playwright projects now and the whole suite runs on all three engines, 366 tests. WebKit found two real defects on its first run; see Bugs found. |
 | 2026-08-27 | 2026-09-01 | No automated accessibility scan — `e2e/a11y.spec.ts` runs `@axe-core/playwright` over ten journeys including both error states and the open modal. It found a genuine WCAG 1.4.3 contrast failure on its first run. |
 | 2026-08-27 | 2026-09-01 | Cross-tab sync is untested — `e2e/editor.spec.ts` opens two pages on one context and asserts an edit in the editor reaches a countdown, and a tab title, left open in the other. No reload, no tick. |
 | 2026-08-27 | 2026-09-01 | The Day view has no phase — its parked assertions are deleted. The decision was to delete rather than schedule: no phase was ever going to revive them, and a parked test that names no phase is a test file lying slowly. Reopened narrowly as a dead-code row, because the view's formatters and CSS outlived its tests. |
@@ -1258,6 +1257,10 @@ document had been making since August.
 
 ### 2026-09-01 — WebKit paints a `<select>`'s text outside the `<select>`
 
+Found by the `test/three-engines` spike. The projects are not merged; **this fix
+is**, because it is correct in every engine and the reflow gate covers it in
+Chrome.
+
 First run of the WebKit project, on the development machine: the calendar panel
 scrolled the page sideways at every one of the five widths, with a 60-character
 schedule name in the library. 822px inside a 320px viewport. (Measured on that
@@ -1295,6 +1298,9 @@ gives them back to the layout so nothing moves. Verified in WebKit: 5px clear on
 every clipped edge, and the page back to 320.
 
 ### 2026-09-01 — "WebKit has no `type="time"`" was true of one build and not the engine
+
+Also from the `test/three-engines` spike. The placeholders and the arrow-key
+test it produced are merged; the projects are not.
 
 The other WebKit failure was the keyboard-only editor test, which types
 `0300PM` — hour, minute, meridiem — into a segmented time control and expects
@@ -3315,14 +3321,14 @@ test` (111 passed, 10 parked) and `npx markdownlint-cli` all pass.
 cluster `AGENTS.md` and the research documents actually call blocking, plus one
 decision that had been deferred twice.
 
-**Three engines.** WebKit and Firefox are Playwright projects now, and the whole
-suite runs on all three — 396 tests, 366 run, 30 parked. This is what
-`AGENTS.md` picked Playwright for in the first place ("real WebKit coverage")
-and what the repo had not done for four phases. It found two real defects
+**Three engines — spiked, and split back out.** WebKit and Firefox went in as
+Playwright projects, took the suite to 396 tests, and earned their keep
 immediately: a `<select>` whose text WebKit paints outside the control and
-scrolls the page with, and the discovery that WebKit implements neither
-`type="time"` nor `type="date"`. Both in **Bugs found**, along with the several
-fixes that were tried and rejected on measurement.
+scrolls the page with, and the discovery that a WebKit build may implement
+neither `type="time"` nor `type="date"`. Both in **Bugs found**, along with the
+several fixes tried and rejected on measurement.
+
+**The fixes merged; the projects did not.** See the 14:55 entry below for why.
 
 **An axe scan**, `e2e/a11y.spec.ts`, over ten journeys: four countdown states,
 the onboarding screen, both settings panels, both panels mid-error, and the open
@@ -3351,14 +3357,14 @@ to. Its formatters and CSS are still in the tree and are now their own gap —
 deleting a tested pure function is a different decision and should be made on
 purpose rather than swept up here.
 
-**Two infrastructure notes.** Local workers went 4 to 2, in two steps and with
-one wrong answer in between: three engines put the axe scan under WebKit — the
-heaviest thing in the suite — over the same line the last two worker changes
-were about. Four failed outright; three looked clean over three runs and then
-produced a single failure, then four, always the boot wait and never the same
-test twice. Two is clean and costs thirty seconds. An intermittently red suite
-is worse than a slow one, because the first thing it costs is the habit of
-believing it. And the E2E job's NAME turns out to be an interface: branch
+**Two infrastructure notes,** both of which stayed on the spike branch. Local
+workers had to go 4 to 2 there, in two steps and with one wrong answer in
+between: three engines put the axe scan under WebKit — the heaviest thing in the
+suite — over the same line the last two worker changes were about. Four failed
+outright; three looked clean over three runs and then produced a single failure,
+then four, always the boot wait and never the same test twice. An intermittently
+red suite is worse than a slow one, because the first thing it costs is the
+habit of believing it. Back on one engine the number is 4 again. And the E2E job's NAME turns out to be an interface: branch
 protection requires "E2E (reflow gate)" by exact string, so renaming it to match
 what it now does would have silently removed the gate rather than failing
 loudly. The name stays, with a comment saying why.
@@ -3399,3 +3405,36 @@ the conclusion drawn from it.
 
 Everything else on the branch stands. `npx playwright test` is 366 passed / 30
 parked across three engines, and the rest of the gates are unchanged.
+
+### 2026-09-01 14:55 — the three-engine work is split back out
+
+`fix/open-gaps` was four gaps in one branch. Three of them — the axe scan,
+the cross-tab test and the Day view deletion — were verified, independent, and
+done. The fourth, cross-engine coverage, was one assertion away from done and
+had already cost three CI round trips on a build that cannot be run locally.
+
+**What went wrong is worth writing down, because it is a planning error rather
+than a technical one.** Adding WebKit to a suite whose editor is built on
+`<input type="time">` means adopting every engine's opinion about typing into a
+segmented control — and that opinion turned out to vary by platform for the same
+Playwright version. The development machine's WebKit renders no time control at
+all; the Linux runner's does and rejected two different sets of keystrokes. Each
+answer cost a full CI cycle.
+
+The judgement error was not noticing after the FIRST failure that the assertion
+was measuring a browser's per-segment keystroke handling rather than anything
+about BellTab. The arrow-key version should have been the response to that
+failure, not to the second one.
+
+**What merges here:** the axe sweep and the contrast fix it found, the cross-tab
+test, the Day view deletion, and both of the WebKit spike's FIXES — the
+container clip and the date/time placeholders — because those are correct in
+every engine and Chrome's reflow gate covers the first.
+
+**What does not:** the WebKit and Firefox projects, the `locale` pin they
+needed, the worker reduction they forced, and the CI browser install. All of it
+is on `test/three-engines`, at the tip that was passing locally, along with
+these findings. What that branch owes is one green CI run on the arrow-key test.
+
+The gap "WebKit and Firefox are not covered" is therefore **reopened** rather
+than closed, and now says what the spike learned and what is left.

@@ -90,26 +90,21 @@ Before calling any change done:
 npm run lint      # eslint, including jsx-a11y at full `recommended`
 npm run typecheck # tsc --noEmit, strict
 npm test          # vitest - the engine, the parser, the library and the calendar
-npm run e2e       # playwright - three engines, the reflow gate and an axe sweep
+npm run e2e       # playwright - the reflow gate and an axe sweep
 npm run lint:md   # markdownlint
 ```
 
-`npm run e2e` builds the app and starts its own server, then runs the suite on
-**Chrome, WebKit and Firefox**. It runs against a production build rather than
-`next dev`, because the reflow gate measures the CSS that actually ships.
+`npm run e2e` builds the app and starts its own server, then drives the Chrome
+already installed on the machine, so it needs no browser download. It runs
+against a production build rather than `next dev`, because the reflow gate
+measures the CSS that actually ships. It also runs an `@axe-core/playwright`
+sweep over every journey.
 
-Chrome is the one already installed on the machine; the other two are
-Playwright's own builds and need a one-time download:
-
-```bash
-npx playwright install webkit firefox
-```
-
-Note that Playwright's WebKit is not Safari, and is not even one thing: the
-build on this machine implements neither `<input type="time">` nor
-`type="date"`, while the one on the Linux CI runner implements both. Treat it as
-a strong signal about an engine and a weak one about anybody's browser. See
-**Open gaps** in `Docs/build-log.md`.
+WebKit and Firefox are not in the projects yet. The `test/three-engines` branch
+adds them, and found two real defects doing it — note that Playwright's WebKit
+is not Safari and is not even one thing: the build on this machine implements
+neither `<input type="time">` nor `type="date"`, while the Linux CI runner's
+implements both. See **Open gaps** in `Docs/build-log.md`.
 
 ## Docs
 
