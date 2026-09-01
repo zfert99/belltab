@@ -42,9 +42,8 @@ An older note, kept for the same reason:
 
 **Testing:** 252 Vitest tests over the pure engine, the parser, the formatters,
 the clock reader, the day resolver, the editor's draft model, the storage
-boundary and the six library mutators, plus **132 Playwright tests in Chrome**,
-of which 122 run and 10 are parked. The same suite passes on WebKit and Firefox
-on the `test/three-engines` branch; adding those projects is still an open gap.
+boundary and the six library mutators, plus **396 Playwright tests across three
+engines** — Chrome, WebKit and Firefox — of which 366 run and 30 are parked.
 
 The reflow gate that Phase 0 calls for runs the four Now-view states, the
 editor, the calendar panel and the confirm dialog at 320/375/768/1024/1440, with
@@ -209,11 +208,11 @@ The first genuinely useful build. Schedule is hard-coded.
 - ✅ The period announcer, keyed on the period's times so a rename cannot
   trigger it. Four of its parked E2E tests are live again.
 
-**Gate: met in Chrome, not yet on a real Safari.** `e2e/countdown.spec.ts`
-moves the clock without firing a timer, asserts the display is stale, and
-asserts that `visibilitychange` or `focus` alone corrects it — across ten
-minutes, across two period boundaries, and across Friday night into Saturday.
-The `test/three-engines` branch runs the same suite green on WebKit and Firefox.
+**Gate: met in Chrome, WebKit and Firefox; not on a real Safari.**
+`e2e/countdown.spec.ts` moves the clock without firing a timer, asserts the
+display is stale, and asserts that `visibilitychange` or `focus` alone corrects
+it — across ten minutes, across two period boundaries, and across Friday night
+into Saturday. Since 2026-09-01 it runs on all three engines.
 
 What that still does *not* cover is a real Safari tab on a real device,
 backgrounded for real minutes: its throttling thresholds are the thinnest

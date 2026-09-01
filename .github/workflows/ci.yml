@@ -120,17 +120,21 @@ jobs:
       - run: npm ci
 
       # `channel: "chrome"` in playwright.config.ts means real Google Chrome,
-      # not the bundled Chromium, so the runner has to install it. WebKit and
-      # Firefox are still owed - see Open gaps in Docs/build-log.md, and the
-      # `test/three-engines` branch, which adds `webkit firefox` to this line.
-      - name: Install Chrome
-        run: npx playwright install --with-deps chrome
+      # not the bundled Chromium, so the runner has to install it by name.
+      # WebKit and Firefox are Playwright's own builds and come from the same
+      # command; `--with-deps` is what pulls the system libraries WebKit needs
+      # on a bare Ubuntu runner, and without it the browser installs and then
+      # fails to launch.
+      - name: Install browsers
+        run: npx playwright install --with-deps chrome webkit firefox
 
-      # Two things AGENTS.md calls blocking, in one job.
+      # Three things AGENTS.md calls blocking, in one job.
       #
-      # The WCAG 2.2 SC 1.4.10 reflow check at 320/375/768/1024/1440, and the
-      # axe scan, which the accessibility research asks for on every journey
-      # with zero critical or serious violations to release.
+      # The WCAG 2.2 SC 1.4.10 reflow check at 320/375/768/1024/1440; the axe
+      # scan, which the accessibility research asks for on every journey with
+      # zero critical or serious violations to release; and all of it across
+      # Chrome, WebKit and Firefox, because "real WebKit coverage" is the reason
+      # this repo chose Playwright over Cypress in the first place.
       #
       # No separate build step: Playwright's `webServer` runs `npm run build &&
       # next start` itself, so the suite measures the CSS that actually ships

@@ -33,28 +33,30 @@ export default defineConfig({
   fullyParallel: true,
 
   /**
-   * Four, not Playwright's default of half the machine's cores.
+   * Two, not Playwright's default of half the machine's cores.
    *
-   * Measured rather than chosen. Phase 4 took the suite from 83 tests to 108,
-   * and at eight workers a full run started failing intermittently - sometimes
-   * `browserContext.newPage: Target crashed`, sometimes a boot wait timing out,
-   * never twice on the same test. Eight browsers plus a `next start` exhaust
-   * the machine, and a crashed renderer looks exactly like an app that will not
-   * hydrate.
+   * Measured rather than chosen, three times over, and the number tracks the
+   * WEIGHT of a full run rather than the count of its tests.
    *
-   * Raising the boot timeout made it WORSE, which is the tell: a starved worker
-   * that is given longer holds its slot longer. Four is clean over repeated runs
-   * and costs nothing, because the run was never CPU-bound at eight - it was
-   * thrashing.
+   * Phase 4 took the suite from 83 tests to 108, and at eight workers a full run
+   * started failing intermittently - sometimes `browserContext.newPage: Target
+   * crashed`, sometimes a boot wait timing out, never twice on the same test.
+   * Eight browsers plus a `next start` exhaust the machine, and a crashed
+   * renderer looks exactly like an app that will not hydrate. Raising the boot
+   * timeout made it WORSE, which is the tell: a starved worker given longer
+   * holds its slot longer. Four fixed it, on one engine.
    *
-   * This number is per-engine sensitive. The `test/three-engines` branch, which
-   * adds WebKit and Firefox, has to drop to two; see its build-log entry before
-   * raising this one.
+   * Three engines take the run to 396 tests and moved the line again. Four
+   * failed outright. Three looked clean over three full runs and then produced
+   * a single failure, then four - always the boot wait, never the same test
+   * twice. Two is clean over repeated runs at 2.5 minutes against three's 1.9.
+   * An intermittently red suite is worse than a slow one, because the first
+   * thing it costs is the habit of believing it.
    *
    * CI keeps the default. Its runners have fewer cores and therefore already get
    * fewer workers, and pinning a number here would raise it on a 2-core box.
    */
-  workers: process.env.CI ? undefined : 4,
+  workers: process.env.CI ? undefined : 2,
 
   forbidOnly: Boolean(process.env.CI),
   retries: process.env.CI ? 1 : 0,
@@ -75,19 +77,37 @@ export default defineConfig({
     timezoneId: "America/New_York",
   },
 
+  /**
+   * Three engines, which `AGENTS.md` has asked for from the start.
+   *
+   * "Playwright, not Cypress for E2E - real WebKit coverage and free
+   * parallelization" was the reason this repo chose Playwright, and for four
+   * phases it ran one engine anyway. WebKit is where the things this app leans
+   * on differ most: `<dialog>`, `:modal`, `inert`, and the native date and time
+   * inputs the editor and the calendar are built out of.
+   *
+   * It earned its keep on the first run - two real defects, both fixed on
+   * `main` before these projects landed. See Bugs found, 2026-09-01.
+   */
   projects: [
     {
       // The Chrome already on the machine, via `channel`, rather than a
       // downloaded Chromium: it is the engine the original review measured in,
       // and it costs no browser binary.
-      //
-      // WebKit and Firefox are still owed - `AGENTS.md` chose Playwright for
-      // "real WebKit coverage" - and a spike on `test/three-engines` has already
-      // added them and found two real defects, whose fixes shipped here. What
-      // that branch still owes is a keyboard test that survives a segmented time
-      // control on a build nobody can run locally. See Open gaps.
       name: "chrome",
       use: { ...devices["Desktop Chrome"], channel: "chrome" },
+    },
+    {
+      // Playwright's WebKit build, and NOT Safari - a distinction this repo
+      // learned the hard way. The build here and the one on the Linux CI runner
+      // disagree about whether `<input type="time">` exists at all, and neither
+      // is what ships on a Mac. A real Safari tab is still an open gap.
+      name: "webkit",
+      use: { ...devices["Desktop Safari"] },
+    },
+    {
+      name: "firefox",
+      use: { ...devices["Desktop Firefox"] },
     },
   ],
 
