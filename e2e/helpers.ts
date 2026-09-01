@@ -204,22 +204,18 @@ export async function expectNoHorizontalScroll(page: Page, label: string): Promi
 /**
  * Opens Settings and selects one of its panels.
  *
- * The tab click is CONDITIONAL, and that is not defensiveness. Phase 3 ships
- * one panel, and a tablist with a single tab is a control that cannot do
- * anything - so there is no tab strip until Phase 4 adds the calendar. Asking
- * for `#tab-schedules` unconditionally would make this helper describe a
- * control the app deliberately does not have; asking for `#panel-schedules`
- * afterwards is the assertion that matters either way.
+ * Phase 3 shipped one panel and no tab strip, so this click used to be
+ * conditional - a tablist with a single tab is a control that cannot do
+ * anything. Phase 4 adds the calendar and with it the strip, so the tab is now
+ * asked for by name. The panel assertion afterwards is what actually matters
+ * either way.
  *
- * Callers passing "calendar" or "preferences" are still parked, and will fail
- * on the panel assertion until the phase that builds them.
+ * Callers passing "preferences" are still parked, and will fail on the panel
+ * assertion until Phase 6 builds it.
  */
 export async function openSettings(page: Page, panel = "schedules"): Promise<void> {
   await page.locator("#settings-toggle").click();
   await expect(page.locator("#settings-view")).toBeVisible();
-
-  const tab = page.locator(`#tab-${panel}`);
-  if ((await tab.count()) > 0) await tab.click();
-
+  await page.locator(`#tab-${panel}`).click();
   await expect(page.locator(`#panel-${panel}`)).toBeVisible();
 }

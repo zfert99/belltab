@@ -108,6 +108,22 @@ p {
 body {
   min-height: 100dvh;
   display: grid;
+
+  /* minmax(0, 1fr), not the implicit `auto`, and this is the structural half
+     of the reflow gate.
+
+     An auto track sizes to its content's MAX-CONTENT, so anything inside the
+     card that wants to be wide - a 60-character name, a <select> whose widest
+     option is one - grows the track past the viewport and scrolls the page
+     sideways. The card's own `max-width: 60rem` never gets a say, because the
+     track it sits in is already too wide. `minmax(0, 1fr)` pins the track to the
+     space that actually exists.
+
+     The overflow-wrap rules further down are the other half: this stops
+     max-content from propagating, they stop min-content from being large in the
+     first place. Both are needed, and each has been the fix for a real failure
+     of this gate. */
+  grid-template-columns: minmax(0, 1fr);
   place-items: center;
   padding: var(--s-4);
   background: var(--bg);
@@ -331,6 +347,15 @@ body {
   color: var(--fg-soft);
 }
 
+/* The call to action on an empty state. Spans the whole grid on a row of its
+   own rather than taking one of the three named areas, so it does not fight the
+   period bounds for space at 320px. */
+.message__action {
+  grid-column: 1 / -1;
+  justify-self: center;
+  max-width: 100%;
+}
+
 /* Below ~480px the three-across row cannot hold the "Next:" sentence,
    so it gets its own line under the two edge times. */
 @media (max-width: 30rem) {
@@ -518,7 +543,13 @@ body {
    off the right edge and scrolling the page. Found by the reflow gate the first
    time the gate was pointed at it; the gap predicting exactly this had been
    open since 2026-08-26. */
-#schedule-name {
+#schedule-name,
+/* Phase 4 adds three more surfaces that render a SCHEDULE name: the picker
+   chip, the schedule column of a dated exception, and the sentence saying what
+   today resolves to. Same input, same 60 characters, same rule. */
+.schedchip,
+.override__schedule,
+#calendar-today {
   overflow-wrap: anywhere;
 }
 
@@ -966,7 +997,18 @@ body.is-settings .viewswitch {
   background: var(--bg);
 }
 
-@media (max-width: 40rem) {
+/* 60rem, not 40rem, and the number is measured rather than chosen.
+
+   The editor inside the panel stacks its six columns at 45rem, and the nav
+   beside it takes up to 13rem - so a two-column settings layout narrower than
+   about 59rem hands the editor less room than it thinks it has and the row
+   overflows. The card caps at 60rem, so above this breakpoint the panel is
+   always at least the 45rem the editor asks for.
+
+   Found at 768px by the reflow gate the moment Phase 4 put a nav beside the
+   panel; at 40rem the settings layout went two-column at 640px and the editor
+   did not stack until 720. */
+@media (max-width: 60rem) {
   .settings__layout {
     grid-template-columns: 1fr;
     gap: var(--s-4);
@@ -1027,10 +1069,6 @@ body.is-settings .viewswitch {
    alone. Every field marked this way also has a message bound to it with
    aria-describedby, because a red border says nothing to a screen reader and
    nothing at all to someone who cannot distinguish it. */
-.editor [aria-invalid="true"] {
-  border-color: var(--danger);
-}
-
 .minibutton {
   min-height: 44px;
   padding: 0 var(--s-3);
@@ -1044,11 +1082,28 @@ body.is-settings .viewswitch {
   cursor: pointer;
 }
 
-.minibutton:hover {
+.minibutton:hover:not(:disabled) {
   border-color: var(--fg);
 }
 
-.minibutton--danger:hover {
+/* Every disabled control in the app, dimmed the same way.
+
+   `.editrow__movebutton` had this from the start and nothing else did, which
+   went unnoticed while the only other disabled control was Add period at a
+   sixty-period cap - a state nobody reaches. Phase 4 made it visible: the
+   calendar's Add exception button is disabled whenever the date field is empty,
+   which is how the form FIRST renders, and a disabled button that looks enabled
+   is a button people click at. */
+.minibutton:disabled,
+.schedpicker__new:disabled,
+.weekday select:disabled,
+.addoverride select:disabled,
+.addoverride input:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.minibutton--danger:hover:not(:disabled) {
   color: var(--danger);
   border-color: var(--danger);
 }
@@ -1105,7 +1160,7 @@ body.is-settings .viewswitch {
   cursor: pointer;
 }
 
-.schedpicker__new:hover {
+.schedpicker__new:hover:not(:disabled) {
   color: var(--fg);
   border-color: var(--fg);
 }
@@ -1404,6 +1459,27 @@ body.is-settings .viewswitch {
   letter-spacing: 0.04em;
 }
 
+.weekday,
+.weekday select,
+.addoverride select,
+.addoverride input[type="date"] {
+  /* A select's intrinsic width is its WIDEST OPTION, and every option in this
+     panel is a schedule name the user typed. A 60-character name makes the
+     control ask for about 30rem and it overflows its grid track, scrolling the
+     page sideways at 320px - the same failure the period-name rule above
+     documents, arriving through a control rather than through text.
+
+     `width: 100%` is what actually fixes it, and `min-width: 0` is what lets it:
+     a percentage width is ignored while an ancestor is being intrinsically
+     sized but is honoured during layout, so the control ends up the width of
+     the box it was given and truncates its own option text - which is what a
+     select is supposed to do. `min-width` alone only permits shrinking; it does
+     not reduce what the control asks for. */
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+}
+
 .weekday select,
 .addoverride select,
 .addoverride input[type="date"] {
@@ -1417,9 +1493,9 @@ body.is-settings .viewswitch {
   border-radius: var(--r-md);
 }
 
-.weekday select:hover,
-.addoverride select:hover,
-.addoverride input:hover {
+.weekday select:hover:not(:disabled),
+.addoverride select:hover:not(:disabled),
+.addoverride input:hover:not(:disabled) {
   border-color: var(--fg);
 }
 
@@ -1427,6 +1503,11 @@ body.is-settings .viewswitch {
    emphasis rather than the only signal. */
 .weekday--closed select {
   color: var(--fg-soft);
+}
+
+/* One control, not seven, so it does not stretch the width of the panel. */
+.calsection__control {
+  max-width: 22rem;
 }
 
 .addoverride {
@@ -1437,6 +1518,9 @@ body.is-settings .viewswitch {
 
 .addoverride__field {
   display: flex;
+  /* Wraps onto its own line before it squeezes; 10rem is the floor at which a
+     date input is still operable. */
+  flex: 1 1 10rem;
   min-width: 0;
 }
 
@@ -1467,6 +1551,7 @@ body.is-settings .viewswitch {
 
 .override__schedule {
   flex: 1;
+  min-width: 0;
   font-size: 0.9375rem;
   color: var(--fg-soft);
 }
@@ -1543,4 +1628,31 @@ body.is-settings .viewswitch {
   flex-wrap: wrap;
   justify-content: flex-end;
   gap: var(--s-2);
+}
+
+/* ============================================================
+   19. INVALID FIELDS - last in the file, deliberately
+   ============================================================ */
+
+/* This rule has to come after EVERY rule that sets a `border` shorthand on a
+   form control, and has to match their specificity, or it does not paint at all.
+
+   It did not paint for the whole of Phase 3 and Phase 4, and nothing noticed.
+   The old selector was `.editor [aria-invalid="true"]` - specificity (0,2,0) -
+   while `.editor input[type="text"]` is (0,2,1) and sets the `border`
+   SHORTHAND, which resets border-color along with the rest. So every field the
+   parser marked invalid was announced correctly to assistive tech and drawn as
+   though it were fine. That is the "red border only" failure `AGENTS.md` warns
+   about, inverted: the message was there and the colour was not.
+
+   Naming the element in each selector takes this to (0,2,1), and being last in
+   the file wins the resulting tie against both the editor's control skin and
+   the calendar panel's. `e2e/editor.spec.ts` and `e2e/calendar.spec.ts` now
+   measure the COMPUTED border colour rather than the attribute, because the
+   attribute was never the part that was broken. */
+.editor input[aria-invalid="true"],
+.editor select[aria-invalid="true"],
+.addoverride input[aria-invalid="true"],
+.addoverride select[aria-invalid="true"] {
+  border-color: var(--danger);
 }

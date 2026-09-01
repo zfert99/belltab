@@ -8,12 +8,26 @@ evidence behind the technical decisions is
 **Status legend:** ✅ Done · 🚧 In progress · 📋 Planned · ⛔ Blocked (prereq)
 **Tracks:** 🏗️ Setup · ⚙️ Engine · 🎨 UI · 🔀 Infra · 🔗 Integration
 
-**Status (2026-08-27, after Phase 3):** the countdown is live and the schedule
-is the user's. One clock drives the digits, the progress bar, the tab title and
-the boundary announcer, all recomputed from `Date.now()`. The editor adds,
-renames, retimes, reorders and deletes periods, blocks overlap at input time,
-and persists to `localStorage`. What is still seeded is the *set* of schedules
-and the calendar pointing at them, which is Phase 4.
+**Status (2026-09-01, after Phase 4):** the app is now the user's end to end.
+One clock drives the digits, the progress bar, the tab title and the boundary
+announcer, all recomputed from `Date.now()`. The editor adds, renames, retimes,
+reorders and deletes periods, blocks overlap at input time, and persists to
+`localStorage`. The library holds as many named schedules as you like — created,
+duplicated and deleted — and the calendar panel points days at them: a weekday
+default map, dated exceptions that beat it, and a control that repoints today
+alone. Nothing on screen is seed data any more; the seeds are just what a fresh
+install starts with.
+
+What is left is sharing (Phase 5), comfort features (Phase 6) and the cutover
+(Phase 7). None of those changes what the app *is*.
+
+> **Superseded 2026-09-01.** The paragraph below described `main` after Phase 3
+> and is kept because the Phase 4 plan was written against it.
+>
+> The countdown is live and the schedule is the user's. What is still seeded is
+> the *set* of schedules and the calendar pointing at them, which is Phase 4.
+
+An older note, kept for the same reason:
 
 > **Superseded 2026-08-27 13:50.** The paragraph below described `main` between
 > Phase 1 and Phase 2 and is kept because the Phase 2 plan was written against
@@ -26,14 +40,16 @@ and the calendar pointing at them, which is Phase 4.
 > yet. The UI is rebuilt on the engine phase by phase from here, starting with
 > the countdown.
 
-**Testing:** 213 Vitest tests over the pure engine, the parser, the formatters,
-the clock reader, the day resolver, the editor's draft model and the storage
-boundary, plus 83 live Playwright tests in `e2e/` running in a real Chrome. The
-reflow gate that Phase 0 calls for runs the four Now-view states *and the
-editor* at 320/375/768/1024/1440, with a 60-character unbroken name typed into
-both a period and the schedule. A further **22 Playwright tests are parked** —
-each names the phase that revives it, except the Day view's, which names none;
-see **Open gaps** in `Docs/build-log.md`.
+**Testing:** 252 Vitest tests over the pure engine, the parser, the formatters,
+the clock reader, the day resolver, the editor's draft model, the storage
+boundary and the six library mutators, plus 111 live Playwright tests in `e2e/`
+running in a real Chrome. The reflow gate that Phase 0 calls for runs the four
+Now-view states, the editor, the calendar panel and the confirm dialog at
+320/375/768/1024/1440, with a 60-character unbroken name typed into a period,
+the schedule name, a picker chip, a `<select>` option and an exception row. A
+further **10 Playwright tests are parked** — each names the phase that revives
+it, except the Day view's, which names none; see **Open gaps** in
+`Docs/build-log.md`.
 
 The repo is at `github.com/zfert99/belltab`, with `main` protected by GitHub
 Flow (one PR per change, squash-merged).
@@ -79,8 +95,8 @@ retires it, since a browser cannot load a `.ts` module directly.
 | **1** | The schedule engine — pure, typed, fully tested | ⚙️ | ✅ Done |
 | **2** | The countdown — one clock, the display, the tab title | 🎨 | ✅ Done |
 | **3** | The editor — build and edit a schedule, overlap blocking | 🎨 | ✅ Done |
-| **4** | Day types — the **editing UI** for schedules and the calendar | 🎨 | 🚧 Next |
-| **5** | Sharing — versioned hash encoding, export/import | ⚙️ | 📋 Planned |
+| **4** | Day types — the **editing UI** for schedules and the calendar | 🎨 | ✅ Done |
+| **5** | Sharing — versioned hash encoding, export/import | ⚙️ | 🚧 Next |
 | **6** | Comfort — bell offset, wake lock, chime, PWA, theme | 🎨 | 📋 Planned |
 | **7** | Cutover — hub rewrite, origin host, project card, sitemap | 🔀 | 📋 Planned |
 
@@ -243,14 +259,49 @@ that suite is the contract its dialog has to meet. Phase 3 ships no confirmation
 because deleting a period is four fields with the result visible immediately
 behind the editor.
 
-- Multiple named schedules; duplicate-and-tweak as the primary authoring move.
-- The weekday default map, editable.
-- Explicit date overrides, shown as a small editable list.
-- A "use this schedule today" control.
-- The resolver, in priority order, with room reserved for a future cycle layer.
+- ✅ Multiple named schedules; duplicate-and-tweak as the primary authoring
+  move. Every schedule in the library carries a unique id, minted at the parse
+  boundary — the calendar points at schedules by id, so one without an id is a
+  schedule no day could ever run. Duplicate hands the boundary the source's own
+  id and lets the two-pass minting renumber the copy, so one place in the
+  codebase decides what an id is.
+- ✅ The weekday default map, editable. Seven selects, `auto-fit` so 320px gets
+  however many fit rather than seven 30px columns.
+- ✅ Explicit date overrides, as a small editable list. Adding a date that
+  already has one REPLACES it, so the resolver never has two entries for one day
+  to arbitrate between.
+- ✅ A "use this schedule today" control, which writes a dated override and
+  never a weekday default — a make-up day is one Saturday, not every Saturday.
+  It sits under a line saying what today currently resolves to.
+- ✅ The resolver, in priority order, and the panel is laid out in that order so
+  the priority is legible rather than documented. Room is reserved for a cycle
+  layer: a rotating day type would be a third section between the two, beating
+  the weekday and losing to an override, and nothing built here forecloses it.
+- ✅ The delete confirmation, and its six parked E2E tests, live again. A native
+  `<dialog>` with `showModal()`, feature-detected with `window.confirm` behind
+  it, and `App.tsx`'s Escape handler now bails while a modal is open — the
+  guard Phase 3 left a comment about.
+- ✅ Both dead-end empty states link into the editor.
 
-**Gate:** a late-start Wednesday and a one-off assembly both resolve correctly,
-and the weekend shows the no-schedule state.
+**Gate: met.** `e2e/calendar.spec.ts` drives a late-start Wednesday through the
+weekday map (which turns 09:30 from "inside Period 2" into "school starts in",
+a different *kind* of answer), a one-off assembly that beats the weekday under
+it, a dated closure that shuts a school day, and the weekend — including the way
+out of it. Deleting a schedule takes the days pointing at it with it: weekdays
+degrade to "no school", overrides are dropped rather than becoming snow days.
+
+A `high`-effort code review of the finished tree found three defects, all in
+the dated-exception form and all fixed in the same session:
+`setOverride` discarded the entry being added once the calendar hit its
+400-override cap, the date input's value reached the mutator unparsed, and the
+inactive tab's `aria-controls` named an id that was not in the DOM. See
+`Docs/code-review-2026-09-01.md`.
+
+Carried forward as open gaps rather than done: Safari (still), no automated axe
+scan, no month view for dated exceptions and no weekday name beside them,
+nothing prunes exceptions that are in the past, the chip picker has no
+arrow-key path, and the confirmation does not say when the schedule being
+deleted is the one running today.
 
 ## Phase 5 — Sharing ⚙️
 

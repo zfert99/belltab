@@ -1,4 +1,15 @@
 import { test, expect, type Locator, type Page } from "@playwright/test";
+
+/**
+ * `#d8453f` to `rgb(216, 69, 63)`.
+ *
+ * `getComputedStyle` always reports a resolved colour, never the token or the
+ * hex it came from, so comparing against `--danger` means converting.
+ */
+function hexToRgb(hex: string): string {
+  const value = Number.parseInt(hex.replace("#", ""), 16);
+  return `rgb(${(value >> 16) & 255}, ${(value >> 8) & 255}, ${value & 255})`;
+}
 import { openApp, openSettings, MID_PERIOD, STORAGE_KEY } from "./helpers";
 
 /**
@@ -187,6 +198,23 @@ test.describe("blocking invalid input", () => {
     const start = field(row, "start");
     await expect(start).toHaveAttribute("aria-invalid", "true");
     await expect(start).toHaveAttribute("aria-describedby", await message.getAttribute("id") ?? "");
+
+    /*
+      And coloured as well as bound - which for the whole of Phase 3 and Phase 4
+      it was not.
+
+      `aria-invalid` was set correctly and the rule that paints it lost on
+      specificity to the control skin's `border` shorthand, so every invalid
+      field was announced properly and drawn as though it were fine. Nothing
+      caught it because every test here asserted the ATTRIBUTE, which was never
+      the broken part. This measures the computed colour instead.
+    */
+    const danger = await page.evaluate(() =>
+      getComputedStyle(document.documentElement).getPropertyValue("--danger").trim(),
+    );
+    const painted = await start.evaluate((element) => getComputedStyle(element).borderTopColor);
+
+    expect(painted, "the invalid field is announced but not drawn").toBe(hexToRgb(danger));
   });
 
   test("an invalid draft is never saved, and the countdown keeps the last good one", async ({

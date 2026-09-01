@@ -23,8 +23,9 @@ the end of a phase.
 
 ## Current state
 
-**Working:** the countdown and the editor. Phase 3 made the schedule the user's
-rather than the seed data's.
+**Working:** the countdown, the editor and the calendar. Phase 3 made the
+schedule the user's rather than the seed data's; Phase 4 made the *set* of
+schedules and the days pointing at them the user's too.
 
 - `src/lib/` is pure, typed and fully tested — the parser mints a branded
   `ValidSchedule` and the engine accepts nothing else.
@@ -37,6 +38,14 @@ rather than the seed data's.
   overlap blocked at input time and every message bound to the field that
   caused it. Persisted to `localStorage`, which is read through
   `useSyncExternalStore` and therefore syncs across tabs.
+- Multiple named schedules: a picker, New schedule, Duplicate, and Delete
+  behind a real modal confirmation. Every schedule in the library carries a
+  unique id, minted at the parse boundary, because the calendar points at them
+  by id.
+- The calendar panel: what today resolves to, a "use this schedule today"
+  control that writes a dated override, the seven weekday defaults, and a list
+  of dated exceptions. The resolver's priority order is the order the panel
+  reads in.
 - The stylesheet's three font tokens resolve to real self-hosted faces.
 
 **Retired:** the plain HTML/CSS/JS build. Phase 1 replaced the modules it
@@ -45,8 +54,7 @@ imported with `.ts`, which a browser cannot load, so `src/index.html`,
 behaviour — three views, the editor, the calendar, preferences — is owed back by
 Phases 2–4 and its tests are parked, not deleted. See **Open gaps**.
 
-**Not started:** multiple schedules and the calendar UI (the calendar is *read*
-but not editable), sharing, bell offset, wake lock, chime, PWA.
+**Not started:** sharing, bell offset, wake lock, chime, PWA, theme.
 
 ### Files
 
@@ -67,12 +75,13 @@ src/
       today.ts  useNow.ts                        + colocated tests
     _components/  the client tree
       App.tsx  NowView.tsx  PeriodAnnouncer.tsx
-      SettingsView.tsx  ScheduleEditor.tsx  PeriodRow.tsx  icons.tsx
+      SettingsView.tsx  SchedulesPanel.tsx  CalendarPanel.tsx
+      ScheduleEditor.tsx  PeriodRow.tsx  ConfirmDialog.tsx  icons.tsx
   lib/          pure: no DOM, no React; `Date` only as an argument
     schedule.ts  engine.ts  parse.ts  format.ts  clock.ts   + colocated tests
 e2e/            Playwright, top-level by rule, not colocated
   helpers.ts  reflow.spec.ts  confirm-dialog.spec.ts  announcer.spec.ts
-  countdown.spec.ts  editor.spec.ts
+  countdown.spec.ts  editor.spec.ts  calendar.spec.ts
 ```
 
 `_lib/` and `_components/` are Next.js **private folders** — the leading
@@ -158,6 +167,26 @@ development too, so the bare origin is a 404 exactly as it is in production.
 | 2026-08-26 | Dark mode declared twice — media query *and* `[data-theme]` | `:root:not([data-theme="light"])` inside the media query lets a future toggle override the OS in both directions. |
 | 2026-08-26 | Tab title uses `Math.ceil` on remaining minutes | `floor` shows `0m` for the last 59 seconds of a period, which reads as "it is over" when it is not. |
 | 2026-08-26 | Every DOM write is `textContent`; `innerHTML` banned in this codebase | Period names will arrive from share links, i.e. from strangers. `innerHTML` here is an XSS hole triggered by sending someone a URL. |
+| 2026-09-01 | Every schedule in a **library** carries a non-null unique id, minted at the parse boundary | The calendar points at schedules by id, so a library schedule without one is a schedule no weekday and no override could ever select. A *single* schedule may still have none — one typed into the editor, one decoded from a share link — so this is a collection guarantee, expressed as `IdentifiedSchedule` and produced by `parseScheduleCollection`. |
+| 2026-09-01 | The narrowing to `IdentifiedSchedule` is a **type predicate**, not a second cast | `parseSchedule`'s double assertion is the only one in `src/`, and this log says a second would read as a lie in a diff. `isIdentified` narrows without asserting, because the intersection is assignable to the parameter type. |
+| 2026-09-01 | Duplicating a schedule hands the boundary the **source's own id** and lets it renumber the copy | The original comes first in the list, so it keeps the id and the copy is minted a fresh one. One place in the codebase decides what an id is, and the duplicate path exercises it rather than working around it. |
+| 2026-09-01 | Deleting a schedule **drops** the overrides pointing at it, rather than letting them degrade | `parseCalendar` turns a dangling id into `scheduleId: null`, which is an explicit closure — so rebuilding without the filter would quietly turn "assembly on the 14th" into "the school is shut on the 14th". Falling back to the weekday default is the honest answer. Weekdays are different: there, null already *means* no school. |
+| 2026-09-01 | A duplicate's name is truncated to fit `SCHEDULE_LIMITS.nameChars` before " (copy)" is appended | Not tidiness. Appending to a name already at the cap makes the whole duplicate fail to parse, and the button then does nothing at all with no message. |
+| 2026-09-01 | Schedule selection is an **index**, not an id | The picker is a positional row of chips and the editor already replaces schedules positionally. An index survives a rename, which is the edit that runs on every keystroke. The editor's `key` is index *and* id, because either alone remounts at the wrong times. |
+| 2026-09-01 | A new schedule is created **empty**, not pre-filled with a period | "This schedule has no periods" is a state the countdown already renders honestly, and a period nobody asked for is one they have to notice and delete. |
+| 2026-09-01 | Settings navigation is `aria-pressed` buttons, not an ARIA tablist | A real `tablist` owes arrow-key roving focus and a `tabpanel` relationship. Two destinations that each replace the panel below need neither, and claiming the role without the behaviour is worse than not claiming it. |
+| 2026-09-01 | The "use this schedule today" control writes a dated **override**, never a weekday default | A make-up day is one Saturday, not every Saturday. The control sits under a line saying what today currently resolves to, so the effect is visible before and after. |
+| 2026-09-01 | The Today control's options are namespaced sentinels (`weekday`, `closed`, `id:*`); the weekday and exception selects use `""` for "no school" | A select's value is always a string, so `null` has to be encoded. `""` is safe as that encoding because every schedule id is now non-empty. The Today control needs a *third* state — "follow the weekday default" — so it cannot use the same two-value scheme, and an `id:` prefix is what stops a schedule called `closed` from colliding with the sentinel. |
+| 2026-09-01 | Dated exceptions render the ISO date, in mono, rather than a friendly one | It is what the user typed, what storage holds and what the Phase 5 export will write, and it is unambiguous in every locale. Formatting it would need a weekday computed from a date string without constructing a `Date` — which parses "2026-09-14" as UTC midnight and names the previous day west of Greenwich. |
+| 2026-09-01 | `body` gets `grid-template-columns: minmax(0, 1fr)` | The structural half of the reflow gate. An `auto` track sizes to its content's max-content, so anything inside the card that wants to be wide grows the track past the viewport — the card's own `max-width` never gets a say. See Bugs found. |
+| 2026-09-01 | The settings layout goes two-column at 60rem, not 40rem | Measured, not chosen: the editor stacks its six columns at 45rem and the nav takes up to 13rem, so a two-column settings layout narrower than about 59rem hands the editor less room than it thinks it has. |
+| 2026-09-01 | The invalid-field style lives in its own section at the END of `globals.css`, with the element named in each selector | It has to beat every rule that sets a `border` shorthand on a control, and shorthand rules are (0,2,1). Naming the element matches that; being last wins the tie. The previous (0,2,0) selector had never painted anything. |
+| 2026-09-01 | E2E asserts the COMPUTED colour of an invalid field, not its `aria-invalid` attribute | The attribute was correct for two phases while the style it keys off was dead. A test that checks the attribute a style depends on is not a test of the style. |
+| 2026-09-01 | `setOverride` measures the cap against the list WITHOUT the date being written | The question is not "is the calendar full" but "would this grow the calendar". Replacing an exception cannot, so it stays legal at the cap; only a new date is refused. The old gate got both halves backwards at once — see Bugs found. |
+| 2026-09-01 | A refusing mutator returns the library BY IDENTITY | `toBe(library)` is what lets a test tell a refusal from a successful write that happened to change nothing, and it is what a caller would need to show an error. |
+| 2026-09-01 | Untrusted input is parsed at the control as well as at the mutator | Not duplication of the boundary: the mutator's refusal protects the data, the control's parse is what tells the user. A boundary that silently discards is indistinguishable, from the user's side, from one that lost their input. |
+| 2026-09-01 | Playwright runs four workers locally, not the default half-the-cores | Measured: at eight, a 108-test run intermittently crashes the browser, and a crashed renderer is indistinguishable from an app that will not hydrate. Four is clean and no slower. CI keeps the default, where the runner already gets fewer. |
+| 2026-09-01 | The empty states link *into* the editor rather than creating a schedule on the user's behalf | "Set up a schedule" opens the panel, which says what to press next. A button that silently creates and names something is a state change the user did not ask for, from a screen whose whole point is that nothing has been set up. |
 | 2026-08-26 | ~~Pure engine kept inside `app.js` for now, clearly sectioned~~ | ~~Readable in one sitting while learning.~~ **Superseded 2026-08-26 14:00** — split into eight modules once the file hit 1,710 lines and the pure half had been hand-copied five times. |
 | 2026-08-26 | Shared mutable state lives on one exported `store` object, not exported `let` bindings | An ES module import is a read-only live binding, so the editor cannot assign to an imported `let`. The values genuinely get replaced, so they have to be fields on something; one object beat four setter functions. |
 | 2026-08-26 | `tick` lives in `views.js` rather than the entry point | The editor requests a repaint after every edit. With `tick` in `app.js` that is a cycle — legal in ES modules, and a reliable source of temporal-dead-zone bugs at module init. |
@@ -394,7 +423,7 @@ lie the label is free to avoid.
 two cases, or the app is given a way to tell a short gap from a long one. The
 former is likely right. Not blocking.
 
-### The calendar is read a phase early — 2026-08-27
+### The calendar is read a phase early — RESOLVED 2026-09-01, the UI caught up
 
 `Docs/roadmap.md` puts the weekday map and date overrides in Phase 4 and says
 Phase 2's schedule is hard-coded. Phase 2 ships `_lib/today.ts`, which resolves
@@ -410,6 +439,14 @@ UI can change either it or the calendar, which is the part Phase 4 owns.
 
 **Owed to reconcile:** Phase 4's entry in the roadmap should say "the editing UI
 for the calendar", not "the calendar". Done in the same change.
+
+**Resolved 2026-09-01.** Phase 4 built that UI, so the deviation is closed from
+both ends: the roadmap said "the editing UI" and the editing UI now exists. The
+reading half turned out to have been the right call in the other direction too —
+`resolveScheduleId` and `parseCalendar` had been exercised by the empty states
+for a week before the panel that writes to them was built, so the calendar panel
+landed on a resolver that was already proven rather than on one being written
+under it.
 
 ### The editor's reorder is not a list reorder — 2026-08-27
 
@@ -440,22 +477,33 @@ Lunch before Period 3" is a statement about the timetable, not about a list.
 | 2026-08-27 | Theme persistence is gone, and its replacement needs a CSP hash | The retired `index.html` set `data-theme` from `localStorage` in a render-blocking inline script, to avoid a flash of the wrong theme. `globals.css` still honours `[data-theme]`, but nothing sets it. Phase 6 owes both the toggle and a way to apply it before first paint that does not need an unhashed inline `<script>`. |
 | 2026-08-27 | The Day view has no phase | The retired plain build shipped one (day progress bar, eleven period rows, a Now/Day switcher) and `Docs/roadmap.md` never scheduled it back. Its parked reflow assertions and the `#day-remaining` id therefore point at nothing with a date on it. Either schedule it or delete the parked block; leaving it is how a test file starts lying. |
 | 2026-08-27 | The Phase 2 gate is unverified in Safari | The roadmap's gate names Safari specifically, because its throttling thresholds are the thinnest evidence in the research. What has been verified is Chrome, with a scripted clock: `visibilitychange` and `focus` both recompute correctly across a ten-minute sleep and across two period boundaries. A real Safari tab, backgrounded for real minutes, is still owed — and WebKit is still not in the Playwright projects. |
-| 2026-08-27 | Two empty states have no call to action | The design system asks the "no schedule today" screen for a link to pick a schedule and the "no schedule at all" screen for the onboarding path into the editor. Both render honest copy and no link, because there is nowhere to link to until Phase 3. |
-| 2026-08-27 | The `no-schedules` empty state is unreachable | It renders only when the parsed library is empty, and the library is `DEFAULT_SCHEDULES` frozen at module load — which `parse.test.ts` proves always parses. So the screen exists, is typed, and is covered by unit tests, but no E2E can reach it until Phase 3 wires localStorage and a corrupt value can produce it. |
 | 2026-08-27 | The design system's period-change crossfade is not implemented | `Docs/design/design-system.md` section 4 asks for a single 150ms crossfade of the period name at a boundary. The name swaps instantly. The global `prefers-reduced-motion` block already covers the reduced path, so adding it is additive; not doing it is the honest state today. |
-| 2026-08-27 | The E2E suite is 83 live and 22 parked | Up from 49/33. What is still parked needs the calendar panel (Phase 4), preferences (Phase 6), Big mode (Phase 6) or the schedule-delete dialog (Phase 4). |
+| 2026-09-01 | The E2E suite is 111 live and 10 parked | Up from 83/22. What is still parked needs preferences or Big mode (Phase 6), or the Day view, which no phase has scheduled back at all. |
 | 2026-08-27 | The editor is a long tab chain | Twelve rows of six controls is seventy-two stops between the schedule name and the bottom of the form, and the keyboard test needs a 120-press budget to cross it. Nothing is unreachable and nothing is trapped, so this is not a failure — but a skip link, or grouping each row so a screen reader can jump by row, would make it usable rather than merely operable. |
-| 2026-08-27 | There is no undo | Deleting a period is immediate and unconfirmed, and the only way back is to retype it. Deliberate for a four-field row whose result is visible behind the editor, and the reason Phase 3 ships no confirm dialog. It stops being defensible once Phase 4 can delete a whole schedule. |
+| 2026-08-27 | There is no undo | Deleting a *period* is still immediate and unconfirmed, and the only way back is to retype it. Deliberate for a four-field row whose result is visible behind the editor. Deleting a whole *schedule* now goes through a modal confirmation, which is the half of this gap Phase 4 closed; a real undo is still owed and would remove the need for the dialog. |
 | 2026-08-27 | The schedule name field has no visible label | It carries a `.visually-hidden` "Schedule name", so assistive tech is fine, but sighted users see a large text box containing "Regular" and have to infer what it is. The retired build had the same shape. A visible label or a placeholder is owed. |
 | 2026-08-27 | Cross-tab sync is untested | `useSyncExternalStore` plus the `storage` event means editing in one tab updates a countdown left open in another. That fell out of using the right API rather than being built, and no test opens two tabs — so it is claimed, not demonstrated. Playwright can do it with two pages on one context. |
-| 2026-08-27 | The onboarding empty state is still a dead end | With no schedules the countdown says "No schedule yet" and the editor says "There is no schedule to edit". Creating one from nothing is Phase 4's "new schedule" control. Reachable today only by hand-editing `localStorage`, which is why it has an E2E test and no route. |
 | 2026-08-27 | No automated accessibility scan | `Docs/research/accessibility-responsive-qa.md` recommends `@axe-core/playwright` on every journey, with zero critical/serious violations to release, and the editor is exactly the surface that pays for it. Not added: it is a new dependency and outside the roadmap's Phase 3 list. The blocking checks today are `eslint-plugin-jsx-a11y` at `recommended`, the reflow gate, the live-region enumeration and a keyboard-only E2E pass — which the same research is explicit is not the same thing. |
+| 2026-09-01 | Dated exceptions have no calendar view, and no weekday name | The list shows ISO dates in date order, which is honest and unambiguous but does not tell you that 2026-09-14 is a Monday — the thing a school year is actually planned around. A month grid, or even a computed weekday label, is owed. Computing one means day-of-week arithmetic on a date string, since constructing a `Date` from "2026-09-14" parses it as UTC midnight. |
+| 2026-09-01 | Nothing warns before an exception in the past | `SCHEDULE_LIMITS.overrides` is 400 and nothing prunes. A user who has run BellTab for two years accumulates a list of dates that can never resolve again, and the only way to clear them is one Remove button at a time. |
+| 2026-09-01 | The schedule picker has no keyboard-efficient path | The chips are ordinary buttons in a `role="group"`, so reaching the fifth schedule is five tabs, and they sit above an editor that is already seventy-two stops deep. Arrow-key roving focus over the chips would fix it, and is what an ARIA tablist would have brought if the rest of that contract were worth taking on. |
+| 2026-09-01 | Deleting the schedule that is running is not called out | The confirmation says any day pointing at the schedule falls back to no school, but it does not say that *today* is one of those days, which is the case where the countdown blanks the moment the dialog closes. The information is on the calendar panel, one tab away. |
+| 2026-09-01 | The weekday map is not reachable from the countdown's "no school today" screen in one step | The empty state links to the calendar panel, which is right for the common case — a one-off. Somebody whose *Saturday* genuinely runs school has to notice that the Today control writes an override and that the weekday defaults are the section below. |
 | 2026-08-27 | Three pieces of cited evidence live in the Puzzle Lab repo, not this one | `multi-zone-migration-safety-review.md` marks its rate-limit finding **VERIFIED** against method and numbers in `src/lib/rate-limit.md`; `multi-zone-cost-and-alternatives.md` reverses its own earlier position on the authority of `puzzle-lab-hub-merge-research.md` and `vercel-cron-deployment-protection-outage.md`. All three files are real and all three are one repo away. The broken links are fixed — they now name the repo — but the claims remain unauditable from inside BellTab. Copying the three in would fix it and would also import three more documents about someone else's stack; not done, and the tradeoff is the reason. |
 
 ## Closed
 
 | Opened | Closed | Item |
 | --- | --- | --- |
+| 2026-09-01 | 2026-09-01 | `setOverride` discarded the entry being added once the calendar hit the 400-override cap, and the form's gate refused replacements that could not grow the list. Review finding 1. |
+| 2026-09-01 | 2026-09-01 | The dated-exception date reached `setOverride` unparsed, so a five-digit year emptied the form and changed nothing. Parsed at the control and at the mutator, with the message bound to the field. Review finding 2. |
+| 2026-09-01 | 2026-09-01 | The inactive settings tab's `aria-controls` named an id that was not in the DOM. Review finding 3. |
+| 2026-08-27 | 2026-09-01 | The `aria-invalid` border had never painted, in the editor or anywhere - a specificity loss to the control skin's `border` shorthand, shipped in Phase 3 and unnoticed because every test asserted the attribute. Found while fixing review finding 2. |
+| 2026-09-01 | 2026-09-01 | Only `.editrow__movebutton` had a `:disabled` style, so Add exception - disabled whenever the date field is empty, which is its first render - looked clickable. |
+| 2026-08-27 | 2026-09-01 | Two empty states have no call to action — "No school today" now offers *Pick a schedule for today*, which opens the calendar panel, and "No schedule yet" offers *Set up a schedule*, which opens the schedules panel. Both link into the editor rather than creating something unasked. |
+| 2026-08-27 | 2026-09-01 | The `no-schedules` empty state is unreachable — deleting the last schedule reaches it through the UI, and `e2e/calendar.spec.ts` empties the library four chips at a time to prove it. |
+| 2026-08-27 | 2026-09-01 | The onboarding empty state is a dead end — *Set up a schedule* → *New schedule* → name it, add a period, point today at it. Covered end to end. |
+| 2026-08-27 | 2026-09-01 | The calendar is read a phase early — it is now written too. The deviation is reconciled: Phase 2 read the weekday map because the "no schedule today" screen could not exist without it, and Phase 4 has built the UI that edits it. |
 | 2026-08-26 | 2026-08-27 | Overlap errors are attributed by sort order — decided rather than changed. `Array.prototype.sort` is stable, so an exact tie flags the row that appears later in the editor, which is the one just added or just typed. See the Decisions table. |
 | 2026-08-26 | 2026-08-27 | `#schedule-name` was not hardened against intrinsic-width blowout — and it really did overflow, at 320, 375 and 768px, the first time the reflow gate was pointed at it. `overflow-wrap: anywhere` plus `min-width: 0` on it and on `.screen__meta`. See Bugs found. |
 | 2026-08-27 | 2026-08-27 | The E2E suite is 49 live and 33 parked — now 83 and 22. The editor, the keystroke announcer test and the hostile-name reflow test are all live. |
@@ -1170,6 +1218,166 @@ does, a moment later. Two consecutive clean full runs afterwards.
 **The lesson.** A shared setup helper's assertions are attributed to whichever
 test happened to be running, so they need the clearest messages in the suite,
 not the tersest.
+
+### 2026-09-01 — a cap that discarded the wrong end, and a date the type system waved through
+
+Three findings from the Phase 4 review (`Docs/code-review-2026-09-01.md`), two of
+which were the same species: a user action that appeared to succeed and did
+nothing.
+
+**`setOverride` at the 400-override cap threw away the entry being added.**
+`parseCalendar` enforces the cap with `slice(0, 400)` — it keeps the FIRST 400 —
+and `setOverride` appends the new entry LAST. So at the cap the array handed to
+the parser was 401 long, the slice kept the 400 already there, and the one the
+user asked for was the one dropped. The function returned a library that looked
+updated and was not.
+
+The interesting part is that the UI gate was wrong in the *opposite* direction.
+`atOverrideLimit` was `overrides.length >= 400` regardless of the date typed, so
+at the cap the form refused to let you CORRECT an exception you already had —
+which cannot grow the list — while the ungated "use this schedule today" select
+happily added a new one that was then silently discarded. Both halves backwards,
+from the same off-by-one-concept: the question is not "is the calendar full", it
+is "would this grow the calendar". The guard is now on the filtered list, which
+answers the second question by construction.
+
+**The date input's value reached `setOverride` unparsed.** `IsoDate` is a bare
+`string` alias — deliberately, and its comment says so — so nothing in the
+signature objected. Chrome's `<input type="date">` accepts years past four
+digits, so a typo of `20260` for `2026` produces `"20260-09-14"`: a value the
+CONTROL considers valid and `parseIsoDate` rejects. `parseCalendar` dropped it
+and `setNewDate("")` cleared the field, so the click emptied the form and changed
+nothing, with no error bound to anything.
+
+**The lesson is where "parse, don't validate" was only half applied.** The
+boundary held — nothing invalid was ever stored, which is the parser doing its
+job. What was missing is the other half the editor already does properly: the
+structured error being shown to the person who caused it. A boundary that
+silently discards is indistinguishable, from the user's side, from one that
+accepted their input and lost it.
+
+Fixed in both places on purpose. The mutator parses and refuses, so the data
+behaviour is unit-testable without a DOM; the panel parses too, because a mutator
+that refuses is still a control that did nothing.
+
+**And one that was only cosmetic, but real.** The settings tabs carried
+`aria-controls={`panel-${id}`}`, and only one panel renders at a time — so the
+inactive tab's IDREF pointed at nothing. `jsx-a11y` cannot catch that: its
+`aria-proptypes` rule checks the attribute's type, not whether an id exists at
+runtime. Removed rather than made conditional; these are pressed-state buttons
+whose panel is the next element in DOM order, and a button announcing that it
+controls the thing currently showing is close to tautology.
+
+**And a fourth, found while fixing the second, that was older than this phase.**
+Widening `globals.css`'s invalid-field rule to reach the calendar panel turned up
+that the rule had never painted anything anywhere. `.editor
+[aria-invalid="true"]` is specificity (0,2,0); `.editor input[type="text"]` is
+(0,2,1) and sets the `border` SHORTHAND, which resets border-color with it. The
+shorthand won for the whole of Phase 3 and Phase 4.
+
+Measured in Chrome before the fix: an editor field with `aria-invalid="true"`
+computed `rgb(107, 85, 68)` - the passive border - identically to a valid one.
+`--danger` is `#d8453f`. Nothing was ever red.
+
+**Every test asserted the attribute, which was always correct.**
+`toHaveAttribute("aria-invalid", "true")` passed throughout, because the
+attribute was never the broken half. That is the lesson worth keeping: a test
+that checks the attribute a style keys off is not a test of the style. Where the
+visual state IS the point, measure the pixel - both suites now read the computed
+`border-top-color` and compare it against the `--danger` token.
+
+It was survivable only because of the rule that caused the review's finding 2 in
+the first place: `AGENTS.md` bans a red border as the ONLY signal, so the message
+and its `aria-describedby` binding were there and doing the work. The colour was
+the redundant half.
+
+A related miss in the same area: nothing but `.editrow__movebutton` had a
+`:disabled` style. That went unnoticed while the only other disabled control was
+Add period at a sixty-period cap, a state nobody reaches - and Phase 4 made it
+obvious, because Add exception is disabled whenever the date field is empty,
+which is how the form first renders. A disabled button that looks enabled is a
+button people click at.
+
+### 2026-09-01 — a crashed browser that looked like an app that would not boot
+
+Three tests into the Phase 4 E2E work the full suite started failing
+intermittently — one test per run, never the same one, always at 768px, always
+either `the app never finished its first client render` or, once,
+`browserContext.newPage: Target crashed`.
+
+The first message is a lie the harness tells honestly. `openApp` waits for
+`time#wall-clock` to carry its `datetime` attribute, which is the signal that
+the client has mounted, and its failure message says the app did not boot. What
+had actually happened is that Chrome died: Phase 4 took the suite from 83 tests
+to 108, and eight Chrome instances plus a `next start` exhaust this machine. A
+dead renderer and an app that will not hydrate look identical from outside.
+
+**The fix that made it worse is the interesting part.** The obvious read was
+contention, so the boot budget went from 15s to 30s — and the failure rate
+DOUBLED, from one test to two. That is the tell that it was never a timeout: a
+starved worker given longer holds its slot longer, so the extra time went into
+starving the next worker rather than into finishing.
+
+Capping local workers at four fixed it — three consecutive clean runs — and cost
+nothing measurable, 26.3s against 27.4s, because the run had not been CPU-bound
+at eight. It had been thrashing. CI keeps Playwright's default, since its runners
+have fewer cores and pinning a number here would RAISE it on a two-core box.
+
+The lesson is a general one about flaky suites: when a timeout increase makes
+failures more frequent rather than less, the resource is the problem and the
+clock is not.
+
+### 2026-09-01 — a nav beside the editor, and 128px the editor did not have
+
+Phase 4 put a settings nav in a `grid-template-columns: minmax(9rem, 13rem) 1fr`
+beside the panel. The reflow gate failed at 768px on **the Phase 3 editor test**,
+which had passed for a week and which Phase 4 did not touch.
+
+The editor stacks its six columns at `max-width: 45rem` — a media query on the
+VIEWPORT. The settings layout went two-column at `max-width: 40rem`, i.e. from
+640px up. So between 640 and 720 the editor believed it had the viewport and had
+the viewport minus a 13rem nav minus a gap, and its six-column row overflowed by
+11px.
+
+**The lesson is about the units, not the numbers.** A media query asks about the
+viewport; a component wants to know about its own box. Any container-relative
+decision expressed as a viewport media query is one layout change away from being
+wrong, and nothing about the editor's CSS was wrong when it was written.
+
+Fixed by moving the settings breakpoint to 60rem, which is derived rather than
+picked: 45rem for the editor plus 13rem for the nav plus the gap is about 59rem,
+and the card caps at 60rem, so above the breakpoint the panel is always at least
+the 45rem the editor asks for. A container query would be the better answer and
+is not needed for two panels.
+
+### 2026-09-01 — the reflow gate had been passing on text alone
+
+With a 60-character schedule name in the library, the calendar panel scrolled the
+page sideways at 320 and 375px. The reported culprits were all in the HEADER —
+elements that had been fixed months earlier and had `overflow-wrap: anywhere` on
+them. They were innocent: `overflowingElements` reports the first five
+overflowing boxes in document order, and the header comes first in the DOM.
+
+Two separate causes, and both are worth writing down.
+
+**The `<select>` is sized by its widest OPTION**, and every option in the calendar
+panel is a schedule name somebody typed. `min-width: 0` was not enough and reads
+like it should be: it removes the automatic minimum so a box *may* shrink, but it
+does not reduce what the box ASKS FOR. `width: 100%` is what fixes it — a
+percentage width is ignored while an ancestor is being intrinsically sized and
+honoured during layout, so the control ends up the width of the box it was given
+and truncates its own option text, which is what a select is for.
+
+**`body` was a grid with an implicit `auto` column**, which sizes to its content's
+max-content. So `.screen`'s `max-width: 60rem` never got a say: the track it sat
+in was already 715px wide inside a 320px viewport. `grid-template-columns:
+minmax(0, 1fr)` pins the track to the space that actually exists.
+
+That second one is the structural fix this gate had been missing since the first
+reflow bug in August. The existing `overflow-wrap: anywhere` rules stop
+min-content from being large; nothing stopped max-content from propagating, and
+every previous failure had happened to be a min-content failure. Both halves are
+now in `globals.css` with comments saying which is which.
 
 ## Session log
 
@@ -2847,3 +3055,120 @@ enumeration of non-`http` links across all research documents is now empty where
 it previously returned exactly four. `markdownlint` passes. No code changed;
 `lint`, `typecheck`, `vitest` (213/213) and `playwright` (83 passed, 22 parked)
 were run anyway and pass.
+
+### 2026-09-01 11:35 — Phase 4: day types, the calendar, and multiple schedules
+
+`feat/phase-4-day-types`. Phase 2 already READ the weekday map and the date
+overrides, because the "no schedule today" empty state cannot exist without them,
+and Phase 3 persisted them. This is the UI that edits them, and the second
+schedule for them to point at.
+
+**Identity, at the boundary.** The calendar points at schedules by id, and until
+now `Schedule.id` was nullable everywhere — so a schedule that arrived without
+one was a schedule no day could ever run, and "duplicate" had no way to say which
+of two identical objects the calendar meant. `parseScheduleCollection` now
+assigns ids: a two-pass walk that lets the FIRST claimant of an id keep it and
+mints `s1`, `s2`, … around the rest, returning `IdentifiedSchedule[]`.
+
+The narrowing is a type predicate (`isIdentified`) rather than a second cast.
+`parseSchedule`'s double assertion is still the only one in `src/`.
+
+Duplicate exploits the two-pass rule rather than working around it: it hands the
+boundary a copy carrying the source's own id, and because the original comes
+first in the list, the original keeps it and the copy is minted a new one. One
+place decides what an id is.
+
+**Six pure mutators**, in `_lib/library.ts`, all functions from a library to a
+library: `createSchedule`, `duplicateSchedule`, `deleteSchedule`, `setWeekday`,
+`setOverride`, `removeOverride`. Every structural change goes through a private
+`rebuild` that re-parses the whole collection and re-points the calendar at the
+ids that survive, so ids are minted, the schedule cap is enforced, and a weekday
+aiming at a deleted schedule degrades to "no school" — one code path, three
+guarantees, none of them the caller's job to remember.
+
+Delete is the one that needed a product decision rather than a rebuild.
+`parseCalendar` turns a dangling override id into `scheduleId: null`, which is an
+explicit closure, so deleting "Assembly" would have quietly rewritten "assembly
+on the 14th" into "the school is shut on the 14th". Those overrides are dropped
+first. Weekdays are left to degrade, because there null already means no school.
+
+**Three components.** `SchedulesPanel` — the chip picker, New / Duplicate /
+Delete, and the Phase 3 editor underneath. `CalendarPanel` — what today resolves
+to, a "use this schedule today" control, the seven weekday defaults, and the
+dated exceptions, in the order the resolver reads them. `ConfirmDialog` — a
+native modal, feature-detected, with `window.confirm` behind it.
+
+`SettingsView` finally grew the tab strip `globals.css` has been carrying since
+the retired build. Pressed-state buttons rather than an ARIA tablist: two
+destinations that each replace the panel below owe none of the tablist contract,
+and claiming the role without the behaviour is worse than not claiming it.
+
+**The Escape guard Phase 3 left a comment about is now code.** `App.tsx` bails
+while `dialog[open]` matches, because a modal's Escape keydown bubbles to the
+document and the dialog's own close is only the default action of that same
+event — so the document listener runs first and would close settings out from
+under an open confirmation. That is a regression this repo has shipped once;
+`e2e/confirm-dialog.spec.ts` is its contract and is live again, all six tests.
+
+**Two empty states stopped being dead ends.** "No school today" offers *Pick a
+schedule for today*; "No schedule yet" offers *Set up a schedule*. Both link into
+the editor rather than creating something the user did not ask for.
+
+**Tests: 244 unit (up from 213) and 108 live E2E (up from 83).** The new unit
+work is the identity guarantee in `parse.test.ts` and the six mutators in
+`library.test.ts` — including the one that proves deleting a schedule drops the
+overrides pointing at it rather than inventing a snow day. `e2e/calendar.spec.ts`
+is the phase gate: a late-start Wednesday, a one-off assembly that beats the
+weekday under it, a dated closure that beats a school day, the weekend, deleting
+the schedule a day points at, duplicate-and-tweak, and building a schedule from
+an empty library. Every one runs on a paused clock and none waits for a tick —
+the countdown recomputes when the library changes, and a test that had to wait a
+second would be documenting a bug.
+
+The suite's growth also broke it, in a way that had nothing to do with Phase 4:
+at eight workers a 108-test run crashes the browser on this machine, and raising
+the boot timeout made it worse rather than better. Local workers are capped at
+four, with the measurement recorded in `playwright.config.ts`. See **Bugs
+found**.
+
+Three parked suites came back: the delete confirmation in full, the announcer's
+"says nothing when the calendar is repointed", and the confirm dialog's reflow
+block. The reflow suite gained a calendar test with a hostile name in the
+library, which found two real overflow bugs — see **Bugs found**, including the
+one that shows this gate had been measuring min-content and never max-content.
+
+`npm run lint`, `npm run typecheck`, `npx vitest run` (244/244), `npx playwright
+test` (108 passed, 10 parked) and `npx markdownlint-cli` all pass.
+
+### 2026-09-01 12:20 — code review of the Phase 4 tree, and the three fixes
+
+`Docs/code-review-2026-09-01.md`, effort `high`, on the uncommitted Phase 4 work.
+Three findings, all three fixed in the same session.
+
+The phase's load-bearing parts cleared: `withUniqueIds`' two-pass claim-then-mint,
+the calendar re-pointing on delete, the Escape guard, index clamping and the
+editor's draft round trip were all checked and are recorded in the review's
+**Checked and cleared** section so the ground is not re-covered.
+
+All three findings were in one place — the dated-exception form, the single
+surface in this phase where an untrusted string and a boundary cap meet a control
+that reported neither. Two of them made a user action silently do nothing. See
+**Bugs found** for what they were and why the cap gate managed to be wrong in
+both directions at once.
+
+Fixing the second turned up a fourth defect that predates the phase: the
+`aria-invalid` border style had never painted, in the editor or anywhere, having
+lost on specificity to the control skin's `border` shorthand since Phase 3. Every
+test asserted the attribute, which was always right. Both suites now measure the
+computed colour. See **Bugs found**.
+
+Both reproductions were written as assertions before anything was fixed, so the
+regression tests are the same code that demonstrated the bugs. Unit tests went 36
+to 44 in `library.test.ts` — including a calendar built up to the cap through
+`setOverride` itself, so the fixture is reachable by the route a user would take.
+E2E went 8 to 11 in `calendar.spec.ts`: Chrome really will hold `20260-09-14` in
+a date input, which is what makes the typo case testable in a browser rather than
+only argued about.
+
+`npm run lint`, `npm run typecheck`, `npx vitest run` (252/252), `npx playwright
+test` (111 passed, 10 parked) and `npx markdownlint-cli` all pass.

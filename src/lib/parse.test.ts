@@ -232,6 +232,64 @@ describe("parseScheduleCollection", () => {
     const result = parseScheduleCollection([valid("good"), null, valid("also good")]);
     expect(result.ok).toBe(false);
   });
+
+  /**
+   * The identity guarantee, which is what makes the calendar possible.
+   *
+   * The calendar points at schedules BY id, so a library schedule without one
+   * is a schedule no weekday and no override could ever select. A single
+   * schedule may legitimately have no id - one typed into the editor, one
+   * decoded from a share link - so this is a COLLECTION guarantee, minted here
+   * rather than demanded of whoever wrote the JSON.
+   */
+  describe("identity", () => {
+    const idsOf = (input: unknown[]) => {
+      const result = parseScheduleCollection(input);
+      if (!result.ok) throw new Error("expected the collection to parse");
+      return result.value.map((schedule) => schedule.id);
+    };
+
+    it("gives an id to a schedule that arrived without one", () => {
+      expect(idsOf([valid("A")])).toEqual(["s1"]);
+    });
+
+    it("keeps the ids that arrived and mints only around them", () => {
+      expect(idsOf([{ ...valid("A"), id: "s1" }, valid("B")])).toEqual(["s1", "s2"]);
+    });
+
+    it("keeps the seed set's own ids rather than renumbering them", () => {
+      expect(idsOf([...DEFAULT_SCHEDULES])).toEqual(["regular", "delayed", "half", "assembly"]);
+    });
+
+    // The duplicate path is not hypothetical: it is exactly what "duplicate this
+    // schedule" hands the boundary, and the FIRST claimant keeping the id is
+    // what stops the copy from stealing every day pointing at the original.
+    it("renumbers a duplicated id, leaving the first claimant holding it", () => {
+      const ids = idsOf([
+        { ...valid("original"), id: "regular" },
+        { ...valid("copy"), id: "regular" },
+      ]);
+
+      expect(ids[0]).toBe("regular");
+      expect(ids[1]).not.toBe("regular");
+      expect(new Set(ids).size).toBe(2);
+    });
+
+    it.each([
+      ["an empty string", ""],
+      ["a number", 7],
+      ["null", null],
+    ])("mints over %s, which is not an id", (_label, id) => {
+      expect(idsOf([{ ...valid("A"), id }])).toEqual(["s1"]);
+    });
+
+    // The narrowing to IdentifiedSchedule is a filter, and a filter that ever
+    // dropped anything would shorten a library in silence.
+    it("narrows to identified schedules without losing one", () => {
+      const input = Array.from({ length: 12 }, (_, n) => valid(`S${n}`));
+      expect(idsOf(input)).toHaveLength(12);
+    });
+  });
 });
 
 describe("parseIsoDate", () => {

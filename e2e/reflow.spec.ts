@@ -23,9 +23,11 @@ import {
  *
  * Phase 2 gave it something to measure again: the countdown number is
  * `clamp(4rem, 18vw, 11rem)`, which is the single widest thing this app draws
- * and the reason the clamp has an upper bound at all. Big mode, the settings
- * panels and the confirm dialog still have no markup; those blocks are parked
- * at the bottom rather than deleted, and each names the phase that revives it.
+ * and the reason the clamp has an upper bound at all. Phase 4 added the two
+ * surfaces most likely to break it - a panel built out of `<select>`s whose
+ * options are user-typed names, and a modal whose fixed positioning escapes the
+ * body's width. Big mode and preferences still have no markup; those blocks are
+ * parked at the bottom rather than deleted, and each names its phase.
  */
 
 const WIDTHS = [320, 375, 768, 1024, 1440];
@@ -170,16 +172,71 @@ for (const width of WIDTHS) {
         );
       });
     }
+
+    /**
+     * The calendar panel, live since Phase 4, and run with a hostile name in
+     * the library rather than the seeded ones.
+     *
+     * The panel is mostly `<select>`s, and a select is sized by its WIDEST
+     * OPTION - every one of which here is a schedule name the user typed. That
+     * is a second route to the overflow the period-name rule in globals.css
+     * documents, arriving through a control rather than through text, and the
+     * seeded names are all short enough to hide it.
+     */
+    test("the calendar panel reflows with a 60-character schedule name in it", async ({ page }) => {
+      const hostile = "C".repeat(60);
+
+      await openApp(page, MID_PERIOD);
+      await openSettings(page, "schedules");
+
+      await page.locator("#schedule-name-input").fill(hostile);
+      await expect(page.locator("#schedule-list .schedchip").first()).toHaveText(hostile);
+      await expectNoHorizontalScroll(page, `${width}px settings/schedules, hostile name`);
+
+      await page.locator("#tab-calendar").click();
+      await expect(page.locator("#panel-calendar")).toBeVisible();
+      await expectNoHorizontalScroll(page, `${width}px settings/calendar, hostile name`);
+
+      // And again with a dated exception listed, which renders the name a
+      // third way - as text in a flex row rather than inside a control.
+      await page.locator("#override-date").fill("2026-09-14");
+      await page.locator("#override-schedule").selectOption({ label: hostile });
+      await page.locator("#override-add").click();
+      await expect(page.locator("#overrides li")).toHaveCount(1);
+
+      await expectNoHorizontalScroll(page, `${width}px settings/calendar, exception listed`);
+    });
+
+    /**
+     * The modal is the newest thing on the page and the one most likely to
+     * break this: a fixed-position element is not constrained by the body's
+     * width, so an over-wide dialog scrolls the document behind it.
+     *
+     * Live since Phase 4, which is where deleting a schedule came back.
+     */
+    test("the confirm dialog reflows over the page", async ({ page }) => {
+      await openApp(page, MID_PERIOD);
+      await openSettings(page, "schedules");
+
+      await page.locator("#schedule-delete").click();
+      await expect(page.locator("#confirm-dialog")).toBeVisible();
+
+      await expectNoHorizontalScroll(page, `${width}px confirm dialog`);
+
+      const box = await page.locator("#confirm-dialog").boundingBox();
+      expect(box?.width).toBeLessThanOrEqual(width);
+    });
   });
 }
 
 /**
- * PARKED until Phases 4 and 6.
+ * PARKED until Phase 6.
  *
- * What is left here needs the calendar panel, the preferences panel, Big mode,
- * or the schedule-delete dialog. The assertions are unchanged and the ids are
- * the contract the rebuilt UI has to meet; each block is revived by deleting
- * its `.fixme` once the markup it names exists.
+ * The calendar panel and the confirm dialog came back with Phase 4 and are live
+ * above. What is left needs the preferences panel or Big mode - and the Day
+ * view, which no phase has scheduled back at all. The assertions are unchanged
+ * and the ids are the contract the rebuilt UI has to meet; each block is
+ * revived by deleting its `.fixme` once the markup it names exists.
  */
 for (const width of WIDTHS) {
   test.describe(`at ${width} CSS px (parked)`, () => {
@@ -209,36 +266,11 @@ for (const width of WIDTHS) {
       await page.locator("#big-exit").click();
     });
 
-    // Revived by Phase 4 (the calendar panel) and Phase 6 (preferences).
-    test.fixme("the remaining settings panels reflow", async ({ page }) => {
+    // Revived by Phase 6 (preferences).
+    test.fixme("the preferences panel reflows", async ({ page }) => {
       await openApp(page, MID_PERIOD);
-
-      for (const panel of ["calendar", "preferences"]) {
-        await openSettings(page, panel);
-        await expectNoHorizontalScroll(page, `${width}px settings/${panel}`);
-        await page.locator("#settings-toggle").click();
-      }
+      await openSettings(page, "preferences");
+      await expectNoHorizontalScroll(page, `${width}px settings/preferences`);
     });
-
-    /**
-     * The modal is the newest thing on the page and the one most likely to
-     * break this: a fixed-position element is not constrained by the body's
-     * width, so an over-wide dialog scrolls the document behind it.
-     *
-     * Revived by Phase 3, which is where deleting a schedule comes back.
-     */
-    test.fixme("the confirm dialog reflows over the page", async ({ page }) => {
-      await openApp(page, MID_PERIOD);
-      await openSettings(page, "schedules");
-
-      await page.locator("#schedule-delete").click();
-      await expect(page.locator("#confirm-dialog")).toBeVisible();
-
-      await expectNoHorizontalScroll(page, `${width}px confirm dialog`);
-
-      const box = await page.locator("#confirm-dialog").boundingBox();
-      expect(box?.width).toBeLessThanOrEqual(width);
-    });
-
   });
 }
