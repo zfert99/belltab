@@ -181,8 +181,15 @@ export function CalendarPanel({ library, save, now, headingRef }: CalendarPanelP
         <div className="addoverride">
           <label className="addoverride__field">
             <span className="visually-hidden">Date of the exception</span>
+            {/*
+              Same reason as the editor's time field: WebKit reports
+              `input.type === "text"` here and hands back a plain text box, so
+              the format has to be stated somewhere. Chrome and Firefox render
+              a date control and ignore this.
+            */}
             <input
               type="date"
+              placeholder="YYYY-MM-DD"
               id="override-date"
               value={newDate}
               aria-invalid={dateIsUnusable || undefined}
@@ -232,7 +239,7 @@ export function CalendarPanel({ library, save, now, headingRef }: CalendarPanelP
         */}
         {dateIsUnusable && (
           <p className="editrow__error" id="override-date-error">
-            That is not a date BellTab can store. Check the year: it has to be four digits.
+            That is not a date BellTab can store. Use YYYY-MM-DD, with a four-digit year.
           </p>
         )}
         {cannotAdd && (

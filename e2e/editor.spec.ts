@@ -280,6 +280,50 @@ test.describe("persistence", () => {
     await expect(page.locator("#period-name")).toHaveText("Chemistry");
   });
 
+  /**
+   * Cross-tab sync, which has been CLAIMED since Phase 3 and never demonstrated.
+   *
+   * It was never built as a feature. `libraryStore.ts` uses
+   * `useSyncExternalStore` because that is the right API for a genuinely
+   * external, genuinely shared thing, and the `storage` event - which fires in
+   * every OTHER page on the origin, never the one that wrote - came with it.
+   * The build log recorded it as falling out of using the right API, and then
+   * nothing tested it, which makes it a claim rather than a behaviour.
+   *
+   * The scenario is the real one: a schedule left up on a projector while
+   * somebody fixes the timetable on a laptop. Two pages in ONE context, because
+   * that is what shares an origin's localStorage; two contexts would be two
+   * browsers and would prove nothing.
+   *
+   * Note there is no reload anywhere below, and no tick. Both clocks are paused
+   * at the same instant throughout, so the only thing that can move the
+   * projector's screen is the event.
+   */
+  test("an edit in one tab reaches a countdown left open in another", async ({ page, context }) => {
+    const projector = await context.newPage();
+
+    await openApp(page, MID_PERIOD);
+    await openApp(projector, MID_PERIOD);
+
+    await expect(projector.locator("#period-name")).toHaveText("Period 2");
+    await expect(projector.locator("#schedule-name")).toHaveText("Regular");
+
+    await openSettings(page);
+    await field(rows(page).nth(2), "name").fill("Chemistry");
+
+    // The projector was never touched, never reloaded, and its clock never
+    // moved. If this passes, the storage event is what carried the edit.
+    await expect(projector.locator("#period-name")).toHaveText("Chemistry");
+
+    await page.locator("#schedule-name-input").fill("Wednesday");
+    await expect(projector.locator("#schedule-name")).toHaveText("Wednesday");
+
+    // And the tab title, which is the whole point of the app, follows too.
+    await expect(projector).toHaveTitle(/Chemistry/);
+
+    await projector.close();
+  });
+
   test("a corrupt stored value degrades to the seeded schedule", async ({ page }) => {
     // AGENTS.md: localStorage holds convenience, not truth. A tab that will not
     // open because of a bad byte is worse than one that opens on the defaults.
@@ -347,8 +391,25 @@ test.describe("the keyboard alone", () => {
 
     // A native time input takes typed digits, segment by segment. That is most
     // of the argument for using one: none of this behaviour is ours.
+    /*
+      The keystrokes depend on what the engine actually rendered.
+
+      `0300PM` is how you type into a SEGMENTED time control - hour, minute,
+      meridiem, each segment advancing on its own. Chrome and Firefox render
+      one. Playwright's WebKit does not implement `type="time"` at all: the
+      element reports `type === "text"`, so those six characters land as the
+      literal string "0300PM", the parser refuses it, and the row goes invalid -
+      correctly, and unhelpfully for a test about the keyboard.
+
+      Asking the element what it is, rather than branching on the project name,
+      keeps this honest on the day WebKit ships the control.
+    */
     await tabTo(page, '#period-editor .editrow:last-child [data-field="start"]');
-    await page.keyboard.type("0300PM");
+
+    const segmented = await field(added, "start").evaluate(
+      (element: HTMLInputElement) => element.type === "time",
+    );
+    await page.keyboard.type(segmented ? "0300PM" : "15:00");
     await expect(field(added, "start")).toHaveValue("15:00");
 
     // And a native number input takes its arrow keys, which is the other half.

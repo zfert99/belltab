@@ -103,8 +103,22 @@ export function PeriodRow({ row, position, total, errors, onChange, onMove, onDe
 
         <label className="editrow__field">
           <span className="editrow__labeltext visually-hidden">Start</span>
+          {/*
+            The placeholder is for the engines that do not implement
+            `type="time"`, and it is not hypothetical: Playwright's WebKit
+            reports `input.type === "text"` for this element, renders a bare
+            text box, and does not sanitise the value the way a real time input
+            must. Measured across all three engines - see Docs/build-log.md.
+
+            Chrome and Firefox render their own segmented control and ignore a
+            placeholder entirely, so this costs them nothing. Where it IS shown,
+            it is the only thing telling a user what shape the field wants; the
+            parser rejects anything else and says so, but "HH:MM" up front beats
+            an error message after the fact.
+          */}
           <input
             type="time"
+            placeholder="HH:MM"
             data-field="start"
             value={row.start}
             aria-invalid={invalid.has("start") || undefined}

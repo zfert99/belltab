@@ -180,6 +180,12 @@ development too, so the bare origin is a 404 exactly as it is in production.
 | 2026-09-01 | Dated exceptions render the ISO date, in mono, rather than a friendly one | It is what the user typed, what storage holds and what the Phase 5 export will write, and it is unambiguous in every locale. Formatting it would need a weekday computed from a date string without constructing a `Date` — which parses "2026-09-14" as UTC midnight and names the previous day west of Greenwich. |
 | 2026-09-01 | `body` gets `grid-template-columns: minmax(0, 1fr)` | The structural half of the reflow gate. An `auto` track sizes to its content's max-content, so anything inside the card that wants to be wide grows the track past the viewport — the card's own `max-width` never gets a say. See Bugs found. |
 | 2026-09-01 | The settings layout goes two-column at 60rem, not 40rem | Measured, not chosen: the editor stacks its six columns at 45rem and the nav takes up to 13rem, so a two-column settings layout narrower than about 59rem hands the editor less room than it thinks it has. |
+| 2026-09-01 | The E2E suite runs three engines, not one | `AGENTS.md` chose Playwright over Cypress for "real WebKit coverage and free parallelization" and then ran one engine for four phases. WebKit found two real defects in its first run. |
+| 2026-09-01 | `<select>` overflow is clipped at the CONTAINER, with padding and a negative margin | WebKit paints an over-long option outside the control and ignores the control's own `overflow`; only an ancestor clips it. Clipping each `<label>` would clip the focus ring the select draws outside itself, and WebKit has no `overflow-clip-margin` to spare it. The padding buys the ring 5px inside the clip box and the negative margin returns them to the layout. |
+| 2026-09-01 | Native date and time inputs carry a `placeholder` | Chrome and Firefox render segmented controls and ignore it; WebKit renders a bare text box where it is the only thing saying what shape the field wants. Progressive enhancement in the honest direction — the parser already refused bad input, this stops the user having to discover the format by failing. |
+| 2026-09-01 | The keyboard test asks the ELEMENT what it is, not the project name | `element.type === "time"` decides which keystrokes to send. Branching on "is this the webkit project" would keep passing on the day WebKit ships the control and quietly stop testing the segmented path. |
+| 2026-09-01 | The axe gate fails on critical and serious, and reports the rest | The bar `Docs/research/accessibility-responsive-qa.md` sets. Failing on `minor` makes a gate people route around; reporting them in the failure message keeps them visible when something else breaks. |
+| 2026-09-01 | The E2E job's NAME is treated as an interface | Branch protection requires "E2E (reflow gate)" by exact string, so renaming the job silently removes the gate rather than failing loudly. It now runs three engines and an axe sweep under a name that undersells it, and the workflow says why. |
 | 2026-09-01 | The invalid-field style lives in its own section at the END of `globals.css`, with the element named in each selector | It has to beat every rule that sets a `border` shorthand on a control, and shorthand rules are (0,2,1). Naming the element matches that; being last wins the tie. The previous (0,2,0) selector had never painted anything. |
 | 2026-09-01 | E2E asserts the COMPUTED colour of an invalid field, not its `aria-invalid` attribute | The attribute was correct for two phases while the style it keys off was dead. A test that checks the attribute a style depends on is not a test of the style. |
 | 2026-09-01 | `setOverride` measures the cap against the list WITHOUT the date being written | The question is not "is the calendar full" but "would this grow the calendar". Replacing an exception cannot, so it stays legal at the cap; only a new date is refused. The old gate got both halves backwards at once — see Bugs found. |
@@ -469,21 +475,20 @@ Lunch before Period 3" is a statement about the timetable, not about a list.
 | Opened | Item | Notes |
 | --- | --- | --- |
 | 2026-08-26 | 12-hour clock has no am/pm | Matches the mockups and is unambiguous for a school day. Revisit if a schedule ever crosses noon ambiguously. |
-| 2026-08-26 | WebKit and Firefox are not covered | The E2E suite runs one project, `chrome`, against the browser already installed on the machine — no engine binaries were downloaded. `AGENTS.md` asks for real WebKit coverage, which is where `<dialog>`, `:modal` and `inert` behaviour is most likely to differ. Add the projects and `npx playwright install webkit firefox` when the download is worth it. |
 | 2026-08-26 | TypeScript is a major version behind on purpose | 6.0.3 rather than 7.0.2, because `typescript-eslint` cannot load under TS 7. This is a real cost — TS 7 is the Go rewrite — and it is deliberate, not neglect. Revisit when typescript-eslint#10940 lands; the upgrade should be a one-line version bump plus a full lint run. |
 | 2026-08-26 | The headers have still never been verified on Vercel | `vercel.json` is gone and the list now lives in `next.config.ts`, verified against a real `next start`. What remains unverified is the deploy itself, and the hub's rewrite in Phase 7 — a second hop that can drop headers. |
 | 2026-08-27 | `next build` now needs the network | `next/font/google` fetches the three families at BUILD time. Runtime is still network-free — that invariant is untouched, and the emitted HTML was checked for Google hosts — but an offline `npm run build` now fails where it used to succeed. Next caches the downloads, so this bites a cold checkout rather than a rebuild. Self-hosting the `.woff2` files in-repo with `next/font/local` would remove it; not done, because it means committing binaries and hand-tracking upstream revisions. |
 | 2026-08-27 | Next ships a live region we did not write | `div#__next-route-announcer__` is `aria-live="assertive"` `role="alert"`, injected by the App Router after hydration and not removable. It should stay silent — one route, no client navigation — but `AGENTS.md`'s "never wrap the countdown in a live region" now has a framework-owned region on the page to coexist with. The announcer spec enumerates it so a second one cannot arrive unnoticed. |
 | 2026-08-27 | Theme persistence is gone, and its replacement needs a CSP hash | The retired `index.html` set `data-theme` from `localStorage` in a render-blocking inline script, to avoid a flash of the wrong theme. `globals.css` still honours `[data-theme]`, but nothing sets it. Phase 6 owes both the toggle and a way to apply it before first paint that does not need an unhashed inline `<script>`. |
-| 2026-08-27 | The Day view has no phase | The retired plain build shipped one (day progress bar, eleven period rows, a Now/Day switcher) and `Docs/roadmap.md` never scheduled it back. Its parked reflow assertions and the `#day-remaining` id therefore point at nothing with a date on it. Either schedule it or delete the parked block; leaving it is how a test file starts lying. |
-| 2026-08-27 | The Phase 2 gate is unverified in Safari | The roadmap's gate names Safari specifically, because its throttling thresholds are the thinnest evidence in the research. What has been verified is Chrome, with a scripted clock: `visibilitychange` and `focus` both recompute correctly across a ten-minute sleep and across two period boundaries. A real Safari tab, backgrounded for real minutes, is still owed — and WebKit is still not in the Playwright projects. |
+| 2026-09-01 | The Day view's dead code outlived its tests | The parked assertions are gone (see Closed), but the view left residue behind: `formatDayCaption` in `src/lib/format.ts` is exported, fully tested and imported by nothing, and `globals.css` still carries `.day__summary`, `.day__remaining` and their siblings. Deliberately left rather than swept up in the same change — deleting a tested pure function is a different decision from deleting a test that named no phase, and it should be made on purpose. |
+| 2026-08-27 | The Phase 2 gate is unverified on a real Safari | Narrowed 2026-09-01. WebKit is now a Playwright project and the whole countdown suite passes on it, including the scripted-clock tests that move time without firing a timer. What that does **not** cover is a real Safari tab on a real device, backgrounded for real minutes — the throttling and freezing thresholds are the thinnest evidence in the research, and Playwright's WebKit is not Safari (see the row below). Still owed, and now the only part of this gap that is. |
 | 2026-08-27 | The design system's period-change crossfade is not implemented | `Docs/design/design-system.md` section 4 asks for a single 150ms crossfade of the period name at a boundary. The name swaps instantly. The global `prefers-reduced-motion` block already covers the reduced path, so adding it is additive; not doing it is the honest state today. |
-| 2026-09-01 | The E2E suite is 111 live and 10 parked | Up from 83/22. What is still parked needs preferences or Big mode (Phase 6), or the Day view, which no phase has scheduled back at all. |
+| 2026-09-01 | The E2E suite is 122 live and 10 parked, per engine | 396 tests in total across Chrome, WebKit and Firefox: 366 run, 30 parked. Everything still parked needs the preferences panel or Big mode, both Phase 6, and every block names its phase. |
 | 2026-08-27 | The editor is a long tab chain | Twelve rows of six controls is seventy-two stops between the schedule name and the bottom of the form, and the keyboard test needs a 120-press budget to cross it. Nothing is unreachable and nothing is trapped, so this is not a failure — but a skip link, or grouping each row so a screen reader can jump by row, would make it usable rather than merely operable. |
 | 2026-08-27 | There is no undo | Deleting a *period* is still immediate and unconfirmed, and the only way back is to retype it. Deliberate for a four-field row whose result is visible behind the editor. Deleting a whole *schedule* now goes through a modal confirmation, which is the half of this gap Phase 4 closed; a real undo is still owed and would remove the need for the dialog. |
 | 2026-08-27 | The schedule name field has no visible label | It carries a `.visually-hidden` "Schedule name", so assistive tech is fine, but sighted users see a large text box containing "Regular" and have to infer what it is. The retired build had the same shape. A visible label or a placeholder is owed. |
-| 2026-08-27 | Cross-tab sync is untested | `useSyncExternalStore` plus the `storage` event means editing in one tab updates a countdown left open in another. That fell out of using the right API rather than being built, and no test opens two tabs — so it is claimed, not demonstrated. Playwright can do it with two pages on one context. |
-| 2026-08-27 | No automated accessibility scan | `Docs/research/accessibility-responsive-qa.md` recommends `@axe-core/playwright` on every journey, with zero critical/serious violations to release, and the editor is exactly the surface that pays for it. Not added: it is a new dependency and outside the roadmap's Phase 3 list. The blocking checks today are `eslint-plugin-jsx-a11y` at `recommended`, the reflow gate, the live-region enumeration and a keyboard-only E2E pass — which the same research is explicit is not the same thing. |
+| 2026-09-01 | The axe scan is critical/serious only, at one viewport | `e2e/a11y.spec.ts` fails on `critical` and `serious` and only reports `moderate` and `minor`, which is the release bar `Docs/research/accessibility-responsive-qa.md` names — and a deliberate line, since a gate that fails on `minor` is a gate people start skipping. It also runs at the default viewport only, because small-screen layout is the reflow gate's job. Neither limit is a claim that the app is clean below them. |
+| 2026-09-01 | Playwright's WebKit is not Safari, and the difference is now load-bearing | It does not implement `<input type="time">` or `type="date"` at all — both report `type === "text"`, render bare text boxes, and skip the value sanitisation the spec requires. Real Safari has shipped `type="time"` since 14.1, so the app a Mac user sees is almost certainly not the one this project tests. The parser catches the difference either way and the placeholders now state the format, but "the editor works in WebKit" is a weaker claim than it sounds. |
 | 2026-09-01 | Dated exceptions have no calendar view, and no weekday name | The list shows ISO dates in date order, which is honest and unambiguous but does not tell you that 2026-09-14 is a Monday — the thing a school year is actually planned around. A month grid, or even a computed weekday label, is owed. Computing one means day-of-week arithmetic on a date string, since constructing a `Date` from "2026-09-14" parses it as UTC midnight. |
 | 2026-09-01 | Nothing warns before an exception in the past | `SCHEDULE_LIMITS.overrides` is 400 and nothing prunes. A user who has run BellTab for two years accumulates a list of dates that can never resolve again, and the only way to clear them is one Remove button at a time. |
 | 2026-09-01 | The schedule picker has no keyboard-efficient path | The chips are ordinary buttons in a `role="group"`, so reaching the fifth schedule is five tabs, and they sit above an editor that is already seventy-two stops deep. Arrow-key roving focus over the chips would fix it, and is what an ARIA tablist would have brought if the rest of that contract were worth taking on. |
@@ -495,6 +500,10 @@ Lunch before Period 3" is a statement about the timetable, not about a list.
 
 | Opened | Closed | Item |
 | --- | --- | --- |
+| 2026-08-26 | 2026-09-01 | WebKit and Firefox are not covered — both are Playwright projects now and the whole suite runs on all three engines, 366 tests. WebKit found two real defects on its first run; see Bugs found. |
+| 2026-08-27 | 2026-09-01 | No automated accessibility scan — `e2e/a11y.spec.ts` runs `@axe-core/playwright` over ten journeys including both error states and the open modal. It found a genuine WCAG 1.4.3 contrast failure on its first run. |
+| 2026-08-27 | 2026-09-01 | Cross-tab sync is untested — `e2e/editor.spec.ts` opens two pages on one context and asserts an edit in the editor reaches a countdown, and a tab title, left open in the other. No reload, no tick. |
+| 2026-08-27 | 2026-09-01 | The Day view has no phase — its parked assertions are deleted. The decision was to delete rather than schedule: no phase was ever going to revive them, and a parked test that names no phase is a test file lying slowly. Reopened narrowly as a dead-code row, because the view's formatters and CSS outlived its tests. |
 | 2026-09-01 | 2026-09-01 | `setOverride` discarded the entry being added once the calendar hit the 400-override cap, and the form's gate refused replacements that could not grow the list. Review finding 1. |
 | 2026-09-01 | 2026-09-01 | The dated-exception date reached `setOverride` unparsed, so a five-digit year emptied the form and changed nothing. Parsed at the control and at the mutator, with the message bound to the field. Review finding 2. |
 | 2026-09-01 | 2026-09-01 | The inactive settings tab's `aria-controls` named an id that was not in the DOM. Review finding 3. |
@@ -1218,6 +1227,104 @@ does, a moment later. Two consecutive clean full runs afterwards.
 **The lesson.** A shared setup helper's assertions are attributed to whichever
 test happened to be running, so they need the clearest messages in the suite,
 not the tersest.
+
+### 2026-09-01 — every error message in the app was the wrong red
+
+The axe scan's first run, on the first journey it reached: `color-contrast`,
+serious, on `.editrow__error` and `#override-date-error`.
+
+`--danger` is `#d8453f`, which measures **3.54:1** on `--surface`. That clears
+3:1 — the bar for non-text contrast, WCAG 1.4.11 — so it is a correct border
+colour and an incorrect text colour, and it had been used for both since the
+design system was written. Every validation message this app has ever shown was
+below the 4.5:1 that WCAG 1.4.3 requires for body text.
+
+Fixed by splitting the token the way `--accent` was already split for exactly
+this reason: `--cherry-deep` (#b32a25, 5.24:1 on surface and 5.81:1 on paper)
+backs a new `--danger-text`, and the five `color: var(--danger)` declarations
+now use it. Borders keep `--danger`. Dark mode needed no change — `#f06b65`
+already measures 5.58:1 there — but the token is defined in both themes so
+nothing has to branch.
+
+**What is worth noticing is which gates did not catch this.**
+`eslint-plugin-jsx-a11y` runs at full `recommended` and reads source, where a
+contrast ratio does not exist. The reflow gate measures geometry. The
+live-region enumeration checks three ids. The design system documented the
+palette and nobody had multiplied it out. A rendered-document scanner was the
+only thing that was ever going to find it, which is the argument the research
+document had been making since August.
+
+### 2026-09-01 — WebKit paints a `<select>`'s text outside the `<select>`
+
+First run of the WebKit project: the calendar panel scrolled the page sideways
+at every one of the five widths, with a 60-character schedule name in the
+library. 822px inside a 320px viewport.
+
+The Chrome fix from Phase 4 — `width: 100%` on the control — was doing its job:
+the `<select>` really was 122px wide. WebKit simply painted the full
+60-character option text outside it. `document.documentElement.scrollWidth` was
+822 while **no element's bounding box exceeded the viewport at all**, which is
+why the reflow gate's culprit list came back empty and named the header instead:
+the overflow was not a box, it was ink.
+
+Found by walking every element for `scrollWidth > clientWidth` rather than for a
+wide rectangle. `label.weekday` was 122px wide with a scrollWidth of 658.
+
+**Three fixes were tried on the control and all three were ignored in WebKit** —
+`overflow: hidden`, `text-overflow: ellipsis` and `contain: inline-size` — because
+a form control's text lives in a UA shadow tree that the control's own overflow
+does not reach. Only an ancestor clips it.
+
+Clipping the wrapping `<label>` worked and was rejected: a select draws its 3px
+focus ring 2px outside itself and fills its label exactly, so that clip takes the
+ring with it, and WebKit does not support `overflow-clip-margin` to ask for a
+clip that spares it. Trading a visible focus indicator for a reflow fix is not a
+trade worth making.
+
+Shortening the option text in the component was tried next and abandoned on
+measurement: the cap that works at 320px is about fifteen characters, which
+mangles "Delayed start" to fix a case nobody normal reaches.
+
+The fix is `overflow: clip` on the two CONTAINERS with `padding: 5px; margin:
+-5px` — the padding puts the ring's 5px inside the clip box, the negative margin
+gives them back to the layout so nothing moves. Verified in WebKit: 5px clear on
+every clipped edge, and the page back to 320.
+
+### 2026-09-01 — WebKit has no `type="time"` and no `type="date"`
+
+The other WebKit failure was the keyboard-only editor test, which types
+`0300PM` — hour, minute, meridiem — into a segmented time control and expects
+`15:00`. It got `"0300PM"`.
+
+Probed across all three engines, which is the only way to state this honestly:
+
+| | Chrome | WebKit | Firefox |
+| --- | --- | --- | --- |
+| `input.type` for `type="time"` | `time` | **`text`** | `time` |
+| `input.type` for `type="date"` | `date` | **`text`** | `date` |
+| typing `0300PM` | `15:00` | `0300PM` | `15:00` |
+| assigning `"not a time"` | `""` | `"not a time"` | `""` |
+
+Playwright's WebKit implements neither control. It falls back to a text input
+per the spec's missing-value default and performs none of the value sanitisation
+a real time input owes.
+
+**The app degraded correctly, which is the part worth recording.** The garbage
+string reached `clockToMinutes`, came back `null`, and the row went
+`aria-invalid` with a message bound to it and nothing committed. "Parse, don't
+validate" held on an engine that gave the form no help at all — the boundary did
+the work the control was not there to do.
+
+What was missing was any hint about the format, so both fields gained a
+`placeholder` — ignored by the engines that render a real control, and the only
+guidance on the engine that does not.
+
+**And a caveat that has to travel with this.** Playwright's WebKit is not Safari.
+Real Safari has shipped `type="time"` since 14.1, so a Mac user is probably
+seeing the segmented control. The finding is genuine about the engine under test
+and is NOT evidence about Safari; `AGENTS.md` requires a citation or a test for
+browser-behaviour claims, and what exists here is a test of something adjacent.
+Recorded as an open gap rather than as a fact about Safari.
 
 ### 2026-09-01 — a cap that discarded the wrong end, and a date the type system waved through
 
@@ -3172,3 +3279,57 @@ only argued about.
 
 `npm run lint`, `npm run typecheck`, `npx vitest run` (252/252), `npx playwright
 test` (111 passed, 10 parked) and `npx markdownlint-cli` all pass.
+
+### 2026-09-01 14:05 — the gates: three engines, an axe scan, and two tabs
+
+`fix/open-gaps`. Twenty-two gaps were open after Phase 4; this branch takes the
+cluster `AGENTS.md` and the research documents actually call blocking, plus one
+decision that had been deferred twice.
+
+**Three engines.** WebKit and Firefox are Playwright projects now, and the whole
+suite runs on all three — 396 tests, 366 run, 30 parked. This is what
+`AGENTS.md` picked Playwright for in the first place ("real WebKit coverage")
+and what the repo had not done for four phases. It found two real defects
+immediately: a `<select>` whose text WebKit paints outside the control and
+scrolls the page with, and the discovery that WebKit implements neither
+`type="time"` nor `type="date"`. Both in **Bugs found**, along with the several
+fixes that were tried and rejected on measurement.
+
+**An axe scan**, `e2e/a11y.spec.ts`, over ten journeys: four countdown states,
+the onboarding screen, both settings panels, both panels mid-error, and the open
+modal. `@axe-core/playwright` 4.13.0 from `dequelabs`, dev-only, and `axe-core`
+deduped against the copy `eslint-plugin-jsx-a11y` already pulls in — one package
+added, not two, and `npm audit` stays clean.
+
+It found a genuine WCAG 1.4.3 failure on its first run: **every error message in
+the app was 3.54:1**. Also in **Bugs found**, including the note about which
+existing gates could never have caught it.
+
+One implementation detail worth keeping: axe hangs forever against this repo's
+paused test clock, because it schedules its own work through `setTimeout` and
+`requestAnimationFrame`. `page.clock.resume()` before the scan restarts time
+without moving it, so the fixture's day and hour still stand.
+
+**Cross-tab sync, demonstrated rather than claimed.** Two pages on one context:
+edit in the editor, assert the countdown, the schedule name and the tab title in
+the other page. No reload and no tick, so the `storage` event is the only thing
+that can have carried it. It has been true since Phase 3 and untested since
+Phase 3.
+
+**The Day view's parked assertions are deleted.** Every other parked block names
+the phase that revives it; this one named none, because no phase was ever going
+to. Its formatters and CSS are still in the tree and are now their own gap —
+deleting a tested pure function is a different decision and should be made on
+purpose rather than swept up here.
+
+**Two infrastructure notes.** Local workers went 4 to 3: three engines put the
+axe scan under WebKit — the heaviest thing in the suite — over the same line the
+last two worker changes were about, and four fails while three is clean and
+faster than two. And the E2E job's NAME turns out to be an interface: branch
+protection requires "E2E (reflow gate)" by exact string, so renaming it to match
+what it now does would have silently removed the gate rather than failing
+loudly. The name stays, with a comment saying why.
+
+`npm run lint`, `npm run typecheck`, `npx vitest run` (252/252), `npx
+markdownlint-cli`, `npm run build` and `npx playwright test` (366 passed, 30
+parked, three engines) all pass.

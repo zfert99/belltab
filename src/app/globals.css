@@ -16,6 +16,17 @@
   --grape-dark: #3e2a69;
   --mint: #2fae86;
   --cherry: #d8453f;
+  /* The same red, dark enough to be TEXT.
+
+     #d8453f is 3.54:1 on --paper-2. That clears 3:1, which is the bar for
+     non-text contrast (WCAG 1.4.11), so it is a correct border and an incorrect
+     error message - and every error message in this app was painted in it.
+     #b32a25 is 5.24:1 on --paper-2 and 5.81:1 on --paper, which puts it beside
+     --ink-soft's 5.70 rather than shouting over it.
+
+     Exactly the split --accent already makes for the same reason; see the note
+     on it below. Found by the axe scan on its first run. */
+  --cherry-deep: #b32a25;
 
   /* --- Semantic layer ---
      Components reference these names, never the palette above. Swapping a
@@ -27,6 +38,8 @@
   --line: var(--ink-soft);
   --accent: var(--butterscotch-dark); /* the dark variant in light mode: see contrast note */
   --danger: var(--cherry);
+  /* Borders and fills use --danger; anything a person has to READ uses this. */
+  --danger-text: var(--cherry-deep);
 
   /* --- Radius / border / shadow --- */
   --r-sm: 8px;
@@ -72,6 +85,9 @@
     --grape: #9b7fd4;
     --mint: #4fcba0;
     --cherry: #f06b65;
+  /* Already 5.58:1 on --paper-2, so dark mode needs no darker variant - the
+     token exists in both themes so nothing has to branch on which is active. */
+  --cherry-deep: #f06b65;
     --accent: var(--butterscotch); /* plenty of contrast on a dark ground */
   }
 }
@@ -86,6 +102,9 @@
   --grape: #9b7fd4;
   --mint: #4fcba0;
   --cherry: #f06b65;
+  /* Already 5.58:1 on --paper-2, so dark mode needs no darker variant - the
+     token exists in both themes so nothing has to branch on which is active. */
+  --cherry-deep: #f06b65;
   --accent: var(--butterscotch);
 }
 
@@ -1104,7 +1123,7 @@ body.is-settings .viewswitch {
 }
 
 .minibutton--danger:hover:not(:disabled) {
-  color: var(--danger);
+  color: var(--danger-text);
   border-color: var(--danger);
 }
 
@@ -1225,7 +1244,7 @@ body.is-settings .viewswitch {
 .editor__error {
   padding: var(--s-2) var(--s-3);
   font-size: 0.875rem;
-  color: var(--danger);
+  color: var(--danger-text);
   border: 1.5px solid var(--danger);
   border-radius: var(--r-sm);
 }
@@ -1325,14 +1344,14 @@ body.is-settings .viewswitch {
 }
 
 .editrow__delete:hover {
-  color: var(--danger);
+  color: var(--danger-text);
   border-color: var(--danger);
 }
 
 .editrow__error {
   margin: var(--s-1) 0 0;
   font-size: 0.875rem;
-  color: var(--danger);
+  color: var(--danger-text);
 }
 
 /* Below this the five-column row cannot hold its shape, so it stacks - and the
@@ -1443,6 +1462,34 @@ body.is-settings .viewswitch {
      each be about 30px wide. This collapses to however many fit. */
   grid-template-columns: repeat(auto-fit, minmax(7.5rem, 1fr));
   gap: var(--s-2);
+}
+
+/* THE ENGINES DISAGREE ABOUT WHERE A <select>'s TEXT IS ALLOWED TO GO.
+
+   Every option in these two containers is a schedule name, which is user input
+   up to 60 characters. `width: 100%` on the control (below) stops the CONTROL
+   from growing, and in Chrome that is the whole fix - Chrome then clips the
+   option text to the box the control was given. WebKit does not: it paints the
+   full string outside the control, and the page grows to 822px inside a 320px
+   viewport. Measured, all three engines; see Docs/build-log.md.
+
+   The control cannot clip itself there. `overflow: hidden`, `text-overflow` and
+   `contain: inline-size` on the select were all tried and all ignored in WebKit,
+   because a form control's text lives in a UA shadow tree its own overflow does
+   not reach. Only an ANCESTOR clips it.
+
+   Which is why the clip is here, on the container, and not on each `<label>`.
+   A select draws its 3px focus ring 2px outside itself and fills its label
+   exactly, so clipping the label would clip the ring - and WebKit does not
+   support `overflow-clip-margin`, so there is no way to ask for a clip that
+   spares it. The padding buys those 5px back inside the clip box and the
+   negative margin returns them to the layout, so nothing moves and every ring
+   still has room. Verified in WebKit: 5px clear on every clipped edge. */
+.weekdays,
+.addoverride {
+  overflow: clip;
+  padding: 5px;
+  margin: -5px;
 }
 
 .weekday {
@@ -1569,7 +1616,7 @@ body.is-settings .viewswitch {
 }
 
 .override__remove:hover {
-  color: var(--danger);
+  color: var(--danger-text);
   border-color: var(--danger);
 }
 

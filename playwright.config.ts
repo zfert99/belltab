@@ -33,24 +33,28 @@ export default defineConfig({
   fullyParallel: true,
 
   /**
-   * Four, not Playwright's default of half the machine's cores.
+   * Three, not Playwright's default of half the machine's cores.
    *
-   * Measured rather than chosen. Phase 4 took the suite from 83 tests to 108,
-   * and at eight workers a full local run started failing intermittently -
-   * sometimes as `browserContext.newPage: Target crashed`, sometimes as a boot
-   * wait timing out, never twice on the same test. Eight Chrome instances plus a
-   * `next start` exhaust the machine, and a crashed renderer looks exactly like
-   * an app that will not hydrate.
+   * Measured rather than chosen, twice over.
    *
-   * Raising the boot timeout made it WORSE, which is the tell: a starved worker
-   * that is given longer holds its slot longer. Four workers is clean over
-   * repeated runs and costs nothing - 26.5s against 27.4s - because the run was
-   * never CPU-bound at eight, it was thrashing.
+   * Phase 4 took the suite from 83 tests to 108, and at eight workers a full run
+   * started failing intermittently - sometimes `browserContext.newPage: Target
+   * crashed`, sometimes a boot wait timing out, never twice on the same test.
+   * Eight browsers plus a `next start` exhaust the machine, and a crashed
+   * renderer looks exactly like an app that will not hydrate. Raising the boot
+   * timeout made it WORSE, which is the tell: a starved worker given longer
+   * holds its slot longer.
+   *
+   * Adding WebKit and Firefox took the run to 366 tests across three engines and
+   * moved the line again. At four workers the failures came back, concentrated
+   * in the axe scan under WebKit - the heaviest thing in the suite, since axe
+   * serialises the whole rendered document. Measured over repeated full runs:
+   * four fails, three is clean at ~1.9 minutes, two is clean at 2.3. Three.
    *
    * CI keeps the default. Its runners have fewer cores and therefore already get
    * fewer workers, and pinning a number here would raise it on a 2-core box.
    */
-  workers: process.env.CI ? undefined : 4,
+  workers: process.env.CI ? undefined : 3,
 
   forbidOnly: Boolean(process.env.CI),
   retries: process.env.CI ? 1 : 0,
@@ -71,14 +75,35 @@ export default defineConfig({
     timezoneId: "America/New_York",
   },
 
+  /**
+   * Three engines, which `AGENTS.md` has asked for from the start.
+   *
+   * "Playwright, not Cypress for E2E - real WebKit coverage and free
+   * parallelization" was the reason this repo chose Playwright, and for the
+   * first four phases it ran one engine anyway. WebKit is where the things this
+   * app leans on differ most: `<dialog>`, `:modal`, `inert`, the throttling
+   * thresholds the countdown is designed around, and the native date and time
+   * inputs the editor and the calendar are built out of - each of which Safari
+   * renders at a different intrinsic width, which is a reflow-gate input.
+   */
   projects: [
     {
       // The Chrome already on the machine, via `channel`, rather than a
       // downloaded Chromium: it is the engine the original review measured in,
-      // and it costs no browser binary. WebKit coverage is still owed - see
-      // Open gaps in the build log.
+      // and it costs no browser binary.
       name: "chrome",
       use: { ...devices["Desktop Chrome"], channel: "chrome" },
+    },
+    {
+      // Playwright's WebKit build, not Safari itself. It is the same engine and
+      // it is what CI can run; a real Safari tab, backgrounded for real
+      // minutes, is a different claim and is still an open gap.
+      name: "webkit",
+      use: { ...devices["Desktop Safari"] },
+    },
+    {
+      name: "firefox",
+      use: { ...devices["Desktop Firefox"] },
     },
   ],
 
