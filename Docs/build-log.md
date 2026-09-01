@@ -3351,10 +3351,14 @@ to. Its formatters and CSS are still in the tree and are now their own gap —
 deleting a tested pure function is a different decision and should be made on
 purpose rather than swept up here.
 
-**Two infrastructure notes.** Local workers went 4 to 3: three engines put the
-axe scan under WebKit — the heaviest thing in the suite — over the same line the
-last two worker changes were about, and four fails while three is clean and
-faster than two. And the E2E job's NAME turns out to be an interface: branch
+**Two infrastructure notes.** Local workers went 4 to 2, in two steps and with
+one wrong answer in between: three engines put the axe scan under WebKit — the
+heaviest thing in the suite — over the same line the last two worker changes
+were about. Four failed outright; three looked clean over three runs and then
+produced a single failure, then four, always the boot wait and never the same
+test twice. Two is clean and costs thirty seconds. An intermittently red suite
+is worse than a slow one, because the first thing it costs is the habit of
+believing it. And the E2E job's NAME turns out to be an interface: branch
 protection requires "E2E (reflow gate)" by exact string, so renaming it to match
 what it now does would have silently removed the gate rather than failing
 loudly. The name stays, with a comment saying why.

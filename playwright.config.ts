@@ -48,13 +48,20 @@ export default defineConfig({
    * Adding WebKit and Firefox took the run to 366 tests across three engines and
    * moved the line again. At four workers the failures came back, concentrated
    * in the axe scan under WebKit - the heaviest thing in the suite, since axe
-   * serialises the whole rendered document. Measured over repeated full runs:
-   * four fails, three is clean at ~1.9 minutes, two is clean at 2.3. Three.
+   * serialises the whole rendered document.
+   *
+   * Three looked clean and was not. Over six full runs it produced three clean
+   * ones, then a single failure, then four - always the boot wait, never the
+   * same test twice, which is this machine's signature for a starved worker
+   * rather than a broken app. An intermittently red suite is worse than a slow
+   * one, because the first thing it costs is the habit of believing it. Two is
+   * clean over repeated runs at 2.5 minutes against three's 1.9, and that
+   * thirty seconds buys a result you can act on.
    *
    * CI keeps the default. Its runners have fewer cores and therefore already get
    * fewer workers, and pinning a number here would raise it on a 2-core box.
    */
-  workers: process.env.CI ? undefined : 3,
+  workers: process.env.CI ? undefined : 2,
 
   forbidOnly: Boolean(process.env.CI),
   retries: process.env.CI ? 1 : 0,
