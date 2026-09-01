@@ -105,10 +105,11 @@ Playwright's own builds and need a one-time download:
 npx playwright install webkit firefox
 ```
 
-Note that Playwright's WebKit is not Safari — it implements neither
-`<input type="time">` nor `type="date"` — so it is a strong signal about the
-engine and a weak one about the browser. See **Open gaps** in
-`Docs/build-log.md`.
+Note that Playwright's WebKit is not Safari, and is not even one thing: the
+build on this machine implements neither `<input type="time">` nor
+`type="date"`, while the one on the Linux CI runner implements both. Treat it as
+a strong signal about an engine and a weak one about anybody's browser. See
+**Open gaps** in `Docs/build-log.md`.
 
 ## Docs
 

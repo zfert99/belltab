@@ -183,6 +183,8 @@ development too, so the bare origin is a 404 exactly as it is in production.
 | 2026-09-01 | The E2E suite runs three engines, not one | `AGENTS.md` chose Playwright over Cypress for "real WebKit coverage and free parallelization" and then ran one engine for four phases. WebKit found two real defects in its first run. |
 | 2026-09-01 | `<select>` overflow is clipped at the CONTAINER, with padding and a negative margin | WebKit paints an over-long option outside the control and ignores the control's own `overflow`; only an ancestor clips it. Clipping each `<label>` would clip the focus ring the select draws outside itself, and WebKit has no `overflow-clip-margin` to spare it. The padding buys the ring 5px inside the clip box and the negative margin returns them to the layout. |
 | 2026-09-01 | Native date and time inputs carry a `placeholder` | Chrome and Firefox render segmented controls and ignore it; WebKit renders a bare text box where it is the only thing saying what shape the field wants. Progressive enhancement in the honest direction — the parser already refused bad input, this stops the user having to discover the format by failing. |
+| 2026-09-01 | The suite pins `locale: "en-GB"` beside the timezone it already pinned | It controls exactly one thing: whether a native time control has a meridiem segment. Under `en-US` the keystrokes are `0300PM` and the CI runner's WebKit rejected them, so the test was measuring a control's meridiem handling rather than this app. Safe because the app formats every time it shows by integer arithmetic — no `Intl`, no `toLocaleString` in `src/`. |
+| 2026-09-01 | A browser-behaviour claim names the PLATFORM it was measured on, not just the engine | `AGENTS.md` already required a citation or a test. This branch produced a test, generalised it from one build to "WebKit", and was contradicted by CI within the hour. The rule needed a second half. |
 | 2026-09-01 | The keyboard test asks the ELEMENT what it is, not the project name | `element.type === "time"` decides which keystrokes to send. Branching on "is this the webkit project" would keep passing on the day WebKit ships the control and quietly stop testing the segmented path. |
 | 2026-09-01 | The axe gate fails on critical and serious, and reports the rest | The bar `Docs/research/accessibility-responsive-qa.md` sets. Failing on `minor` makes a gate people route around; reporting them in the failure message keeps them visible when something else breaks. |
 | 2026-09-01 | The E2E job's NAME is treated as an interface | Branch protection requires "E2E (reflow gate)" by exact string, so renaming the job silently removes the gate rather than failing loudly. It now runs three engines and an axe sweep under a name that undersells it, and the workflow says why. |
@@ -488,7 +490,7 @@ Lunch before Period 3" is a statement about the timetable, not about a list.
 | 2026-08-27 | There is no undo | Deleting a *period* is still immediate and unconfirmed, and the only way back is to retype it. Deliberate for a four-field row whose result is visible behind the editor. Deleting a whole *schedule* now goes through a modal confirmation, which is the half of this gap Phase 4 closed; a real undo is still owed and would remove the need for the dialog. |
 | 2026-08-27 | The schedule name field has no visible label | It carries a `.visually-hidden` "Schedule name", so assistive tech is fine, but sighted users see a large text box containing "Regular" and have to infer what it is. The retired build had the same shape. A visible label or a placeholder is owed. |
 | 2026-09-01 | The axe scan is critical/serious only, at one viewport | `e2e/a11y.spec.ts` fails on `critical` and `serious` and only reports `moderate` and `minor`, which is the release bar `Docs/research/accessibility-responsive-qa.md` names — and a deliberate line, since a gate that fails on `minor` is a gate people start skipping. It also runs at the default viewport only, because small-screen layout is the reflow gate's job. Neither limit is a claim that the app is clean below them. |
-| 2026-09-01 | Playwright's WebKit is not Safari, and the difference is now load-bearing | It does not implement `<input type="time">` or `type="date"` at all — both report `type === "text"`, render bare text boxes, and skip the value sanitisation the spec requires. Real Safari has shipped `type="time"` since 14.1, so the app a Mac user sees is almost certainly not the one this project tests. The parser catches the difference either way and the placeholders now state the format, but "the editor works in WebKit" is a weaker claim than it sounds. |
+| 2026-09-01 | "WebKit" is not one browser, and none of them is Safari | Measured, not assumed: the development machine's WebKit build reports `type === "text"` for both `<input type="time">` and `type="date"` and renders bare text boxes; the Linux CI runner's build implements them. Real Safari has shipped `type="time"` since 14.1 and is a third thing again. The app handles all of it — the parser was always doing the work — but any sentence of the form "X works in WebKit" now has to say which WebKit, and none of them is evidence about a Mac. |
 | 2026-09-01 | Dated exceptions have no calendar view, and no weekday name | The list shows ISO dates in date order, which is honest and unambiguous but does not tell you that 2026-09-14 is a Monday — the thing a school year is actually planned around. A month grid, or even a computed weekday label, is owed. Computing one means day-of-week arithmetic on a date string, since constructing a `Date` from "2026-09-14" parses it as UTC midnight. |
 | 2026-09-01 | Nothing warns before an exception in the past | `SCHEDULE_LIMITS.overrides` is 400 and nothing prunes. A user who has run BellTab for two years accumulates a list of dates that can never resolve again, and the only way to clear them is one Remove button at a time. |
 | 2026-09-01 | The schedule picker has no keyboard-efficient path | The chips are ordinary buttons in a `role="group"`, so reaching the fifth schedule is five tabs, and they sit above an editor that is already seventy-two stops deep. Arrow-key roving focus over the chips would fix it, and is what an ARIA tablist would have brought if the rest of that contract were worth taking on. |
@@ -1256,9 +1258,11 @@ document had been making since August.
 
 ### 2026-09-01 — WebKit paints a `<select>`'s text outside the `<select>`
 
-First run of the WebKit project: the calendar panel scrolled the page sideways
-at every one of the five widths, with a 60-character schedule name in the
-library. 822px inside a 320px viewport.
+First run of the WebKit project, on the development machine: the calendar panel
+scrolled the page sideways at every one of the five widths, with a 60-character
+schedule name in the library. 822px inside a 320px viewport. (Measured on that
+build specifically — see the entry below for why that distinction is not
+pedantry.)
 
 The Chrome fix from Phase 4 — `width: 100%` on the control — was doing its job:
 the `<select>` really was 122px wide. WebKit simply painted the full
@@ -1290,24 +1294,44 @@ The fix is `overflow: clip` on the two CONTAINERS with `padding: 5px; margin:
 gives them back to the layout so nothing moves. Verified in WebKit: 5px clear on
 every clipped edge, and the page back to 320.
 
-### 2026-09-01 — WebKit has no `type="time"` and no `type="date"`
+### 2026-09-01 — "WebKit has no `type="time"`" was true of one build and not the engine
 
 The other WebKit failure was the keyboard-only editor test, which types
 `0300PM` — hour, minute, meridiem — into a segmented time control and expects
 `15:00`. It got `"0300PM"`.
 
-Probed across all three engines, which is the only way to state this honestly:
+Probed across all three engines on the development machine, which looked
+conclusive:
 
-| | Chrome | WebKit | Firefox |
+| | Chrome | WebKit (Windows) | Firefox |
 | --- | --- | --- | --- |
 | `input.type` for `type="time"` | `time` | **`text`** | `time` |
 | `input.type` for `type="date"` | `date` | **`text`** | `date` |
 | typing `0300PM` | `15:00` | `0300PM` | `15:00` |
 | assigning `"not a time"` | `""` | `"not a time"` | `""` |
 
-Playwright's WebKit implements neither control. It falls back to a text input
-per the spec's missing-value default and performs none of the value sanitisation
-a real time input owes.
+That build implements neither control: it falls back to a text input per the
+spec's missing-value default and performs none of the value sanitisation a real
+time input owes.
+
+**And then CI disagreed, which is the actual lesson.** The first push of this
+branch failed one test — the same keyboard test, on WebKit, on the Linux runner
+— and the failure message carried `<input type="time" value="14:30">`. The
+runner's WebKit **does** implement the control. It rejected the `0300PM`
+keystrokes on their own terms rather than falling back to text.
+
+So the finding as first written was wrong in the way that matters: it named the
+ENGINE when the evidence only supported a BUILD. Playwright's WebKit is not one
+thing, let alone Safari - it is WebKitGTK-ish on Linux, something else on
+Windows, and neither is what ships on a Mac.
+
+`AGENTS.md` asks for a citation or a test for browser-behaviour claims. There
+was a test; it was run on one platform and generalised to an engine. The rule
+needs a second half: a browser-behaviour claim also names where it was measured.
+
+The corrected statement: **on the development machine's WebKit build both
+controls degrade to text inputs; on the Linux CI runner's they do not.** The app
+handles both, because the parser was always the thing doing the work.
 
 **The app degraded correctly, which is the part worth recording.** The garbage
 string reached `clockToMinutes`, came back `null`, and the row went
@@ -1316,15 +1340,20 @@ validate" held on an engine that gave the form no help at all — the boundary d
 the work the control was not there to do.
 
 What was missing was any hint about the format, so both fields gained a
-`placeholder` — ignored by the engines that render a real control, and the only
-guidance on the engine that does not.
+`placeholder` — ignored wherever a real control renders, and the only guidance
+where one does not.
 
-**And a caveat that has to travel with this.** Playwright's WebKit is not Safari.
-Real Safari has shipped `type="time"` since 14.1, so a Mac user is probably
-seeing the segmented control. The finding is genuine about the engine under test
-and is NOT evidence about Safari; `AGENTS.md` requires a citation or a test for
-browser-behaviour claims, and what exists here is a test of something adjacent.
-Recorded as an open gap rather than as a fact about Safari.
+The test now asks the ELEMENT what it is (`element.type === "time"`) rather than
+branching on the project name or the platform, which is the only version that
+stays true in both places and on the day a build changes its mind.
+
+The keystrokes themselves needed a second fix. `0300PM` is 12-hour-locale
+typing, and whether a time control has a meridiem segment at all depends on the
+locale the browser was launched with — so the suite now pins `locale: "en-GB"`
+beside the timezone it already pinned, making the control 24-hour everywhere and
+the keystrokes four digits. Safe because the app formats every time it displays
+itself, by integer arithmetic; there is no `Intl` and no `toLocaleString`
+anywhere in `src/`, which is a project rule rather than an accident.
 
 ### 2026-09-01 — a cap that discarded the wrong end, and a date the type system waved through
 
@@ -3333,3 +3362,36 @@ loudly. The name stays, with a comment saying why.
 `npm run lint`, `npm run typecheck`, `npx vitest run` (252/252), `npx
 markdownlint-cli`, `npm run build` and `npx playwright test` (366 passed, 30
 parked, three engines) all pass.
+
+### 2026-09-01 14:40 — CI contradicted the WebKit finding within the hour
+
+The first push of `fix/open-gaps` went red on one test: the keyboard-only editor
+test, on WebKit, on the Linux runner. The failure carried
+`<input type="time" value="14:30">`.
+
+Which made the entry written an hour earlier wrong. "Playwright's WebKit does not
+implement `type="time"`" was measured on the development machine's build and
+stated about the engine; the runner's build implements it and had simply refused
+the `0300PM` keystrokes on their own terms.
+
+Two fixes, and the second is the interesting one:
+
+- The keystrokes now depend on the ELEMENT (`element.type === "time"`), which
+  they already did, plus a `locale: "en-GB"` pin in the shared `use` block. That
+  makes the control 24-hour everywhere, so the keystrokes are `1500` and no
+  meridiem segment exists to disagree about. Safe because the app formats every
+  time it displays by integer arithmetic — `format.ts` has no `Intl` and no
+  `toLocaleString`, and neither does anything else in `src/`.
+- `AGENTS.md`'s rule gained a second half in the Decisions table: a
+  browser-behaviour claim names the PLATFORM it was measured on. The existing
+  rule asked for a citation or a test, and a test is exactly what produced the
+  wrong claim here — one platform, generalised to an engine, contradicted by the
+  next CI run.
+
+The **Bugs found** entry is rewritten rather than deleted, because the wrong
+version is the point: the original table of measurements is still there, now
+labelled with the build it came from, next to the CI evidence that contradicts
+the conclusion drawn from it.
+
+Everything else on the branch stands. `npx playwright test` is 366 passed / 30
+parked across three engines, and the rest of the gates are unchanged.

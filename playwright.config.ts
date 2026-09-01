@@ -73,6 +73,25 @@ export default defineConfig({
     // app deliberately has no timezone plumbing and reads local wall-clock
     // minutes, which is exactly what this makes reproducible.
     timezoneId: "America/New_York",
+
+    /**
+     * Pinned for the same reason, and it controls one thing only: the shape of
+     * the NATIVE date and time controls.
+     *
+     * A `<input type="time">` renders a 12-hour control with an AM/PM segment
+     * under `en-US` and a 24-hour control without one under `en-GB`, which
+     * changes what typing into it with the keyboard means. Under `en-US` the
+     * keystrokes are `0300PM`; the CI runner's WebKit rejected them while
+     * Chrome and Firefox accepted them, and the test was measuring a control's
+     * meridiem handling rather than anything about this app.
+     *
+     * Safe to pin because the app formats every time it displays ITSELF, by
+     * integer arithmetic in `format.ts` - there is no `Intl` and no
+     * `toLocaleString` anywhere in `src/`, which is a project rule and not a
+     * coincidence. So this moves the browser's controls and moves nothing the
+     * app renders.
+     */
+    locale: "en-GB",
   },
 
   /**

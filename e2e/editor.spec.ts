@@ -392,24 +392,29 @@ test.describe("the keyboard alone", () => {
     // A native time input takes typed digits, segment by segment. That is most
     // of the argument for using one: none of this behaviour is ours.
     /*
-      The keystrokes depend on what the engine actually rendered.
+      The keystrokes depend on what the engine actually rendered, and the
+      engines genuinely disagree - including with each other across platforms.
 
-      `0300PM` is how you type into a SEGMENTED time control - hour, minute,
-      meridiem, each segment advancing on its own. Chrome and Firefox render
-      one. Playwright's WebKit does not implement `type="time"` at all: the
-      element reports `type === "text"`, so those six characters land as the
-      literal string "0300PM", the parser refuses it, and the row goes invalid -
-      correctly, and unhelpfully for a test about the keyboard.
+      `1500` is how you type into a SEGMENTED time control: hour, then minute,
+      each segment advancing on its own. It is four digits and no meridiem
+      because the suite pins `locale: "en-GB"`, which makes the control
+      24-hour - see the note in playwright.config.ts for why that pin exists
+      and why it is safe.
 
-      Asking the element what it is, rather than branching on the project name,
-      keeps this honest on the day WebKit ships the control.
+      Some builds render no time control at all. Playwright's WebKit on Windows
+      reports `type === "text"` and hands back a plain text box, where the same
+      four digits would land as the literal string "1500"; the same WebKit on
+      the Linux CI runner reports `type === "time"`. Asking the ELEMENT what it
+      is, rather than branching on the project name or the platform, is the only
+      version of this that stays true in both places - and on the day a build
+      changes its mind.
     */
     await tabTo(page, '#period-editor .editrow:last-child [data-field="start"]');
 
     const segmented = await field(added, "start").evaluate(
       (element: HTMLInputElement) => element.type === "time",
     );
-    await page.keyboard.type(segmented ? "0300PM" : "15:00");
+    await page.keyboard.type(segmented ? "1500" : "15:00");
     await expect(field(added, "start")).toHaveValue("15:00");
 
     // And a native number input takes its arrow keys, which is the other half.
