@@ -482,10 +482,9 @@ Lunch before Period 3" is a statement about the timetable, not about a list.
 | 2026-08-27 | Next ships a live region we did not write | `div#__next-route-announcer__` is `aria-live="assertive"` `role="alert"`, injected by the App Router after hydration and not removable. It should stay silent — one route, no client navigation — but `AGENTS.md`'s "never wrap the countdown in a live region" now has a framework-owned region on the page to coexist with. The announcer spec enumerates it so a second one cannot arrive unnoticed. |
 | 2026-08-27 | Theme persistence is gone, and its replacement needs a CSP hash | The retired `index.html` set `data-theme` from `localStorage` in a render-blocking inline script, to avoid a flash of the wrong theme. `globals.css` still honours `[data-theme]`, but nothing sets it. Phase 6 owes both the toggle and a way to apply it before first paint that does not need an unhashed inline `<script>`. |
 | 2026-09-01 | The Day view's dead code outlived its tests | The parked assertions are gone (see Closed), but the view left residue behind: `formatDayCaption` in `src/lib/format.ts` is exported, fully tested and imported by nothing, and `globals.css` still carries `.day__summary`, `.day__remaining` and their siblings. Deliberately left rather than swept up in the same change — deleting a tested pure function is a different decision from deleting a test that named no phase, and it should be made on purpose. |
-| 2026-08-26 | WebKit and Firefox are not in the Playwright projects | `AGENTS.md` chose Playwright over Cypress for "real WebKit coverage" and the suite still runs one engine. A spike on `test/three-engines` added both, and it earned its keep immediately — two real defects, whose fixes shipped on this branch (see Bugs found). What that branch still owes before it can merge is a keyboard test that survives a segmented time control on the Linux runner's WebKit, which is a build nobody here can run locally: three CI round trips went into typed keystrokes before the arrow-key version, and it is unverified. |
 | 2026-08-27 | The Phase 2 gate is unverified in Safari | The roadmap's gate names Safari specifically, because its throttling thresholds are the thinnest evidence in the research. What is verified is Chrome, with a scripted clock: `visibilitychange` and `focus` both recompute correctly across a ten-minute sleep and across two period boundaries. The `test/three-engines` spike ran the same suite green on WebKit, which is a data point and not the gate — a real Safari tab on a real device, backgrounded for real minutes, is what is owed, and Playwright's WebKit is not Safari (see the row below). |
 | 2026-08-27 | The design system's period-change crossfade is not implemented | `Docs/design/design-system.md` section 4 asks for a single 150ms crossfade of the period name at a boundary. The name swaps instantly. The global `prefers-reduced-motion` block already covers the reduced path, so adding it is additive; not doing it is the honest state today. |
-| 2026-09-01 | The E2E suite is 122 live and 10 parked | Up from 111/10, in Chrome. Everything still parked needs the preferences panel or Big mode, both Phase 6, and every block names its phase. Running the same suite on three engines takes it to 396; see the gap above. |
+| 2026-09-01 | The E2E suite is 122 live and 10 parked, per engine | 396 in total across Chrome, WebKit and Firefox: 366 run, 30 parked. Everything still parked needs the preferences panel or Big mode, both Phase 6, and every block names its phase. |
 | 2026-08-27 | The editor is a long tab chain | Twelve rows of six controls is seventy-two stops between the schedule name and the bottom of the form, and the keyboard test needs a 120-press budget to cross it. Nothing is unreachable and nothing is trapped, so this is not a failure — but a skip link, or grouping each row so a screen reader can jump by row, would make it usable rather than merely operable. |
 | 2026-08-27 | There is no undo | Deleting a *period* is still immediate and unconfirmed, and the only way back is to retype it. Deliberate for a four-field row whose result is visible behind the editor. Deleting a whole *schedule* now goes through a modal confirmation, which is the half of this gap Phase 4 closed; a real undo is still owed and would remove the need for the dialog. |
 | 2026-08-27 | The schedule name field has no visible label | It carries a `.visually-hidden` "Schedule name", so assistive tech is fine, but sighted users see a large text box containing "Regular" and have to infer what it is. The retired build had the same shape. A visible label or a placeholder is owed. |
@@ -502,6 +501,7 @@ Lunch before Period 3" is a statement about the timetable, not about a list.
 
 | Opened | Closed | Item |
 | --- | --- | --- |
+| 2026-08-26 | 2026-09-01 | WebKit and Firefox are not covered — both are Playwright projects and the suite runs on all three engines, 366 tests. The two defects the spike found were fixed on `main` first; this closes the coverage itself. |
 | 2026-08-27 | 2026-09-01 | No automated accessibility scan — `e2e/a11y.spec.ts` runs `@axe-core/playwright` over ten journeys including both error states and the open modal. It found a genuine WCAG 1.4.3 contrast failure on its first run. |
 | 2026-08-27 | 2026-09-01 | Cross-tab sync is untested — `e2e/editor.spec.ts` opens two pages on one context and asserts an edit in the editor reaches a countdown, and a tab title, left open in the other. No reload, no tick. |
 | 2026-08-27 | 2026-09-01 | The Day view has no phase — its parked assertions are deleted. The decision was to delete rather than schedule: no phase was ever going to revive them, and a parked test that names no phase is a test file lying slowly. Reopened narrowly as a dead-code row, because the view's formatters and CSS outlived its tests. |
@@ -3438,3 +3438,26 @@ these findings. What that branch owes is one green CI run on the arrow-key test.
 
 The gap "WebKit and Firefox are not covered" is therefore **reopened** rather
 than closed, and now says what the spike learned and what is left.
+
+### 2026-09-01 15:30 — the three engines, second attempt
+
+`test/three-engines`, recreated from `main` rather than rebased. The first
+attempt carried the engine work and four gaps' worth of fixes in one branch and
+was split; everything except the projects themselves merged as `2de966e`, so
+what is left here is genuinely small: two projects, a worker count, and one line
+of CI.
+
+That is the whole point of the split. The two defects WebKit found are already
+fixed and already covered in Chrome, so this branch no longer risks anything —
+it either goes green and closes a gap open since 2026-08-26, or it tells us
+something new about the Linux runner's WebKit and costs one CI cycle.
+
+**The one open question it answers:** whether `ArrowUp` steps a segmented time
+control on the runner's build. Typed digits did not, twice — `0300PM` under a
+12-hour locale and `1500` under `en-GB` — and the arrow-key version was written
+against that failure and merged without ever being run there, because `main`
+does not run WebKit. The `en-GB` pin was dropped along the way: with an arrow
+rather than digits there is no meridiem segment to disagree about, so it was
+solving a problem that no longer exists.
+
+Local: 366 passed, 30 parked, three engines, at two workers.
