@@ -36,16 +36,20 @@ export default defineConfig({
    * Four, not Playwright's default of half the machine's cores.
    *
    * Measured rather than chosen. Phase 4 took the suite from 83 tests to 108,
-   * and at eight workers a full local run started failing intermittently -
-   * sometimes as `browserContext.newPage: Target crashed`, sometimes as a boot
-   * wait timing out, never twice on the same test. Eight Chrome instances plus a
-   * `next start` exhaust the machine, and a crashed renderer looks exactly like
-   * an app that will not hydrate.
+   * and at eight workers a full run started failing intermittently - sometimes
+   * `browserContext.newPage: Target crashed`, sometimes a boot wait timing out,
+   * never twice on the same test. Eight browsers plus a `next start` exhaust
+   * the machine, and a crashed renderer looks exactly like an app that will not
+   * hydrate.
    *
    * Raising the boot timeout made it WORSE, which is the tell: a starved worker
-   * that is given longer holds its slot longer. Four workers is clean over
-   * repeated runs and costs nothing - 26.5s against 27.4s - because the run was
-   * never CPU-bound at eight, it was thrashing.
+   * that is given longer holds its slot longer. Four is clean over repeated runs
+   * and costs nothing, because the run was never CPU-bound at eight - it was
+   * thrashing.
+   *
+   * This number is per-engine sensitive. The `test/three-engines` branch, which
+   * adds WebKit and Firefox, has to drop to two; see its build-log entry before
+   * raising this one.
    *
    * CI keeps the default. Its runners have fewer cores and therefore already get
    * fewer workers, and pinning a number here would raise it on a 2-core box.
@@ -75,8 +79,13 @@ export default defineConfig({
     {
       // The Chrome already on the machine, via `channel`, rather than a
       // downloaded Chromium: it is the engine the original review measured in,
-      // and it costs no browser binary. WebKit coverage is still owed - see
-      // Open gaps in the build log.
+      // and it costs no browser binary.
+      //
+      // WebKit and Firefox are still owed - `AGENTS.md` chose Playwright for
+      // "real WebKit coverage" - and a spike on `test/three-engines` has already
+      // added them and found two real defects, whose fixes shipped here. What
+      // that branch still owes is a keyboard test that survives a segmented time
+      // control on a build nobody can run locally. See Open gaps.
       name: "chrome",
       use: { ...devices["Desktop Chrome"], channel: "chrome" },
     },

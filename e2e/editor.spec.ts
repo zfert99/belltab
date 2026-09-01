@@ -280,6 +280,50 @@ test.describe("persistence", () => {
     await expect(page.locator("#period-name")).toHaveText("Chemistry");
   });
 
+  /**
+   * Cross-tab sync, which has been CLAIMED since Phase 3 and never demonstrated.
+   *
+   * It was never built as a feature. `libraryStore.ts` uses
+   * `useSyncExternalStore` because that is the right API for a genuinely
+   * external, genuinely shared thing, and the `storage` event - which fires in
+   * every OTHER page on the origin, never the one that wrote - came with it.
+   * The build log recorded it as falling out of using the right API, and then
+   * nothing tested it, which makes it a claim rather than a behaviour.
+   *
+   * The scenario is the real one: a schedule left up on a projector while
+   * somebody fixes the timetable on a laptop. Two pages in ONE context, because
+   * that is what shares an origin's localStorage; two contexts would be two
+   * browsers and would prove nothing.
+   *
+   * Note there is no reload anywhere below, and no tick. Both clocks are paused
+   * at the same instant throughout, so the only thing that can move the
+   * projector's screen is the event.
+   */
+  test("an edit in one tab reaches a countdown left open in another", async ({ page, context }) => {
+    const projector = await context.newPage();
+
+    await openApp(page, MID_PERIOD);
+    await openApp(projector, MID_PERIOD);
+
+    await expect(projector.locator("#period-name")).toHaveText("Period 2");
+    await expect(projector.locator("#schedule-name")).toHaveText("Regular");
+
+    await openSettings(page);
+    await field(rows(page).nth(2), "name").fill("Chemistry");
+
+    // The projector was never touched, never reloaded, and its clock never
+    // moved. If this passes, the storage event is what carried the edit.
+    await expect(projector.locator("#period-name")).toHaveText("Chemistry");
+
+    await page.locator("#schedule-name-input").fill("Wednesday");
+    await expect(projector.locator("#schedule-name")).toHaveText("Wednesday");
+
+    // And the tab title, which is the whole point of the app, follows too.
+    await expect(projector).toHaveTitle(/Chemistry/);
+
+    await projector.close();
+  });
+
   test("a corrupt stored value degrades to the seeded schedule", async ({ page }) => {
     // AGENTS.md: localStorage holds convenience, not truth. A tab that will not
     // open because of a bad byte is worse than one that opens on the defaults.
@@ -347,9 +391,47 @@ test.describe("the keyboard alone", () => {
 
     // A native time input takes typed digits, segment by segment. That is most
     // of the argument for using one: none of this behaviour is ours.
+    /*
+      ARROW KEYS, not typed digits, and the reason is two CI failures deep.
+
+      Typing into a segmented time control means typing into its SEGMENTS, and
+      what that costs depends on the build. `0300PM` works in Chrome and
+      Firefox under a 12-hour locale and was rejected by the Linux runner's
+      WebKit. `1500` under the `en-GB` pin - which removes the meridiem segment
+      entirely - was also rejected there, leaving the field on its default. Two
+      round trips to learn that this assertion was measuring a browser's
+      per-segment keystroke handling and never anything about BellTab.
+
+      ArrowUp is the part that IS specified: tabbing into a time control focuses
+      its first segment, and an arrow steps that segment. It is the same
+      interaction the length field below is tested with, and the one a keyboard
+      user actually reaches for.
+
+      Some builds render no time control at all - Playwright's WebKit on Windows
+      reports `type === "text"` and hands back a plain text box, where arrows do
+      nothing and typing is the only option. Asking the ELEMENT what it is,
+      rather than branching on a project name or a platform, is the only version
+      of this that stays true in both places and on the day a build changes its
+      mind.
+
+      The expected value is computed from what the field actually held rather
+      than hard-coded, so this keeps testing the interaction if the seeded
+      schedule's last period ever moves.
+    */
     await tabTo(page, '#period-editor .editrow:last-child [data-field="start"]');
-    await page.keyboard.type("0300PM");
-    await expect(field(added, "start")).toHaveValue("15:00");
+
+    const startField = field(added, "start");
+    const segmented = await startField.evaluate(
+      (element: HTMLInputElement) => element.type === "time",
+    );
+
+    const [hours, minutes] = (await startField.inputValue()).split(":").map(Number);
+    const anHourLater = `${String(hours + 1).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
+
+    if (segmented) await page.keyboard.press("ArrowUp");
+    else await page.keyboard.type(anHourLater);
+
+    await expect(startField).toHaveValue(anHourLater);
 
     // And a native number input takes its arrow keys, which is the other half.
     // Stepping down from the new row's default 45 rather than selecting and

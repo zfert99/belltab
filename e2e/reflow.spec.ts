@@ -130,10 +130,11 @@ for (const width of WIDTHS) {
      * school day is not measuring the app, it is measuring that hour.
      *
      * Revived by Phase 3, minus its Day view half - that view was retired with
-     * the plain build and no phase has scheduled it back. What is live is the
-     * part that matters most anyway: the string goes in through the editor,
-     * where a user would actually put it, and has to survive both the form it
-     * was typed into and the countdown it comes out on.
+     * the plain build and its remaining assertions were deleted on 2026-09-01.
+     * What is live is the part that matters most anyway: the string goes in
+     * through the editor, where a user would actually put it, and has to
+     * survive both the form it was typed into and the countdown it comes out
+     * on.
      */
     for (const [state, at] of [
       ["mid-period", MID_PERIOD],
@@ -233,31 +234,32 @@ for (const width of WIDTHS) {
  * PARKED until Phase 6.
  *
  * The calendar panel and the confirm dialog came back with Phase 4 and are live
- * above. What is left needs the preferences panel or Big mode - and the Day
- * view, which no phase has scheduled back at all. The assertions are unchanged
- * and the ids are the contract the rebuilt UI has to meet; each block is
- * revived by deleting its `.fixme` once the markup it names exists.
+ * above. What is left needs the preferences panel or Big mode, both Phase 6.
+ * The assertions are unchanged and the ids are the contract the rebuilt UI has
+ * to meet; each block is revived by deleting its `.fixme` once the markup it
+ * names exists.
+ *
+ * **Every block here names the phase that revives it.** The Day view's
+ * assertions used to sit alongside these and named none - see the note below.
  */
 for (const width of WIDTHS) {
   test.describe(`at ${width} CSS px (parked)`, () => {
     test.use({ viewport: { width, height: 720 } });
 
-    // Revived by Phase 6 (Big mode); the Day view has no phase scheduled. The
-    // Now view half of this is live above.
-    test.fixme("Now, Day and Big all reflow to one column", async ({ page }) => {
+    /**
+     * Revived by Phase 6 (Big mode). The Now view half is live above.
+     *
+     * **The Day view's half of this was deleted on 2026-09-01, not parked.**
+     * It drove `#view-day`, `#day-view` and `#past-toggle` through a view the
+     * retired plain build shipped and no phase ever scheduled back - so unlike
+     * every other block here it named no phase, and its ids were a contract
+     * nothing had agreed to. A parked test is a promise with a date on it; one
+     * with no date is a test file lying slowly. The decision and what remains
+     * of that view are recorded in Docs/build-log.md.
+     */
+    test.fixme("Now and Big both reflow to one column", async ({ page }) => {
       await openApp(page, MID_PERIOD);
       await expectNoHorizontalScroll(page, `${width}px Now view`);
-
-      await page.locator("#view-day").click();
-      await expect(page.locator("#day-view")).toBeVisible();
-      await expectNoHorizontalScroll(page, `${width}px Day view`);
-
-      // Past periods collapse by default; expanded is the taller, wider state.
-      const pastToggle = page.locator("#past-toggle");
-      if (await pastToggle.isVisible()) {
-        await pastToggle.click();
-        await expectNoHorizontalScroll(page, `${width}px Day view, past expanded`);
-      }
 
       await page.locator("#view-big").click();
       await expect(page.locator("#big-exit")).toBeVisible();

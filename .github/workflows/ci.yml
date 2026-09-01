@@ -99,7 +99,15 @@ jobs:
         run: npm test
 
   e2e:
+    # THE NAME IS LOAD-BEARING. Branch protection on `main` requires this check
+    # by its exact string, so renaming it here silently removes the gate: the
+    # required "E2E (reflow gate)" would never report again and every PR would
+    # wait forever for a job that no longer exists under that name. It now runs
+    # rather more than the reflow gate - see the step comments below - and the
+    # name stays until the protection rule is updated in the same change.
     name: E2E (reflow gate)
+    # (Discovered on `test/three-engines`, where renaming this to match what it
+    # does would have removed the gate silently rather than failing loudly.)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -113,12 +121,16 @@ jobs:
 
       # `channel: "chrome"` in playwright.config.ts means real Google Chrome,
       # not the bundled Chromium, so the runner has to install it. WebKit and
-      # Firefox are still owed - see Open gaps in Docs/build-log.md.
+      # Firefox are still owed - see Open gaps in Docs/build-log.md, and the
+      # `test/three-engines` branch, which adds `webkit firefox` to this line.
       - name: Install Chrome
         run: npx playwright install --with-deps chrome
 
-      # This is the WCAG 2.2 SC 1.4.10 reflow check at 320/375/768/1024/1440,
-      # which AGENTS.md calls a blocking gate rather than optional polish.
+      # Two things AGENTS.md calls blocking, in one job.
+      #
+      # The WCAG 2.2 SC 1.4.10 reflow check at 320/375/768/1024/1440, and the
+      # axe scan, which the accessibility research asks for on every journey
+      # with zero critical or serious violations to release.
       #
       # No separate build step: Playwright's `webServer` runs `npm run build &&
       # next start` itself, so the suite measures the CSS that actually ships

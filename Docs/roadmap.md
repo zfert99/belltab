@@ -42,13 +42,19 @@ An older note, kept for the same reason:
 
 **Testing:** 252 Vitest tests over the pure engine, the parser, the formatters,
 the clock reader, the day resolver, the editor's draft model, the storage
-boundary and the six library mutators, plus 111 live Playwright tests in `e2e/`
-running in a real Chrome. The reflow gate that Phase 0 calls for runs the four
-Now-view states, the editor, the calendar panel and the confirm dialog at
-320/375/768/1024/1440, with a 60-character unbroken name typed into a period,
-the schedule name, a picker chip, a `<select>` option and an exception row. A
-further **10 Playwright tests are parked** — each names the phase that revives
-it, except the Day view's, which names none; see **Open gaps** in
+boundary and the six library mutators, plus **132 Playwright tests in Chrome**,
+of which 122 run and 10 are parked. The same suite passes on WebKit and Firefox
+on the `test/three-engines` branch; adding those projects is still an open gap.
+
+The reflow gate that Phase 0 calls for runs the four Now-view states, the
+editor, the calendar panel and the confirm dialog at 320/375/768/1024/1440, with
+a 60-character unbroken name typed into a period, the schedule name, a picker
+chip, a `<select>` option and an exception row. `e2e/a11y.spec.ts` adds an
+`@axe-core/playwright` sweep over ten journeys, including both error states and
+the open modal, failing on any critical or serious violation.
+
+Every parked block names the phase that revives it; the Day view's, which named
+none, was deleted on 2026-09-01 rather than left. See **Open gaps** in
 `Docs/build-log.md`.
 
 The repo is at `github.com/zfert99/belltab`, with `main` protected by GitHub
@@ -203,12 +209,17 @@ The first genuinely useful build. Schedule is hard-coded.
 - ✅ The period announcer, keyed on the period's times so a rename cannot
   trigger it. Four of its parked E2E tests are live again.
 
-**Gate: met in Chrome, not yet in Safari.** `e2e/countdown.spec.ts` moves the
-clock without firing a timer, asserts the display is stale, and asserts that
-`visibilitychange` or `focus` alone corrects it — across ten minutes, across two
-period boundaries, and across Friday night into Saturday. What that does *not*
-cover is Safari, whose throttling thresholds are the thinnest evidence in the
-research and whose engine is still not in the Playwright projects. Carried
+**Gate: met in Chrome, not yet on a real Safari.** `e2e/countdown.spec.ts`
+moves the clock without firing a timer, asserts the display is stale, and
+asserts that `visibilitychange` or `focus` alone corrects it — across ten
+minutes, across two period boundaries, and across Friday night into Saturday.
+The `test/three-engines` branch runs the same suite green on WebKit and Firefox.
+
+What that still does *not* cover is a real Safari tab on a real device,
+backgrounded for real minutes: its throttling thresholds are the thinnest
+evidence in the research, and Playwright's WebKit is demonstrably not Safari —
+one build implements neither `<input type="time">` nor `type="date"`, which real
+Safari has shipped since 14.1. Carried
 forward as an open gap.
 
 Carried forward as open gaps rather than done: Safari, the two empty states that

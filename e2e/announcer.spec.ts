@@ -116,8 +116,9 @@ test.describe("the period announcer", () => {
    * that was never there. Found while porting; see Bugs found in the build log.
    *
    * `day-remaining` is deliberately absent from the list: the Day view it
-   * belonged to was retired with the plain build and no phase has scheduled it
-   * back. Add it here on the day it returns.
+   * belonged to was retired with the plain build, no phase ever scheduled it
+   * back, and its parked assertions were deleted on 2026-09-01 rather than left
+   * naming a date that did not exist. Add it here if that view ever returns.
    */
   test("never wraps the ticking values", async ({ page }) => {
     await openApp(page, MID_PERIOD);
