@@ -392,30 +392,46 @@ test.describe("the keyboard alone", () => {
     // A native time input takes typed digits, segment by segment. That is most
     // of the argument for using one: none of this behaviour is ours.
     /*
-      The keystrokes depend on what the engine actually rendered, and the
-      engines genuinely disagree - including with each other across platforms.
+      ARROW KEYS, not typed digits, and the reason is two CI failures deep.
 
-      `1500` is how you type into a SEGMENTED time control: hour, then minute,
-      each segment advancing on its own. It is four digits and no meridiem
-      because the suite pins `locale: "en-GB"`, which makes the control
-      24-hour - see the note in playwright.config.ts for why that pin exists
-      and why it is safe.
+      Typing into a segmented time control means typing into its SEGMENTS, and
+      what that costs depends on the build. `0300PM` works in Chrome and
+      Firefox under a 12-hour locale and was rejected by the Linux runner's
+      WebKit. `1500` under the `en-GB` pin - which removes the meridiem segment
+      entirely - was also rejected there, leaving the field on its default. Two
+      round trips to learn that this assertion was measuring a browser's
+      per-segment keystroke handling and never anything about BellTab.
 
-      Some builds render no time control at all. Playwright's WebKit on Windows
-      reports `type === "text"` and hands back a plain text box, where the same
-      four digits would land as the literal string "1500"; the same WebKit on
-      the Linux CI runner reports `type === "time"`. Asking the ELEMENT what it
-      is, rather than branching on the project name or the platform, is the only
-      version of this that stays true in both places - and on the day a build
-      changes its mind.
+      ArrowUp is the part that IS specified: tabbing into a time control focuses
+      its first segment, and an arrow steps that segment. It is the same
+      interaction the length field below is tested with, and the one a keyboard
+      user actually reaches for.
+
+      Some builds render no time control at all - Playwright's WebKit on Windows
+      reports `type === "text"` and hands back a plain text box, where arrows do
+      nothing and typing is the only option. Asking the ELEMENT what it is,
+      rather than branching on a project name or a platform, is the only version
+      of this that stays true in both places and on the day a build changes its
+      mind.
+
+      The expected value is computed from what the field actually held rather
+      than hard-coded, so this keeps testing the interaction if the seeded
+      schedule's last period ever moves.
     */
     await tabTo(page, '#period-editor .editrow:last-child [data-field="start"]');
 
-    const segmented = await field(added, "start").evaluate(
+    const startField = field(added, "start");
+    const segmented = await startField.evaluate(
       (element: HTMLInputElement) => element.type === "time",
     );
-    await page.keyboard.type(segmented ? "1500" : "15:00");
-    await expect(field(added, "start")).toHaveValue("15:00");
+
+    const [hours, minutes] = (await startField.inputValue()).split(":").map(Number);
+    const anHourLater = `${String(hours + 1).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
+
+    if (segmented) await page.keyboard.press("ArrowUp");
+    else await page.keyboard.type(anHourLater);
+
+    await expect(startField).toHaveValue(anHourLater);
 
     // And a native number input takes its arrow keys, which is the other half.
     // Stepping down from the new row's default 45 rather than selecting and
