@@ -3452,12 +3452,33 @@ fixed and already covered in Chrome, so this branch no longer risks anything —
 it either goes green and closes a gap open since 2026-08-26, or it tells us
 something new about the Linux runner's WebKit and costs one CI cycle.
 
-**The one open question it answers:** whether `ArrowUp` steps a segmented time
-control on the runner's build. Typed digits did not, twice — `0300PM` under a
-12-hour locale and `1500` under `en-GB` — and the arrow-key version was written
-against that failure and merged without ever being run there, because `main`
-does not run WebKit. The `en-GB` pin was dropped along the way: with an arrow
-rather than digits there is no meridiem segment to disagree about, so it was
-solving a problem that no longer exists.
+**The one open question it answered:** whether `ArrowUp` steps a segmented time
+control on the runner's build. **It does not.** Typed digits did not either,
+twice — `0300PM` under a 12-hour locale, `1500` under an `en-GB` pin that
+removes the meridiem segment. Three interaction styles, all inert on that build,
+while Chrome and Firefox accept all three.
+
+That is now measured rather than guessed, and it settles the question the wrong
+way round: the assertion cannot be made to work there, because the control does
+not respond to synthetic keyboard input at all.
+
+**So the assertion was split along the line it should have been split on after
+the FIRST failure.** Reachability is BellTab's — the field must be tabbable, in
+order, with a label, and that is asserted unconditionally. Whether a native time
+control answers a synthetic keystroke is the BROWSER's, and that assertion now
+runs where the control responds and is ANNOTATED where it does not.
+
+Annotated rather than dropped, faked or branched on a project name. A test that
+quietly asserts nothing is worse than one that says in its report which build
+refused to play. And nothing much is lost: this app's timing is a start plus a
+LENGTH, and the length field is an `<input type="number">` whose arrows work
+everywhere, asserted unconditionally two lines further down.
+
+**The cost of learning this was three CI cycles**, and it did not have to be.
+The first failure already contained the whole answer — an assertion about a
+control's per-segment keystroke handling is an assertion about a browser — and
+the right response then was the split, not a second set of keystrokes and then a
+third. Recorded because the branch is otherwise a success story and the process
+was not.
 
 Local: 366 passed, 30 parked, three engines, at two workers.
