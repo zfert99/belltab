@@ -2,6 +2,7 @@
 
 import { useState, type RefObject } from "react";
 import { SCHEDULE_LIMITS } from "@/lib/parse";
+import { copyText, shareUrlFor } from "@/app/_lib/shareLink";
 import {
   createSchedule,
   deleteSchedule,
@@ -39,6 +40,16 @@ export function SchedulesPanel({
   headingRef,
 }: SchedulesPanelProps) {
   const [confirming, setConfirming] = useState(false);
+
+  /**
+   * The share link, and what happened to it.
+   *
+   * `null` is "nobody has asked". A string is the link, shown either as
+   * confirmation that it was copied or as something to copy by hand where the
+   * clipboard was refused - which is a real state, not a theoretical one: the
+   * Clipboard API needs a secure context and can be denied by policy.
+   */
+  const [link, setLink] = useState<{ url: string; copied: boolean } | null>(null);
 
   const count = library.schedules.length;
   const index = count === 0 ? null : Math.min(Math.max(selected, 0), count - 1);
@@ -130,6 +141,20 @@ export function SchedulesPanel({
         </button>
         <button
           type="button"
+          className="minibutton"
+          id="schedule-share"
+          disabled={schedule === null}
+          onClick={() => {
+            if (schedule === null) return;
+            void shareUrlFor(schedule).then(async (url) => {
+              setLink({ url, copied: await copyText(url) });
+            });
+          }}
+        >
+          Copy share link
+        </button>
+        <button
+          type="button"
           className="minibutton minibutton--danger"
           id="schedule-delete"
           disabled={schedule === null}
@@ -138,6 +163,27 @@ export function SchedulesPanel({
           Delete schedule
         </button>
       </div>
+
+      {link !== null && (
+        <div className="sharelink" id="share-link">
+          <p className="panel__note" id="share-link-status">
+            {link.copied
+              ? "Link copied. It carries this schedule and nothing else — not your calendar, and not the rest of your library."
+              : "This browser would not let BellTab reach the clipboard. Copy the link by hand:"}
+          </p>
+          {/*
+            Always rendered, not only on failure. A user who was told "copied"
+            and wants to check, or who wants to see how long the thing is
+            before pasting it into a message, has nowhere else to look - and a
+            read-only input is the one control that reliably supports
+            select-all on every platform.
+          */}
+          <label className="sharelink__field">
+            <span className="visually-hidden">Share link</span>
+            <input type="text" id="share-link-url" readOnly value={link.url} />
+          </label>
+        </div>
+      )}
 
       {schedule === null || index === null ? (
         <p className="panel__note">There are no schedules. New schedule above starts one.</p>

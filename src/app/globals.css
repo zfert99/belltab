@@ -1678,7 +1678,87 @@ body.is-settings .viewswitch {
 }
 
 /* ============================================================
-   19. INVALID FIELDS - last in the file, deliberately
+   19. SHARING
+   ============================================================ */
+
+/* The banner offering a schedule somebody sent. Above everything, on whichever
+   screen is up, because a link is how a user ARRIVES rather than something they
+   went looking for. */
+.offer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-3);
+  padding: var(--s-3) var(--s-4);
+  background: var(--bg);
+  border: var(--border-passive);
+  border-radius: var(--r-md);
+}
+
+.offer--error {
+  border-color: var(--danger);
+}
+
+.offer__text {
+  flex: 1 1 16rem;
+  min-width: 0;
+  font-size: 0.9375rem;
+  /* A schedule name from a stranger, rendered as text and allowed to be
+     absurd. Same rule as every other surface that shows one. */
+  overflow-wrap: anywhere;
+}
+
+.offer__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-2);
+}
+
+/* The copied link, shown whether or not the clipboard accepted it. */
+.sharelink {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+}
+
+.sharelink__field {
+  display: flex;
+  min-width: 0;
+}
+
+.sharelink__field input {
+  width: 100%;
+  min-width: 0;
+  min-height: 44px;
+  padding: 0 var(--s-3);
+  font-family: var(--font-mono);
+  font-size: 0.8125rem;
+  color: var(--fg-soft);
+  background: var(--bg);
+  border: var(--border-passive);
+  border-radius: var(--r-md);
+}
+
+.backup__file {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-1);
+  align-items: flex-start;
+}
+
+/* A native file input is ugly and honest. Styling it means hiding it behind a
+   label, which costs the keyboard and screen-reader behaviour the real control
+   already has - so it keeps its own appearance and only its box is tamed. */
+#backup-import {
+  max-width: 100%;
+  font-family: var(--font-body);
+  font-size: 0.9375rem;
+  color: var(--fg-soft);
+}
+
+/* ============================================================
+   20. INVALID FIELDS - last in the file, deliberately
    ============================================================ */
 
 /* This rule has to come after EVERY rule that sets a `border` shorthand on a

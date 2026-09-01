@@ -6,6 +6,7 @@ import type { Library } from "@/app/_lib/library";
 import { scheduleIndexToEdit } from "@/app/_lib/today";
 import { SchedulesPanel } from "@/app/_components/SchedulesPanel";
 import { CalendarPanel } from "@/app/_components/CalendarPanel";
+import { BackupPanel } from "@/app/_components/BackupPanel";
 
 /**
  * The settings screen, and the tab strip Phase 3 deliberately did not build.
@@ -32,11 +33,12 @@ import { CalendarPanel } from "@/app/_components/CalendarPanel";
  * editor at a different schedule.
  */
 
-export type PanelId = "schedules" | "calendar";
+export type PanelId = "schedules" | "calendar" | "backup";
 
 const PANELS: readonly { id: PanelId; label: string }[] = [
   { id: "schedules", label: "Schedules" },
   { id: "calendar", label: "Calendar" },
+  { id: "backup", label: "Backup" },
 ];
 
 export interface SettingsViewProps {
@@ -84,7 +86,7 @@ export function SettingsView({
           ))}
         </div>
 
-        {panel === "schedules" ? (
+        {panel === "schedules" && (
           <SchedulesPanel
             library={library}
             save={save}
@@ -92,8 +94,12 @@ export function SettingsView({
             onSelect={setSelected}
             headingRef={headingRef}
           />
-        ) : (
+        )}
+        {panel === "calendar" && (
           <CalendarPanel library={library} save={save} now={now} headingRef={headingRef} />
+        )}
+        {panel === "backup" && (
+          <BackupPanel library={library} save={save} now={now} headingRef={headingRef} />
         )}
       </div>
     </section>
