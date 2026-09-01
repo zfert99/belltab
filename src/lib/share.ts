@@ -45,6 +45,16 @@ export const SHARE_VERSION = "1";
 export const SHARE_LIMITS = {
   /** Characters of base64url, excluding the version prefix. */
   encodedChars: 8192,
+  /**
+   * Characters of version marker.
+   *
+   * A version is a handful of characters and anything longer is not one. This
+   * exists because the version segment is sliced from whatever precedes the
+   * first dot and lands verbatim in a user-facing message, so without a bound
+   * a 200,000-character fragment produced a 200,082-character error - measured,
+   * see `Docs/code-review-2026-09-01-share.md`.
+   */
+  versionChars: 8,
   /** Bytes of JSON after decompression. */
   decodedBytes: 64 * 1024,
 } as const;
@@ -179,10 +189,19 @@ const toSharedV1 = (schedule: Schedule): SharedScheduleV1 => ({
  * something `parseSchedule` can judge - it does NOT validate. That keeps every
  * version's job small: describe the shape it was written in, and let the one
  * boundary in the codebase decide whether the result is a schedule.
+ *
+ * **A `Map`, not an object, and that is a correctness fix rather than taste.**
+ * An object literal inherits from `Object.prototype`, so a plain `table[version]`
+ * lookup succeeds for every key that prototype carries: `DECODERS["constructor"]`
+ * was the `Object` constructor - a function, therefore not `undefined`,
+ * therefore called with the payload. A link whose version marker read
+ * `constructor` came back "Give the schedule a name.", sending whoever was
+ * debugging it to look at the one part of that link which was fine. A Map has no
+ * inherited keys to find.
  */
-const DECODERS: Record<string, (json: string) => unknown> = {
-  "1": (json) => JSON.parse(json) as unknown,
-};
+const DECODERS = new Map<string, (json: string) => unknown>([
+  ["1", (json) => JSON.parse(json) as unknown],
+]);
 
 /* -------------------------------------------------------------------- API */
 
@@ -213,13 +232,24 @@ export async function encodeSchedule(schedule: Schedule): Promise<string> {
 export async function decodeShare(fragment: string): Promise<ParseResult<ValidSchedule>> {
   const text = fragment.startsWith("#") ? fragment.slice(1) : fragment;
 
+  // The WHOLE fragment first, before anything is sliced out of it. Capping only
+  // the payload leaves the version segment unbounded, and the version is what
+  // ends up quoted back to the user.
+  if (text.length > SHARE_LIMITS.encodedChars + SHARE_LIMITS.versionChars + 1) {
+    return shareError("This link is too long to be a schedule.");
+  }
+
   const separator = text.indexOf(".");
   if (separator < 1) return shareError("This link is missing its version marker.");
 
   const version = text.slice(0, separator);
   const payload = text.slice(separator + 1);
 
-  const decoder = DECODERS[version];
+  if (version.length > SHARE_LIMITS.versionChars) {
+    return shareError("This link is missing its version marker.");
+  }
+
+  const decoder = DECODERS.get(version);
   if (decoder === undefined) {
     return shareError(
       `This link was made by a newer version of BellTab (format ${version}) than this one can read.`,

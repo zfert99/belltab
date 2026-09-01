@@ -168,6 +168,69 @@ describe("refusing a link", () => {
   });
 
   /**
+   * The version segment is attacker-controlled and gets quoted back to the user,
+   * so it needs a bound of its own.
+   *
+   * Before the review it had none - only the payload was capped, and only after
+   * the version had been sliced out. A fragment of 200,000 digits produced a
+   * 200,082-character error message. Measured, not theorised.
+   */
+  it("refuses an oversized version marker rather than quoting it back", async () => {
+    const error = await reason(`${"9".repeat(200_000)}.abc`);
+
+    expect(error.message.length).toBeLessThan(120);
+    expect(error.message).not.toContain("999999");
+  });
+
+  it("caps a version marker that is merely too long, not absurd", async () => {
+    const error = await reason(`${"9".repeat(SHARE_LIMITS.versionChars + 1)}.abc`);
+    expect(error.message).toContain("version marker");
+  });
+
+  /**
+   * The prototype chain, which made `constructor` a working version marker.
+   *
+   * `DECODERS` was an object literal, so `DECODERS["constructor"]` returned the
+   * `Object` constructor - a function, so not `undefined`, so CALLED with the
+   * payload. `Object(json)` is a String object, which `asRecord` accepts and
+   * whose `.name` is undefined, so a link with a nonsense version came back
+   * "Give the schedule a name." and pointed the reader at the one part of it
+   * that was fine.
+   *
+   * Every one of these has a perfectly valid v1 payload attached, so nothing
+   * about the schedule can be what refuses them.
+   */
+  it.each([["constructor"], ["toString"], ["__proto__"], ["valueOf"], ["hasOwnProperty"]])(
+    "refuses the prototype key %s rather than decoding it",
+    async (key) => {
+      const payload = (await encodeSchedule(schedule("X", []))).slice(2);
+      const result = await decodeShare(`${key}.${payload}`);
+
+      expect(result.ok).toBe(false);
+    },
+  );
+
+  /**
+   * The two prototype keys short enough to reach the lookup are what actually
+   * pin the Map.
+   *
+   * The longer ones above are refused by the version-length cap, which is a
+   * correct refusal by the wrong guard - if `DECODERS` went back to being an
+   * object literal they would still fail, and the test would still pass. These
+   * two are 7 and 8 characters, inside `versionChars`, so the only thing left
+   * that can refuse them is the lookup itself.
+   */
+  it.each([["toString"], ["valueOf"]])(
+    "reports the prototype key %s as an unknown version, having reached the lookup",
+    async (key) => {
+      const payload = (await encodeSchedule(schedule("X", []))).slice(2);
+
+      expect(key.length).toBeLessThanOrEqual(SHARE_LIMITS.versionChars);
+      expect((await reason(`${key}.${payload}`)).message).toContain("newer version");
+    },
+  );
+
+  /**
    * The decompression bomb, which is the reason the decoded cap exists at all.
    *
    * A mebibyte of zeroes deflates to about a kilobyte - deflate's ceiling is
