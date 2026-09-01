@@ -89,8 +89,8 @@ Before calling any change done:
 ```bash
 npm run lint      # eslint, including jsx-a11y at full `recommended`
 npm run typecheck # tsc --noEmit, strict
-npm test          # vitest - the engine, the parser, the formatters
-npm run e2e       # playwright - the reflow gate
+npm test          # vitest - the engine, the parser, the library and the calendar
+npm run e2e       # playwright - the reflow gate, and the assembled app
 npm run lint:md   # markdownlint
 ```
 
@@ -109,7 +109,7 @@ see **Open gaps** in `Docs/build-log.md`.
 | `Docs/build-log.md` | What was actually built, what was decided and why, what broke, and what is still owed |
 | `Docs/design/design-system.md` | Visual language, inherited from the hub |
 | `Docs/research/background-timers-and-schedule-modeling.md` | The research this whole design rests on |
-| `Docs/code-review-2026-08-26.md` | A full review of `437ef54`, its five findings, and how each was fixed and verified |
+| `Docs/code-review-*.md` | One per review, each recording its findings as written and how every one was fixed and verified |
 | `AGENTS.md` | Rules for AI agents working in this repo |
 
 The plan and the roadmap describe the destination; the build log describes the

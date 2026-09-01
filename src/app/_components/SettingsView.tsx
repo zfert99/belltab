@@ -1,51 +1,99 @@
 "use client";
 
-import type { RefObject } from "react";
+import { useState, type RefObject } from "react";
+import type { LocalNow } from "@/lib/clock";
 import type { Library } from "@/app/_lib/library";
-import type { ValidSchedule } from "@/lib/schedule";
-import { ScheduleEditor } from "@/app/_components/ScheduleEditor";
+import { scheduleIndexToEdit } from "@/app/_lib/today";
+import { SchedulesPanel } from "@/app/_components/SchedulesPanel";
+import { CalendarPanel } from "@/app/_components/CalendarPanel";
 
 /**
- * The settings screen.
+ * The settings screen, and the tab strip Phase 3 deliberately did not build.
  *
- * One panel in Phase 3, so there is no tab strip: a tablist with a single tab
- * is a control that cannot do anything, which is worse than no control. The
- * nav arrives with Phase 4's calendar panel, and `globals.css` already carries
- * `.settings__layout` and `.settings__tab` for it.
+ * One panel needed no navigation - a tablist with a single tab is a control that
+ * cannot do anything, which is worse than no control. Two panels do, and
+ * `globals.css` has carried `.settings__layout` and `.settings__tab` since the
+ * retired build in anticipation of exactly this.
  *
- * The heading takes `tabIndex={-1}` so focus can be moved here when the view
- * opens. That is not decoration - without it, opening settings leaves focus on
- * a button that is no longer on screen and a screen-reader user is told
- * nothing about what just happened.
+ * Pressed-state buttons rather than ARIA tabs. A real `tablist` owes arrow-key
+ * roving focus and a `tabpanel` relationship, and buys nothing here: there are
+ * two destinations, each of which simply replaces the panel below. `aria-pressed`
+ * says which one is showing without promising keyboard behaviour that is not
+ * implemented.
+ *
+ * And no `aria-controls`, for the same reason it was REMOVED after the Phase 4
+ * review: only one panel is rendered at a time, so the inactive tab's IDREF
+ * pointed at nothing and a dangling IDREF is an ARIA error rather than a weaker
+ * hint. The panel is the next element in DOM order and `aria-pressed` already
+ * carries the state, so the attribute was buying nothing to begin with.
+ *
+ * Selection state for the schedule picker lives HERE rather than in the panel,
+ * so that switching to the calendar and back does not silently re-point the
+ * editor at a different schedule.
  */
+
+export type PanelId = "schedules" | "calendar";
+
+const PANELS: readonly { id: PanelId; label: string }[] = [
+  { id: "schedules", label: "Schedules" },
+  { id: "calendar", label: "Calendar" },
+];
+
 export interface SettingsViewProps {
-  schedule: ValidSchedule | null;
   library: Library;
   save: (next: Library) => void;
+  now: LocalNow | null;
+  /** Which panel to open on - the countdown's empty states link into both. */
+  initialPanel: PanelId;
   headingRef: RefObject<HTMLHeadingElement | null>;
 }
 
-export function SettingsView({ schedule, library, save, headingRef }: SettingsViewProps) {
+export function SettingsView({
+  library,
+  save,
+  now,
+  initialPanel,
+  headingRef,
+}: SettingsViewProps) {
+  const [panel, setPanel] = useState<PanelId>(initialPanel);
+
+  // Computed once, on open. The editor opens on the schedule that runs today,
+  // which is the one a user is most likely to have come here to fix; from then
+  // on it is whichever chip they pressed, and recomputing would take the
+  // selection back off them at midnight.
+  const [selected, setSelected] = useState(() => scheduleIndexToEdit(library, now) ?? 0);
+
   return (
     <section className="settings" id="settings-view" aria-labelledby="settings-title">
-      <div className="panel" id="panel-schedules">
-        <h2 className="panel__title" id="settings-title" tabIndex={-1} ref={headingRef}>
-          Schedule
-        </h2>
-        <p className="panel__note">
-          Periods are kept in start order and cannot overlap. Every valid change is saved to this
-          browser as you type; the countdown keeps running on the last version that made sense.
-        </p>
+      <div className="settings__layout">
+        <div className="settings__nav" role="group" aria-labelledby="settings-navlabel">
+          <p className="settings__navlabel" id="settings-navlabel">
+            Settings
+          </p>
+          {PANELS.map(({ id, label }) => (
+            <button
+              key={id}
+              type="button"
+              className="settings__tab"
+              id={`tab-${id}`}
+              aria-pressed={panel === id}
+              onClick={() => setPanel(id)}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
 
-        {schedule === null ? (
-          <p className="panel__note">There is no schedule to edit.</p>
-        ) : (
-          <ScheduleEditor
-            key={schedule.id ?? "unnamed"}
-            schedule={schedule}
+        {panel === "schedules" ? (
+          <SchedulesPanel
             library={library}
             save={save}
+            selected={selected}
+            onSelect={setSelected}
+            headingRef={headingRef}
           />
+        ) : (
+          <CalendarPanel library={library} save={save} now={now} headingRef={headingRef} />
         )}
       </div>
     </section>

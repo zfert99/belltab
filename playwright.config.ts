@@ -32,6 +32,26 @@ export default defineConfig({
   testDir: "./e2e",
   fullyParallel: true,
 
+  /**
+   * Four, not Playwright's default of half the machine's cores.
+   *
+   * Measured rather than chosen. Phase 4 took the suite from 83 tests to 108,
+   * and at eight workers a full local run started failing intermittently -
+   * sometimes as `browserContext.newPage: Target crashed`, sometimes as a boot
+   * wait timing out, never twice on the same test. Eight Chrome instances plus a
+   * `next start` exhaust the machine, and a crashed renderer looks exactly like
+   * an app that will not hydrate.
+   *
+   * Raising the boot timeout made it WORSE, which is the tell: a starved worker
+   * that is given longer holds its slot longer. Four workers is clean over
+   * repeated runs and costs nothing - 26.5s against 27.4s - because the run was
+   * never CPU-bound at eight, it was thrashing.
+   *
+   * CI keeps the default. Its runners have fewer cores and therefore already get
+   * fewer workers, and pinning a number here would raise it on a 2-core box.
+   */
+  workers: process.env.CI ? undefined : 4,
+
   forbidOnly: Boolean(process.env.CI),
   retries: process.env.CI ? 1 : 0,
   // "github" annotates the failing line in the PR diff but writes nothing to

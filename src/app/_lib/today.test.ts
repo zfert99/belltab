@@ -1,7 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { localNow } from "@/lib/clock";
 import { DEFAULT_LIBRARY } from "@/app/_lib/library";
-import { scheduleToEdit, tabTitleFor, viewForNow } from "@/app/_lib/today";
+import {
+  scheduleIndexToEdit,
+  scheduleNameOn,
+  tabTitleFor,
+  viewForNow,
+} from "@/app/_lib/today";
 
 /**
  * The seam between the clock and the engine.
@@ -134,22 +139,53 @@ describe("with a library the seeded one cannot produce", () => {
   });
 });
 
-describe("scheduleToEdit", () => {
+describe("scheduleIndexToEdit", () => {
+  const nameAt = (index: number | null) =>
+    index === null ? null : DEFAULT_LIBRARY.schedules[index].name;
+
   it("opens on the schedule running today", () => {
-    expect(scheduleToEdit(DEFAULT_LIBRARY, wednesday(9, 30))?.name).toBe("Regular");
+    expect(nameAt(scheduleIndexToEdit(DEFAULT_LIBRARY, wednesday(9, 30)))).toBe("Regular");
   });
 
   it("falls back to the first schedule at the weekend", () => {
     // Somebody setting up their timetable on a Sunday should not be shown an
     // empty editor and told to come back Monday.
-    expect(scheduleToEdit(DEFAULT_LIBRARY, saturday(9, 30))?.name).toBe("Regular");
+    expect(nameAt(scheduleIndexToEdit(DEFAULT_LIBRARY, saturday(9, 30)))).toBe("Regular");
   });
 
   it("falls back to the first schedule before the clock has been read", () => {
-    expect(scheduleToEdit(DEFAULT_LIBRARY, null)?.name).toBe("Regular");
+    expect(nameAt(scheduleIndexToEdit(DEFAULT_LIBRARY, null))).toBe("Regular");
   });
 
   it("has nothing to open when the library is empty", () => {
-    expect(scheduleToEdit({ schedules: [], calendar: DEFAULT_LIBRARY.calendar }, null)).toBeNull();
+    expect(scheduleIndexToEdit({ schedules: [], calendar: DEFAULT_LIBRARY.calendar }, null)).toBeNull();
+  });
+});
+
+describe("scheduleNameOn", () => {
+  it("names the schedule a weekday resolves to", () => {
+    expect(scheduleNameOn(DEFAULT_LIBRARY, "2026-09-02", 3)).toBe("Regular");
+  });
+
+  it("is null on a day the calendar points nowhere", () => {
+    expect(scheduleNameOn(DEFAULT_LIBRARY, "2026-09-05", 6)).toBeNull();
+  });
+
+  it("lets an override beat the weekday, in both directions", () => {
+    const withOverrides = {
+      schedules: DEFAULT_LIBRARY.schedules,
+      calendar: {
+        weekdays: DEFAULT_LIBRARY.calendar.weekdays,
+        overrides: [
+          { date: "2026-09-02", scheduleId: "assembly" },
+          // A closure on a school day, which is the case that proves the
+          // resolver checks for the entry rather than for its value.
+          { date: "2026-09-03", scheduleId: null },
+        ],
+      },
+    };
+
+    expect(scheduleNameOn(withOverrides, "2026-09-02", 3)).toBe("Assembly");
+    expect(scheduleNameOn(withOverrides, "2026-09-03", 4)).toBeNull();
   });
 });

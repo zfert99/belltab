@@ -2,7 +2,7 @@ import type { LocalNow } from "@/lib/clock";
 import { stateAt, type DayState } from "@/lib/engine";
 import { formatTabTitle } from "@/lib/format";
 import { resolveScheduleId } from "@/lib/parse";
-import type { ValidSchedule } from "@/lib/schedule";
+import type { IsoDate } from "@/lib/schedule";
 import type { Library } from "@/app/_lib/library";
 
 /**
@@ -58,20 +58,42 @@ export function tabTitleFor(view: TodayView): string {
 }
 
 /**
- * The schedule the editor opens on.
+ * The schedule the picker opens on, as an INDEX into the library.
  *
  * Today's, if today has one; otherwise the first in the library. A weekend is
  * the ordinary case for the fallback - somebody setting up their timetable on a
  * Sunday should not be shown an empty editor and told to come back Monday.
  *
- * Phase 4 replaces this with a picker. Until there is more than one schedule a
- * user can choose between, "the one that matters today" is the only sensible
- * answer, and it is computed rather than remembered so it cannot go stale.
+ * An index rather than the schedule itself, because Phase 4's picker holds a
+ * selection and the editor replaces schedules positionally. `null` is an empty
+ * library, which is the onboarding state rather than an error.
  */
-export function scheduleToEdit(library: Library, now: LocalNow | null): ValidSchedule | null {
+export function scheduleIndexToEdit(library: Library, now: LocalNow | null): number | null {
   if (library.schedules.length === 0) return null;
-  if (now === null) return library.schedules[0];
+  if (now === null) return 0;
 
   const id = resolveScheduleId(library.calendar, now.isoDate, now.weekday);
-  return library.schedules.find((candidate) => candidate.id === id) ?? library.schedules[0];
+  const index = library.schedules.findIndex((candidate) => candidate.id === id);
+
+  return index === -1 ? 0 : index;
+}
+
+/**
+ * What a given day resolves to, by name.
+ *
+ * The calendar panel's whole job is to make the resolver legible, and a user
+ * cannot check a priority order they cannot see. `null` is no school - either
+ * because the weekday points at nothing, or because an override closed the day.
+ *
+ * The weekday is passed in rather than derived from the date, for the same
+ * reason `resolveScheduleId` does it: this stays pure and the caller owns the
+ * clock.
+ */
+export function scheduleNameOn(
+  library: Library,
+  isoDate: IsoDate,
+  weekday: number,
+): string | null {
+  const id = resolveScheduleId(library.calendar, isoDate, weekday);
+  return library.schedules.find((candidate) => candidate.id === id)?.name ?? null;
 }

@@ -225,8 +225,80 @@ export function parseSchedule(input: unknown): ParseResult<ValidSchedule> {
 }
 
 /**
- * A list of schedules in, a list of validated schedules or structured errors
- * out.
+ * A schedule the calendar is able to point at.
+ *
+ * `Schedule.id` is nullable, and for a single schedule that is right: one typed
+ * into the editor or decoded from a share link need not have an identity yet.
+ * A schedule in the LIBRARY must have one, because the calendar points at
+ * schedules BY id - so a schedule without an id is a schedule no weekday and no
+ * override can ever select. `parseScheduleCollection` is where that becomes
+ * true rather than merely likely.
+ */
+export type IdentifiedSchedule = ValidSchedule & { readonly id: ScheduleId };
+
+/**
+ * A type predicate, deliberately, rather than a second cast.
+ *
+ * `parseSchedule`'s double assertion is the only one in `src/`, and the build
+ * log says a second would read as a lie in a diff. This narrows without
+ * asserting anything: TypeScript accepts `schedule is IdentifiedSchedule`
+ * because the intersection is assignable to the parameter type, so
+ * `filter(isIdentified)` produces the narrower array with nothing forged.
+ */
+export const isIdentified = (schedule: ValidSchedule): schedule is IdentifiedSchedule =>
+  schedule.id !== null;
+
+/**
+ * The first `s1`, `s2`, ... that nothing already answers to.
+ *
+ * Opaque and sequential rather than derived from the name: a schedule's name is
+ * user input and changes, and an id that changed with it would silently orphan
+ * every weekday and override pointing at that schedule. Exported because
+ * creating and duplicating a schedule needs the same guarantee the boundary
+ * gives an imported one.
+ */
+export function unusedScheduleId(taken: Iterable<ScheduleId>): ScheduleId {
+  const used = new Set(taken);
+  let n = 1;
+  while (used.has(`s${n}`)) n++;
+  return `s${n}`;
+}
+
+/**
+ * Every entry in a collection, carrying a unique non-empty id.
+ *
+ * Two passes, because the first claimant of a duplicated id has to keep it: one
+ * pass would either renumber the wrong entry or hand a later one an id an
+ * earlier one already answers to, and the calendar would then be pointing at
+ * both at once.
+ *
+ * Entries that are not objects pass through untouched, so `parseSchedule`
+ * refuses them against their own row index rather than this function swallowing
+ * the error.
+ */
+function withUniqueIds(input: readonly unknown[]): unknown[] {
+  const taken = new Set<ScheduleId>();
+
+  const claimed = input.map((raw) => {
+    const id = asRecord(raw)?.id;
+    if (typeof id !== "string" || !id || taken.has(id)) return null;
+    taken.add(id);
+    return id;
+  });
+
+  return input.map((raw, index) => {
+    const row = asRecord(raw);
+    if (row === null) return raw;
+
+    const id = claimed[index] ?? unusedScheduleId(taken);
+    taken.add(id);
+    return { ...row, id };
+  });
+}
+
+/**
+ * A list of schedules in, a list of identified, validated schedules or
+ * structured errors out.
  *
  * This is the enforcer for `SCHEDULE_LIMITS.schedules`, which until now was the
  * one cap in that object with no code applying it: its only caller was the
@@ -243,8 +315,13 @@ export function parseSchedule(input: unknown): ParseResult<ValidSchedule> {
  * `parseSchedule`, which the editor calls on one schedule at a time; a
  * collection arrives from localStorage, a JSON import or a share link, where
  * there is no form control to point at.
+ *
+ * **Phase 4:** the returned schedules are IDENTIFIED - every one carries a
+ * unique, non-empty id, assigned here to any entry that arrived without a usable
+ * one. That is what lets the calendar point at every schedule in the library
+ * rather than at only the ones whose author happened to supply an id.
  */
-export function parseScheduleCollection(input: unknown): ParseResult<ValidSchedule[]> {
+export function parseScheduleCollection(input: unknown): ParseResult<IdentifiedSchedule[]> {
   if (!Array.isArray(input)) {
     return {
       ok: false,
@@ -268,7 +345,7 @@ export function parseScheduleCollection(input: unknown): ParseResult<ValidSchedu
   const errors: ParseError[] = [];
   const value: ValidSchedule[] = [];
 
-  (input as unknown[]).forEach((raw, index) => {
+  withUniqueIds(input as unknown[]).forEach((raw, index) => {
     const result = parseSchedule(raw);
     if (result.ok) {
       value.push(result.value);
@@ -277,7 +354,12 @@ export function parseScheduleCollection(input: unknown): ParseResult<ValidSchedu
     errors.push({ index, field: "schedule", message: result.errors[0].message });
   });
 
-  return errors.length > 0 ? { ok: false, errors } : { ok: true, value };
+  if (errors.length > 0) return { ok: false, errors };
+
+  // Narrowing, not filtering. Every entry went through `withUniqueIds`, so
+  // every schedule that parsed carries an id and nothing is dropped here - the
+  // test that counts the survivors is what keeps that true.
+  return { ok: true, value: value.filter(isIdentified) };
 }
 
 /**

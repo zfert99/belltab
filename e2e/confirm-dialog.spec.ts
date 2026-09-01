@@ -2,35 +2,35 @@ import { test, expect, type Page } from "@playwright/test";
 import { openApp, openSettings } from "./helpers";
 
 /**
- * PARKED in full until PHASE 4, which is where deleting a SCHEDULE comes back.
+ * LIVE since Phase 4, which is where deleting a SCHEDULE came back.
  *
- * Re-parked from Phase 3 on 2026-08-27. Phase 3 is the period editor - add,
- * rename, retime, reorder, delete PERIODS - and it ships no confirmation
- * because none of those is destructive enough to interrupt for: a deleted
- * period is four fields and the countdown behind the editor shows the result
- * immediately. Deleting a whole named schedule is Phase 4's, and so is this.
+ * Parked from Phase 1 to Phase 3 while the markup it names did not exist. Phase
+ * 3 was the period editor - add, rename, retime, reorder, delete PERIODS - and
+ * it ships no confirmation because none of those is destructive enough to
+ * interrupt for: a deleted period is four fields and the countdown behind the
+ * editor shows the result immediately. Deleting a whole named schedule is not,
+ * and this is the contract its dialog has to meet.
  *
- * The assertions below will need one adjustment when they are revived: the
- * `is-settings` body class and `#focus-view` belong to the retired plain
- * build's view switcher. Phase 3 swaps the two screens by conditional render
- * instead, so the settings-still-standing check is `#settings-view` being
- * attached, which is already asserted alongside them.
+ * One adjustment on revival, exactly as the parked note predicted: the
+ * `is-settings` body class and `#focus-view` belonged to the retired plain
+ * build's view switcher. The React app swaps the two screens by conditional
+ * render, so "settings is still standing" is now `#settings-view` and its panel
+ * being visible.
  *
  * Findings 1 and 3 of `Docs/code-review-2026-08-26.md`, in the browser they
- * were originally measured in. Neither is visible to the unit suite: jsdom
+ * were originally measured in. Neither is visible to the unit suite: jsdom 30
  * implements <dialog>'s `open` attribute but neither showModal nor close, so it
  * takes the app's unsupported-browser path on every run - which is how finding 3
  * went unnoticed - and the Escape collision needs a real modal dispatching a
  * real key event.
  *
- * Kept rather than deleted because these are the two regressions this repo has
- * actually shipped, and the assertions below are the contract the rebuilt
- * dialog has to meet. Phase 1 retired the markup, not the requirement.
+ * These are the two regressions this repo has actually shipped. Phase 1 retired
+ * the markup, not the requirement.
  */
 
 const chipNames = (page: Page) => page.locator("#schedule-list .schedchip").allTextContents();
 
-test.describe.fixme("the delete confirmation", () => {
+test.describe("the delete confirmation", () => {
   test.beforeEach(async ({ page }) => {
     await openApp(page);
     await openSettings(page, "schedules");
@@ -72,8 +72,9 @@ test.describe.fixme("the delete confirmation", () => {
 
     await expect(page.locator("#confirm-dialog")).toBeHidden();
     await expect(page.locator("#settings-view")).toBeVisible();
-    await expect(page.locator("body")).toHaveClass(/is-settings/);
-    await expect(page.locator("#focus-view")).toBeHidden();
+    await expect(page.locator("#panel-schedules")).toBeVisible();
+    // The countdown must not have come back underneath it.
+    await expect(page.locator("#countdown-minutes")).toBeHidden();
 
     // Dismissing a confirmation is not confirming it.
     expect(await chipNames(page)).toEqual(before);

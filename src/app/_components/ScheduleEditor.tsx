@@ -1,8 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { SCHEDULE_LIMITS, type ParseError } from "@/lib/parse";
-import type { ValidSchedule } from "@/lib/schedule";
+import { SCHEDULE_LIMITS, isIdentified, type ParseError } from "@/lib/parse";
+import type { IdentifiedSchedule } from "@/lib/parse";
 import type { Library } from "@/app/_lib/library";
 import {
   addPeriod,
@@ -35,7 +35,7 @@ import { PeriodRow } from "@/app/_components/PeriodRow";
  */
 
 export interface ScheduleEditorProps {
-  schedule: ValidSchedule;
+  schedule: IdentifiedSchedule;
   library: Library;
   save: (next: Library) => void;
 }
@@ -55,11 +55,21 @@ export function ScheduleEditor({ schedule, library, save }: ScheduleEditorProps)
     const parsed = parseDraft(next);
     if (!parsed.ok) return;
 
-    // Positional replacement rather than by id, because `Schedule.id` is
-    // nullable and an imported schedule may have none. The reference is the
-    // element this editor was opened on, so its index is exact.
+    // The draft carries the schedule's id through `toDraft`, so this cannot
+    // fail. It is here rather than as a cast because the library holds
+    // IDENTIFIED schedules - the calendar points at them by id - and narrowing
+    // with the parser's own predicate keeps `parseSchedule`'s double assertion
+    // the only one in `src/`. Bound to a local const first, because TypeScript
+    // drops a narrowing on a property access as soon as it crosses into the
+    // callback below.
+    const edited = parsed.value;
+    if (!isIdentified(edited)) return;
+
+    // Positional replacement rather than by id: the reference is the element
+    // this editor was opened on, so its index is exact, and it stays exact
+    // across a rename - which is the edit that runs on every keystroke.
     const index = library.schedules.indexOf(schedule);
-    const schedules = library.schedules.map((entry, at) => (at === index ? parsed.value : entry));
+    const schedules = library.schedules.map((entry, at) => (at === index ? edited : entry));
 
     save({ ...library, schedules });
   };

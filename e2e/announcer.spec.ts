@@ -167,8 +167,8 @@ test.describe("the period announcer, driven through the editor", () => {
     await expect(announcer(page)).toHaveText("");
   });
 
-  // PARKED until Phase 4, which is where the calendar panel is built.
-  test.fixme("says nothing when the calendar is repointed", async ({ page }) => {
+  // Live since Phase 4 built the calendar panel.
+  test("says nothing when the calendar is repointed", async ({ page }) => {
     await openApp(page, MID_PERIOD);
     await openSettings(page, "calendar");
 

@@ -3,6 +3,7 @@
 import type { DayState } from "@/lib/engine";
 import { formatClock, splitCountdown } from "@/lib/format";
 import type { TodayView } from "@/app/_lib/today";
+import type { PanelId } from "@/app/_components/SettingsView";
 
 /**
  * The countdown screen.
@@ -25,22 +26,35 @@ import type { TodayView } from "@/app/_lib/today";
  */
 const PENDING = "--";
 
-export function NowView({ view }: { view: TodayView | null }) {
+export interface NowViewProps {
+  view: TodayView | null;
+  /** The way out of the two empty states that are otherwise dead ends. */
+  onOpenSettings: (panel: PanelId) => void;
+}
+
+export function NowView({ view, onOpenSettings }: NowViewProps) {
   return (
     <section className="focus">
-      <Focus view={view} />
+      <Focus view={view} onOpenSettings={onOpenSettings} />
     </section>
   );
 }
 
-function Focus({ view }: { view: TodayView | null }) {
+function Focus({ view, onOpenSettings }: NowViewProps) {
   if (view === null) return <PendingFocus />;
 
+  /*
+    Both empty states below carry a way out, which the design system asks for
+    and which nothing could satisfy until Phase 4 built somewhere to go. An
+    empty state whose only advice is "set something up" and which offers no
+    route to doing so is a dead end with good manners.
+  */
   if (view.kind === "no-schedules") {
     return (
       <Message
         headline="No schedule yet"
-        detail="Nothing has been set up to count down. The editor arrives in the next phase."
+        detail="Nothing has been set up to count down."
+        action={{ label: "Set up a schedule", onClick: () => onOpenSettings("schedules") }}
       />
     );
   }
@@ -50,6 +64,7 @@ function Focus({ view }: { view: TodayView | null }) {
       <Message
         headline="No school today"
         detail="The calendar has nothing scheduled for today. Enjoy it."
+        action={{ label: "Pick a schedule for today", onClick: () => onOpenSettings("calendar") }}
       />
     );
   }
@@ -148,7 +163,15 @@ function ScheduleFocus({ state }: { state: DayState }) {
 }
 
 /** An empty state is a first-class screen, not a blank one. */
-function Message({ headline, detail }: { headline: string; detail: string }) {
+function Message({
+  headline,
+  detail,
+  action,
+}: {
+  headline: string;
+  detail: string;
+  action?: { label: string; onClick: () => void };
+}) {
   return (
     <>
       <div className="countdown">
@@ -158,6 +181,11 @@ function Message({ headline, detail }: { headline: string; detail: string }) {
       </div>
       <div className="bounds">
         <p className="bounds__next">{detail}</p>
+        {action !== undefined && (
+          <button type="button" className="minibutton message__action" onClick={action.onClick}>
+            {action.label}
+          </button>
+        )}
       </div>
     </>
   );

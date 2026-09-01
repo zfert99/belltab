@@ -3,11 +3,11 @@
 import { useEffect, useRef, useState } from "react";
 import { useNow } from "@/app/_lib/useNow";
 import { saveLibrary, useLibrary } from "@/app/_lib/libraryStore";
-import { scheduleToEdit, tabTitleFor, viewForNow } from "@/app/_lib/today";
+import { tabTitleFor, viewForNow } from "@/app/_lib/today";
 import { formatClock } from "@/lib/format";
 import type { LocalNow } from "@/lib/clock";
 import { NowView } from "@/app/_components/NowView";
-import { SettingsView } from "@/app/_components/SettingsView";
+import { SettingsView, type PanelId } from "@/app/_components/SettingsView";
 import { PeriodAnnouncer } from "@/app/_components/PeriodAnnouncer";
 import { BackIcon, GearIcon } from "@/app/_components/icons";
 
@@ -28,7 +28,12 @@ const PENDING = "--";
 export function App() {
   const now = useNow();
   const library = useLibrary();
-  const [settingsOpen, setSettingsOpen] = useState(false);
+
+  // Which panel, or none. A boolean plus a separate panel id would let the two
+  // disagree; this way "settings is open on the calendar" is one value, which is
+  // what the countdown's empty states hand back when they link in.
+  const [openPanel, setOpenPanel] = useState<PanelId | null>(null);
+  const settingsOpen = openPanel !== null;
 
   const view = now === null ? null : viewForNow(library, now);
 
@@ -45,18 +50,23 @@ export function App() {
     else toggleRef.current?.focus();
   }, [settingsOpen]);
 
-  // Escape leaves settings, matching every other panel on the web.
+  // Escape leaves settings, matching every other panel on the web - UNLESS a
+  // modal is up.
   //
-  // PHASE 4 WILL HAVE TO GUARD THIS. A modal `<dialog>`'s Escape keydown
-  // bubbles to the document, and the dialog's own close is only the default
-  // action of that same event - so this listener runs FIRST and would close
-  // settings out from under an open confirmation. That is a regression this
-  // repo has already shipped once; see Bugs found in Docs/build-log.md.
+  // That guard is the whole reason this listener is worth a comment. A modal
+  // `<dialog>`'s Escape keydown bubbles to the document, and the dialog's own
+  // close is only the DEFAULT ACTION of that same event, so this listener runs
+  // FIRST. Without the bail, one Escape would close settings out from under an
+  // open delete confirmation and leave the modal standing on the countdown.
+  // That is a regression this repo has already shipped once; see Bugs found in
+  // Docs/build-log.md, and `e2e/confirm-dialog.spec.ts` for the contract.
   useEffect(() => {
     if (!settingsOpen) return;
 
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setSettingsOpen(false);
+      if (event.key !== "Escape") return;
+      if (document.querySelector("dialog[open]") !== null) return;
+      setOpenPanel(null);
     };
 
     document.addEventListener("keydown", onKeyDown);
@@ -95,22 +105,23 @@ export function App() {
             aria-expanded={settingsOpen}
             aria-controls="settings-view"
             aria-label={settingsOpen ? "Back to the countdown" : "Edit the schedule"}
-            onClick={() => setSettingsOpen((open) => !open)}
+            onClick={() => setOpenPanel((panel) => (panel === null ? "schedules" : null))}
           >
             {settingsOpen ? <BackIcon /> : <GearIcon />}
           </button>
         </div>
       </header>
 
-      {settingsOpen ? (
+      {openPanel !== null ? (
         <SettingsView
-          schedule={scheduleToEdit(library, now)}
           library={library}
           save={saveLibrary}
+          now={now}
+          initialPanel={openPanel}
           headingRef={headingRef}
         />
       ) : (
-        <NowView view={view} />
+        <NowView view={view} onOpenSettings={setOpenPanel} />
       )}
 
       {/*
