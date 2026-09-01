@@ -54,7 +54,10 @@ imported with `.ts`, which a browser cannot load, so `src/index.html`,
 behaviour — three views, the editor, the calendar, preferences — is owed back by
 Phases 2–4 and its tests are parked, not deleted. See **Open gaps**.
 
-**Not started:** sharing, bell offset, wake lock, chime, PWA, theme.
+**In progress:** sharing. The encode/decode pipeline and its fixture suite are
+built and tested; the share-link UI and JSON export/import are not.
+
+**Not started:** bell offset, wake lock, chime, PWA, theme.
 
 ### Files
 
@@ -79,6 +82,7 @@ src/
       ScheduleEditor.tsx  PeriodRow.tsx  ConfirmDialog.tsx  icons.tsx
   lib/          pure: no DOM, no React; `Date` only as an argument
     schedule.ts  engine.ts  parse.ts  format.ts  clock.ts   + colocated tests
+    share.ts  share.fixtures.ts                             + colocated tests
 e2e/            Playwright, top-level by rule, not colocated
   helpers.ts  reflow.spec.ts  confirm-dialog.spec.ts  announcer.spec.ts
   countdown.spec.ts  editor.spec.ts  calendar.spec.ts
@@ -3482,3 +3486,52 @@ third. Recorded because the branch is otherwise a success story and the process
 was not.
 
 Local: 366 passed, 30 parked, three engines, at two workers.
+
+### 2026-09-01 15:57 — Phase 5, part 1: the share pipeline
+
+`feat/phase-5-sharing`. The half of Phase 5 that is pure and therefore fully
+testable: `src/lib/share.ts`, its fixture file, and 27 tests. No UI yet.
+
+`JSON.stringify` → `CompressionStream('deflate-raw')` → base64url, exactly as
+`Docs/belltab-plan.md` specifies, and the plan's own claim checked rather than
+repeated: the eleven-period seeded day encodes to **260 characters**. The test
+pins it under 600 so a future change that bloats the payload has to argue for
+itself.
+
+**The format is `<version>.<base64url>`, version first.** A decoder knows what it
+is holding before it interprets a byte. `DECODERS` is a table keyed on that
+version with one entry today, and the rule written above it: a new meaning for
+the bytes is a new entry beside the old one, never a change to it.
+
+**The id is deliberately not shared.** An id is an identity within one person's
+library; carrying it across would either collide with something the recipient
+has or quietly claim a name like `regular` that means a different day to them.
+`parseScheduleCollection` mints a fresh one on import, which is what that
+boundary is for.
+
+**Decompression is treated as the boundary `AGENTS.md` says it is.** Two caps:
+8192 characters of base64url, checked before anything is decoded, and 64 KiB of
+JSON, checked WHILE the stream is being read. The second one is the interesting
+one - `inflate` reads chunk by chunk and cancels rather than calling
+`arrayBuffer()` and measuring afterwards, because measuring afterwards is a
+check that runs after the damage.
+
+That cap has a test, and the test had a bug worth recording: the first version
+compressed twenty megabytes of zeroes, which came to 27,183 base64 characters -
+refused by the LENGTH cap, so the test passed while proving nothing about the
+decoded one. It now uses a mebibyte, lands at about 1,400 characters, and
+asserts it is under the length cap so that mistake cannot come back.
+
+**The fixture file is the point of the phase.** Five real payloads - the Regular
+day, the Half day, a one-minute schedule, an empty one, and one carrying
+accents, an em dash, CJK and an emoji - each with the schedule it must still
+decode to, written out in full. Deriving the expectations from
+`DEFAULT_SCHEDULES` was considered and rejected: an edit to the seed data would
+then silently rewrite what these payloads are supposed to mean, and the suite
+would stay green while the guarantee stopped being checked.
+
+The decoder distinguishes an unknown version from a damaged link, because the
+remedies differ: one is "update BellTab", the other is "ask for the link again".
+
+Unit tests: 252 to 279. `npm run lint`, `npm run typecheck` and `npx vitest run`
+pass.
