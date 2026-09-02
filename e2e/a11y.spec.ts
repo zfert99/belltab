@@ -174,8 +174,15 @@ test.describe("settings", () => {
   });
 
   /**
-   * The preferences panel, whose two controls are shapes nothing else in the
-   * app uses: a radio group, and a number field with an error bound to it.
+   * The preferences panel, whose three controls are shapes nothing else in the
+   * app uses: a radio group, a checkbox that can be disabled by the engine
+   * rather than by the app, and a number field with an error bound to it.
+   *
+   * The disabled case is worth naming: a control the browser cannot honour is
+   * dimmed rather than removed, which puts a deliberately low-contrast label on
+   * screen. axe checks contrast on disabled controls too, and the exemption
+   * that makes it pass is one this suite should be made to state out loud if it
+   * ever stops passing.
    */
   test("the preferences panel has no serious violations", async ({ page }) => {
     await openApp(page, MID_PERIOD);

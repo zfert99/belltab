@@ -56,8 +56,14 @@ Phases 2–4 and its tests are parked, not deleted. See **Open gaps**.
 
 - Sharing: a link per schedule, decoded on arrival and added only when the
   recipient presses a button, and JSON export/import as the durable backup.
+- Preferences, in their own storage key so none of them travels in a share link
+  or a backup: a three-way theme applied before the first paint, a bell offset
+  that shifts the clock reading rather than the schedule, and a Screen Wake Lock
+  toggle that keeps a projector lit and says out loud when the device refuses.
+- Big mode, the projector view — the same countdown, scaled, with the authoring
+  chrome taken away.
 
-**Not started:** bell offset, wake lock, chime, PWA, theme.
+**Not started:** chime and notification, PWA manifest.
 
 ### Files
 
@@ -306,6 +312,11 @@ development too, so the bare origin is a 404 exactly as it is in production.
 | 2026-08-27 | Inherited documents keep their prose; only cross-repo links that resolve to nothing are de-linked | Editing borrowed research to "fit" this repo destroys the thing that makes it worth keeping — that it is a record of what was actually measured somewhere else. A dead link is different: it is not a claim, it is a broken pointer, and leaving it costs a future reader the discovery that the evidence exists at all. Four such links became plain filenames with the owning repo named. |
 | 2026-08-27 | Every row of the index's "general advice" table carries a caveat, including the genuinely generic ones | With caveats on only some rows, a blank cell is ambiguous between "checked, nothing to say" and "never looked". Filling all eleven makes the column mean *we read this one*. This is the fix for code-review findings 1, 2, 6, 7 and 8 of 2026-08-27. |
 | 2026-08-27 | The two Puzzle-Lab-titled advice documents were NOT moved into the "about OTHER repos" table | That table is for documents *about* another repo — a migration that happened there, a sitemap that describes it. `ai-assisted-nextjs-security-reference.md` and `solo-dev-ai-qa-code-review-playbook.md` are general advice *addressed to* another repo, which is a different thing. Collapsing the distinction would cost the third table the precision that makes it useful; a caveat column buys the same safety without it. |
+| 2026-09-02 | The wake lock is a preference, off by default, and Big mode does not turn it on | The research asks for "an explicit toggle", and the toggle is the only place a user can see what they agreed to. Acquiring it automatically on entering Big mode was the tempting default and is wrong twice: it is a demand on somebody's power management that they never made, and it would be invisible — a laptop that stops sleeping with no control anywhere saying why is a bug report nobody can write. The preference persists, so the projector case costs one tick, once, forever. |
+| 2026-09-02 | Five statuses rather than a boolean | "The toggle is on" and "the screen is actually being held awake" are different facts, and every real failure lives in the gap: an engine with no API, a device in battery saver, and the ordinary hidden tab that fixes itself. A boolean would have to pick one of those to be silent about. The five are `unsupported`, `off`, `held`, `waiting` and `refused`, and a unit test asserts no two of them produce the same sentence — collapsing the distinction where the user can see it while keeping it in the types is the version of this bug no type checker catches. |
+| 2026-09-02 | The wake lock readout is NOT a live region; a separate hidden one speaks only for a refusal | The readout flips between "held" and "waiting" every time the tab is hidden and shown, which is normal, correct and several times an hour. A live region on it would be exactly the per-tick chatter `AGENTS.md` bans on the countdown, and users who are read a status they did not need learn to ignore the line that also reports real problems. What genuinely needs announcing is a box that was ticked and did not take effect, which is otherwise silent — so the polite region carries the refusal and nothing else. |
+| 2026-09-02 | `navigator.wakeLock` is STUBBED in the E2E suite, at the boundary | Whether a real lock is granted depends on the OS, the battery and whether the CI runner has a screen — a suite asserting against the genuine article would pass on a laptop and fail on a runner, the same class of problem the clock fixtures exist to solve. `AGENTS.md` permits mocking at boundaries and this is one. What it buys is the three branches no browser in the matrix produces on demand: an absent API, a refusal, and the tab leaving and coming back. What it does not buy is evidence that a real projector stays lit; that is an open gap. |
+| 2026-09-02 | Feature detection through `useSyncExternalStore`, not an effect | `"wakeLock" in navigator` is a fact about the environment that the server cannot know, which is the same shape as `localStorage` — and `localStore.ts` already documents why the hook for it is `useSyncExternalStore`: it takes a server snapshot, so both sides render `false` on the first pass and hydration is safe by construction. It also avoids a synchronous `setState` in an effect, which this repo's `react-hooks/set-state-in-effect` rule forbids. |
 
 ## Deviations from the plan docs
 
@@ -565,11 +576,15 @@ half.
 | 2026-09-02 | Big mode does not survive a reload | It is component state, deliberately: a mode you cannot see the way out of is worse than one you have to re-enter, and a projector is set up once per session by somebody standing at the machine. If a room ever wants a permanent display, that is a preference rather than a change to this state — and it would need the wake lock first to be worth anything. |
 | 2026-09-02 | Big mode does not request fullscreen | It fills the viewport (`100dvh`), which leaves the browser chrome and the OS bar on screen. The Fullscreen API would take those too and needs a user gesture, which the button already is. Not done because it adds an exit path the app does not control — the browser's own Escape-to-leave races the mode's — and that interaction deserves being designed rather than added. |
 | 2026-08-27 | Three pieces of cited evidence live in the Puzzle Lab repo, not this one | `multi-zone-migration-safety-review.md` marks its rate-limit finding **VERIFIED** against method and numbers in `src/lib/rate-limit.md`; `multi-zone-cost-and-alternatives.md` reverses its own earlier position on the authority of `puzzle-lab-hub-merge-research.md` and `vercel-cron-deployment-protection-outage.md`. All three files are real and all three are one repo away. The broken links are fixed — they now name the repo — but the claims remain unauditable from inside BellTab. Copying the three in would fix it and would also import three more documents about someone else's stack; not done, and the tradeoff is the reason. |
+| 2026-09-02 | The wake lock has never held a real screen open | Every assertion in `e2e/wake-lock.spec.ts` is against a stub, deliberately and for the reason in the Decisions table — but that means the evidence for the feature working is evidence that the code calls the API correctly, not that a laptop driving a projector stays lit for fifty minutes. The gap is the same shape as every Safari row in this file: what is owed is one real machine, one real projector, one real period. |
+| 2026-09-02 | A refusal is never retried while the tab stays visible | The lock is re-requested on every `visibilitychange` back to visible, which covers the common recovery — the user switches away and back. It is not retried if the reason for the refusal goes away while the tab is still on screen, which is exactly what happens when somebody plugs the laptop in and battery saver switches itself off. Unticking and re-ticking the box fixes it and nothing on screen says so. A retry on `online`/power events, or simply on the next period boundary, would close it. |
+| 2026-09-02 | Nothing connects Big mode to the wake lock in the UI | The two features exist for the same room and the same afternoon, and a user who finds Big mode is given no hint that the setting which stops the projector sleeping is three taps away in Preferences. Deliberately not auto-acquired (see Decisions), but "deliberately not automatic" is an argument for a prompt, not for silence. A line in Big mode's exit pill, or a note in the preferences panel naming the projector case, would do it. |
 
 ## Closed
 
 | Opened | Closed | Item |
 | --- | --- | --- |
+| 2026-09-02 | 2026-09-02 | A projector in Big mode still goes to sleep — the Screen Wake Lock now exists, behind a preference, feature-detected and re-acquired on every `visibilitychange` back to visible. Closed with a caveat that is its own open gap above: what is proven is that the code drives the API correctly, not that a real projector stays lit. |
 | 2026-09-02 | 2026-09-02 | The E2E suite has parked tests — it does not any more. 522 across three engines, **none parked**, for the first time in the project. The last block was Big mode's, parked since Phase 1 named the phase that would revive it. |
 | 2026-08-27 | 2026-09-02 | Roughly half of `globals.css` is inert — closed properly this time. Big mode's dozen rules have shipped unrendered since the plain build was retired and now paint. What is left inert is three rules, enumerated in their own row above. |
 | 2026-09-02 | 2026-09-02 | `inputMode="numeric"` on the signed bell-offset field made a negative offset untypeable on iOS, which draws neither a minus key nor a spinner. Review finding 1. |
@@ -636,6 +651,37 @@ half.
 ---
 
 ## Bugs found
+
+### 2026-09-02 — a test that proved the opposite of what it claimed, because `addInitScript` re-runs on reload
+
+Caught on the first run of `e2e/wake-lock.spec.ts`, which is the only reason it
+is a short entry rather than a long one.
+
+The test is "the wake lock preference survives a reload, in its own key": tick
+the box, reload, assert the box is still ticked. It failed, and the feature was
+fine.
+
+`openApp` plants its `storage` and `preferences` fixtures with
+`page.addInitScript`, and the helper's own JSDoc explains why — the stores read
+`localStorage` on their first client render, so a value written after `goto`
+arrives too late to affect the first paint. What that comment does not say, and
+what nothing in the file said until now, is the consequence: **an init script
+runs on every navigation, not just the first.** Passing `preferences: null`
+registers "remove this key", so the reload the test performs re-ran the removal
+and wiped the preference a moment before the assertion read it. A test written to
+prove persistence was quietly asserting that a fixture is re-applied.
+
+The fix is to pass no `preferences` option at all — a fresh Playwright context
+starts with empty storage anyway, so the explicit clear was buying nothing and
+costing the only navigation the test cares about. The reasoning is now a comment
+in the test rather than a fact about Playwright somebody has to already know.
+
+**The lesson, and it generalises past this suite:** a fixture that is *installed*
+and a fixture that is *enforced on every navigation* look identical at the call
+site and differ only in tests that navigate twice. This suite has had exactly one
+such test until today. Any future test that reloads, follows a link, or opens a
+second page inherits the same trap, and the tell is a green-looking helper call
+rather than anything in the assertion.
 
 ### 2026-09-02 — two Big mode CSS rules that kept matching and stopped meaning anything
 
@@ -3993,3 +4039,85 @@ session; Deviations did not, and Deviations is the one that needed a change to
 another document. Checking the four required sections one at a time is a
 different act from writing up the session, and this is the second time this
 month it has turned up something.
+
+### 2026-09-02 14:45 — the Screen Wake Lock (Phase 6 part 2b, first slice)
+
+The gap the last session opened, closed in the next one: a projector in Big mode
+went to sleep, and now it does not have to.
+
+**One hook, one lock, mounted in `App.tsx`.** `useWakeLock(enabled)` sits beside
+the clock and the theme for the same reason both of those do — it has to outlive
+whichever screen is up. Owning the lock inside the preferences panel would have
+released it the moment the user pressed Back to watch the countdown, which is the
+only moment it was ever wanted. The status travels back down to the panel as a
+prop, so there is one lock and one account of what it is doing.
+
+**The browser behaviour that shaped all of it:** the lock is taken back by the
+user agent whenever the document stops being visible, and a request made from a
+hidden document is rejected rather than queued. So holding a lock is not
+something done once — it is done again on every `visibilitychange` back to
+visible, for as long as the preference is on. That is the countdown's own lesson
+in a second domain: nothing here may be treated as state that stays true while
+the tab is away.
+
+The guard that follows from it is small and load-bearing. `acquire()` returns
+early unless `document.visibilityState === "visible"`, because asking anyway
+would report `refused` — the one status that means something is wrong — every
+time the user switched app. There is a test for exactly that: two
+`visibilitychange` events while still hidden must produce one request, not three.
+
+**Five statuses, not a boolean**, and the Decisions table has the argument. The
+short version is that "the toggle is on" and "the screen is actually being kept
+awake" are different facts, and a boolean has to be silent about one of them.
+
+**The readout is not a live region, and that took some deciding.** Its text flips
+between "held" and "waiting" every time the tab is hidden and shown, which is
+normal and frequent — a live region there would be precisely the per-tick chatter
+`AGENTS.md` bans on the countdown. But a refusal is silent otherwise: the box
+stays ticked, the screen dims anyway, and nothing tells somebody who cannot see
+the readout. So the refusal gets its own always-rendered, always-hidden polite
+region carrying text only when `status === "refused"` — the same shape
+`ScheduleEditor.tsx` and the bell offset both use, for the same reason. The
+enumeration test in `preferences.spec.ts` went from one region to two and caught
+the new one on the first run, which is what it is for.
+
+**The API is stubbed in the E2E suite**, at the boundary and nowhere else.
+Whether a real lock is granted depends on the OS, the battery and whether the
+runner has a screen, so asserting against the real thing would have produced a
+suite that passes here and fails in CI. What the stub buys is the three branches
+no browser in the matrix produces on demand — an absent API, a refusal, and the
+tab leaving and coming back — and those are exactly the branches this repo
+carries an open gap about for the clipboard. What it does not buy is evidence
+that a real projector stays lit, which is now its own open gap.
+
+**Big mode deliberately does not turn it on.** The last session's gap entry
+guessed that "acquiring the lock on entering the mode is the obvious default to
+argue about", and the argument came out the other way: a demand on somebody's
+power management that they never made, with no control anywhere saying why the
+laptop stopped sleeping, is worse than one tick in Preferences that persists
+forever. Recorded in Decisions, and the missing signpost between the two features
+is recorded as a gap.
+
+**One test bug, in the test.** Written up under **Bugs found** — `addInitScript`
+re-runs on every navigation, so the `preferences: null` fixture wiped the value
+during the reload the test was using to prove it persisted.
+
+**Tests:** unit 340 → 353. Thirteen new: five on the preferences boundary now
+that it carries a third field (including that a wake lock stored as a string or a
+number degrades to *off* rather than to the truthy reading of it — an unreadable
+value is not consent to hold a lock on somebody's laptop), and eight on
+`describeWakeLock`, which pin that every status says something, that no two of
+them share a sentence, that the two meaning "something is wrong" name a cause the
+user could go and change, and that the ordinary hidden tab is not worded as a
+failure.
+
+Playwright 522 → 552 across three engines: ten new per engine in
+`e2e/wake-lock.spec.ts`, plus the two existing preferences tests that had pinned
+the serialised preferences string byte for byte and now pin the third field too.
+
+`npm run lint`, `npm run typecheck`, `npx vitest run`,
+`npx markdownlint-cli "**/*.md"` and `npx playwright test` all pass, with the
+known macOS-WebKit exception in `editor.spec.ts`.
+
+**Still owed in Phase 6 part 2b:** the opt-in chime and notification, and the PWA
+manifest.

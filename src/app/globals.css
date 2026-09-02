@@ -1068,6 +1068,22 @@ body.is-settings .viewswitch {
   background: var(--bg);
 }
 
+/* An option the browser cannot honour - so far only "Keep the screen awake" on
+   an engine with no Screen Wake Lock API. Dimmed rather than removed, because a
+   control that vanishes on some engines leaves a user hunting for a feature they
+   were told about; the readout beside it says why it is unavailable.
+
+   `not-allowed` rather than `default`: the pointer is the fastest way to learn
+   that the box is not going to tick, and it costs nothing to say so. */
+.option:has(input:disabled) {
+  color: var(--fg-soft);
+  cursor: not-allowed;
+}
+
+.option:has(input:disabled):hover {
+  border-color: var(--line);
+}
+
 /* 60rem, not 40rem, and the number is measured rather than chosen.
 
    The editor inside the panel stacks its six columns at 45rem, and the nav
@@ -1815,6 +1831,12 @@ body.is-settings .viewswitch {
    `.field__options` and `.option` live with the other form styles above - they
    came over from the retired build for this panel and were inert until Phase 6
    built it.
+
+   The wake lock toggle needs no rules of its own: it is one `.option` holding a
+   checkbox where the theme's hold radios, and it reuses `.offset__readout` for
+   its status line. That reuse is the reason the class is still named for the
+   offset - renaming it would touch the one place in this file whose name is
+   load-bearing in a test, for no gain.
    ============================================================ */
 
 .offset {

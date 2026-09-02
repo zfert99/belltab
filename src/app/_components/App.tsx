@@ -5,6 +5,7 @@ import { useNow } from "@/app/_lib/useNow";
 import { saveLibrary, useLibrary } from "@/app/_lib/libraryStore";
 import { savePreferences, usePreferences } from "@/app/_lib/preferencesStore";
 import { applyTheme } from "@/app/_lib/theme";
+import { useWakeLock } from "@/app/_lib/wakeLock";
 import { addSchedule } from "@/app/_lib/library";
 import { clearShareFragment, incomingSchedule } from "@/app/_lib/shareLink";
 import type { ValidSchedule } from "@/lib/schedule";
@@ -51,6 +52,19 @@ export function App() {
   useEffect(() => {
     applyTheme(document.documentElement, preferences.theme);
   }, [preferences.theme]);
+
+  /**
+   * The screen wake lock, held from HERE and nowhere else.
+   *
+   * Mounted above both screens for the same reason the clock is: the lock has to
+   * outlive whichever view is up. Owning it inside the preferences panel would
+   * release it the moment the user pressed Back to watch the countdown - which is
+   * the only moment it was ever wanted.
+   *
+   * The status travels back down to the panel as a prop rather than being read
+   * again there, so there is one lock and one account of what it is doing.
+   */
+  const wakeLockStatus = useWakeLock(preferences.keepScreenAwake);
 
   // Which panel, or none. A boolean plus a separate panel id would let the two
   // disagree; this way "settings is open on the calendar" is one value, which is
@@ -297,6 +311,7 @@ export function App() {
           save={saveLibrary}
           preferences={preferences}
           savePreferences={savePreferences}
+          wakeLockStatus={wakeLockStatus}
           now={now}
           initialPanel={openPanel}
           headingRef={headingRef}

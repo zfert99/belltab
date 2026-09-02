@@ -4,6 +4,7 @@ import { useState, type RefObject } from "react";
 import type { LocalNow } from "@/lib/clock";
 import type { Library } from "@/app/_lib/library";
 import type { Preferences } from "@/app/_lib/preferences";
+import type { WakeLockStatus } from "@/app/_lib/wakeLock";
 import { scheduleIndexToEdit } from "@/app/_lib/today";
 import { SchedulesPanel } from "@/app/_components/SchedulesPanel";
 import { CalendarPanel } from "@/app/_components/CalendarPanel";
@@ -54,6 +55,8 @@ export interface SettingsViewProps {
   save: (next: Library) => void;
   preferences: Preferences;
   savePreferences: (next: Preferences) => void;
+  /** Held by `App.tsx`, which outlives this screen - see PreferencesPanel. */
+  wakeLockStatus: WakeLockStatus;
   now: LocalNow | null;
   /** Which panel to open on - the countdown's empty states link into both. */
   initialPanel: PanelId;
@@ -65,6 +68,7 @@ export function SettingsView({
   save,
   preferences,
   savePreferences,
+  wakeLockStatus,
   now,
   initialPanel,
   headingRef,
@@ -117,6 +121,7 @@ export function SettingsView({
           <PreferencesPanel
             preferences={preferences}
             save={savePreferences}
+            wakeLockStatus={wakeLockStatus}
             headingRef={headingRef}
           />
         )}

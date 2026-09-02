@@ -24,7 +24,7 @@ describe("loadPreferences", () => {
   });
 
   it("round-trips what serializePreferences writes", () => {
-    const preferences = { theme: "dark", bellOffsetSec: -18 } as const;
+    const preferences = { theme: "dark", bellOffsetSec: -18, keepScreenAwake: true } as const;
     expect(loadPreferences(serializePreferences(preferences))).toEqual(preferences);
   });
 
@@ -44,25 +44,58 @@ describe("loadPreferences", () => {
     // whether a measured offset is still a usable number.
     const loaded = loadPreferences('{"theme":"solarized","bellOffsetSec":-9}');
 
-    expect(loaded).toEqual({ theme: "system", bellOffsetSec: -9 });
+    expect(loaded).toEqual({ theme: "system", bellOffsetSec: -9, keepScreenAwake: false });
   });
 
   it("keeps a good theme when the bell offset is unreadable", () => {
     expect(loadPreferences('{"theme":"light","bellOffsetSec":"twelve"}')).toEqual({
       theme: "light",
       bellOffsetSec: 0,
+      keepScreenAwake: false,
     });
   });
 
-  it("degrades a missing field without touching the other", () => {
-    expect(loadPreferences('{"theme":"dark"}')).toEqual({ theme: "dark", bellOffsetSec: 0 });
+  it("degrades a missing field without touching the others", () => {
+    expect(loadPreferences('{"theme":"dark"}')).toEqual({
+      theme: "dark",
+      bellOffsetSec: 0,
+      keepScreenAwake: false,
+    });
   });
 
   it("ignores fields it does not know about", () => {
-    expect(loadPreferences('{"theme":"dark","wakeLock":true}')).toEqual({
+    expect(loadPreferences('{"theme":"dark","secondsInTitle":true}')).toEqual({
       theme: "dark",
       bellOffsetSec: 0,
+      keepScreenAwake: false,
     });
+  });
+
+  it("keeps the wake lock on when the other two fields are unreadable", () => {
+    // The third field earning the field-by-field rule its keep. A stored theme
+    // that no longer exists is no reason to quietly stop keeping a projector
+    // awake, which is the failure the toggle was added to prevent.
+    expect(loadPreferences('{"theme":"solarized","bellOffsetSec":9.5,"keepScreenAwake":true}')).toEqual(
+      { theme: "system", bellOffsetSec: 0, keepScreenAwake: true },
+    );
+  });
+
+  it.each([
+    ["a string", '"true"'],
+    ["a number", "1"],
+    ["null", "null"],
+  ])("degrades a wake lock stored as %s to off", (_label, raw) => {
+    // Off, not on. A value nobody can read is not consent to hold a lock on
+    // somebody's laptop, so the ambiguous case falls to the default rather than
+    // to the truthy reading of it.
+    expect(loadPreferences(`{"keepScreenAwake":${raw}}`).keepScreenAwake).toBe(false);
+  });
+
+  it("round-trips the wake lock in both positions", () => {
+    for (const keepScreenAwake of [true, false]) {
+      const written = serializePreferences({ ...DEFAULT_PREFERENCES, keepScreenAwake });
+      expect(loadPreferences(written).keepScreenAwake).toBe(keepScreenAwake);
+    }
   });
 
   it("accepts every theme it offers", () => {
