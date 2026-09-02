@@ -157,6 +157,28 @@ test.describe("settings", () => {
   });
 
   /**
+   * The preferences panel, whose two controls are shapes nothing else in the
+   * app uses: a radio group, and a number field with an error bound to it.
+   */
+  test("the preferences panel has no serious violations", async ({ page }) => {
+    await openApp(page, MID_PERIOD);
+    await openSettings(page, "preferences");
+    await expectNoSeriousViolations(page, "settings/preferences");
+  });
+
+  test("the preferences panel showing an offset error has no serious violations", async ({
+    page,
+  }) => {
+    await openApp(page, MID_PERIOD);
+    await openSettings(page, "preferences");
+
+    await page.locator("#bell-offset").fill("9000");
+    await expect(page.locator("#bell-offset-error")).toContainText("whole number of seconds");
+
+    await expectNoSeriousViolations(page, "settings/preferences, offset error");
+  });
+
+  /**
    * The modal, which is the one place this app changes what the rest of the
    * page is. `showModal()` makes the background inert, and axe scans the whole
    * document - so this is also a check that the inert half is not being

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { localIsoDate, localNow, secondsSinceMidnight } from "./clock";
+import { localIsoDate, localNow, secondsSinceMidnight, shiftNow } from "./clock";
 
 /**
  * The clock reader, which is the only part of `src/lib/` that touches `Date`.
@@ -87,5 +87,57 @@ describe("localNow", () => {
       isoDate: "2026-09-03",
       weekday: 4,
     });
+  });
+});
+
+describe("shiftNow", () => {
+  const wednesdayMorning = localNow(new Date(2026, 8, 2, 9, 30, 0));
+
+  it("moves the second of day forward and leaves the day alone", () => {
+    expect(shiftNow(wednesdayMorning, 12)).toEqual({
+      secOfDay: 34_212,
+      isoDate: "2026-09-02",
+      weekday: 3,
+    });
+  });
+
+  it("moves it backward for a negative offset", () => {
+    expect(shiftNow(wednesdayMorning, -12).secOfDay).toBe(34_188);
+  });
+
+  it("returns the same object for a zero offset", () => {
+    // Referential, not structural: `useNow` already collapses equal readings to
+    // one object so a re-render is skipped, and a shift of zero must not undo
+    // that by handing back a fresh copy every tick.
+    expect(shiftNow(wednesdayMorning, 0)).toBe(wednesdayMorning);
+  });
+
+  it("clamps at the end of the day rather than wrapping into tomorrow", () => {
+    // 23:59:55 nudged five minutes forward. Wrapping would produce 00:04:55
+    // paired with 2 September, which is a reading no caller could interpret.
+    const lateNight = localNow(new Date(2026, 8, 2, 23, 59, 55));
+
+    expect(shiftNow(lateNight, 300)).toEqual({
+      secOfDay: 86_399,
+      isoDate: "2026-09-02",
+      weekday: 3,
+    });
+  });
+
+  it("clamps at the start of the day rather than wrapping into yesterday", () => {
+    const justAfterMidnight = localNow(new Date(2026, 8, 2, 0, 0, 5));
+
+    expect(shiftNow(justAfterMidnight, -300)).toEqual({
+      secOfDay: 0,
+      isoDate: "2026-09-02",
+      weekday: 3,
+    });
+  });
+
+  it("never moves the date or the weekday, at either end of the day", () => {
+    const lateNight = localNow(new Date(2026, 8, 2, 23, 59, 59));
+
+    expect(shiftNow(lateNight, 300).isoDate).toBe("2026-09-02");
+    expect(shiftNow(lateNight, 300).weekday).toBe(3);
   });
 });

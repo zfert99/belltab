@@ -3,10 +3,12 @@
 import { useState, type RefObject } from "react";
 import type { LocalNow } from "@/lib/clock";
 import type { Library } from "@/app/_lib/library";
+import type { Preferences } from "@/app/_lib/preferences";
 import { scheduleIndexToEdit } from "@/app/_lib/today";
 import { SchedulesPanel } from "@/app/_components/SchedulesPanel";
 import { CalendarPanel } from "@/app/_components/CalendarPanel";
 import { BackupPanel } from "@/app/_components/BackupPanel";
+import { PreferencesPanel } from "@/app/_components/PreferencesPanel";
 
 /**
  * The settings screen, and the tab strip Phase 3 deliberately did not build.
@@ -33,17 +35,25 @@ import { BackupPanel } from "@/app/_components/BackupPanel";
  * editor at a different schedule.
  */
 
-export type PanelId = "schedules" | "calendar" | "backup";
+export type PanelId = "schedules" | "calendar" | "backup" | "preferences";
 
+/**
+ * Ordered by how much of the app each one changes: the schedules, then the days
+ * pointing at them, then the whole library at once, then the two settings that
+ * change nothing about the school day at all.
+ */
 const PANELS: readonly { id: PanelId; label: string }[] = [
   { id: "schedules", label: "Schedules" },
   { id: "calendar", label: "Calendar" },
   { id: "backup", label: "Backup" },
+  { id: "preferences", label: "Preferences" },
 ];
 
 export interface SettingsViewProps {
   library: Library;
   save: (next: Library) => void;
+  preferences: Preferences;
+  savePreferences: (next: Preferences) => void;
   now: LocalNow | null;
   /** Which panel to open on - the countdown's empty states link into both. */
   initialPanel: PanelId;
@@ -53,6 +63,8 @@ export interface SettingsViewProps {
 export function SettingsView({
   library,
   save,
+  preferences,
+  savePreferences,
   now,
   initialPanel,
   headingRef,
@@ -100,6 +112,13 @@ export function SettingsView({
         )}
         {panel === "backup" && (
           <BackupPanel library={library} save={save} now={now} headingRef={headingRef} />
+        )}
+        {panel === "preferences" && (
+          <PreferencesPanel
+            preferences={preferences}
+            save={savePreferences}
+            headingRef={headingRef}
+          />
         )}
       </div>
     </section>

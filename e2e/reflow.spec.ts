@@ -26,8 +26,9 @@ import {
  * and the reason the clamp has an upper bound at all. Phase 4 added the two
  * surfaces most likely to break it - a panel built out of `<select>`s whose
  * options are user-typed names, and a modal whose fixed positioning escapes the
- * body's width. Big mode and preferences still have no markup; those blocks are
- * parked at the bottom rather than deleted, and each names its phase.
+ * body's width. Phase 6 added the preferences panel. Big mode still has no
+ * markup; that block is parked at the bottom rather than deleted, and it names
+ * its phase.
  */
 
 const WIDTHS = [320, 375, 768, 1024, 1440];
@@ -227,17 +228,32 @@ for (const width of WIDTHS) {
       const box = await page.locator("#confirm-dialog").boundingBox();
       expect(box?.width).toBeLessThanOrEqual(width);
     });
+
+    /**
+     * The preferences panel, live since Phase 6. Run at the widest offset the
+     * panel can hold, because the readout under the number box is a full
+     * sentence and the row above it is a flex line of three controls - the two
+     * shapes most likely to refuse to stack.
+     */
+    test("the preferences panel reflows", async ({ page }) => {
+      await openApp(page, MID_PERIOD, {
+        preferences: JSON.stringify({ theme: "dark", bellOffsetSec: -300 }),
+      });
+      await openSettings(page, "preferences");
+
+      await expectNoHorizontalScroll(page, `${width}px settings/preferences`);
+    });
   });
 }
 
 /**
- * PARKED until Phase 6.
+ * PARKED until Phase 6 builds Big mode.
  *
- * The calendar panel and the confirm dialog came back with Phase 4 and are live
- * above. What is left needs the preferences panel or Big mode, both Phase 6.
- * The assertions are unchanged and the ids are the contract the rebuilt UI has
- * to meet; each block is revived by deleting its `.fixme` once the markup it
- * names exists.
+ * The calendar panel and the confirm dialog came back with Phase 4 and the
+ * preferences panel with the first half of Phase 6; all three are live above.
+ * One block is left. The assertions are unchanged and the ids are the contract
+ * the rebuilt UI has to meet; the block is revived by deleting its `.fixme`
+ * once the markup it names exists.
  *
  * **Every block here names the phase that revives it.** The Day view's
  * assertions used to sit alongside these and named none - see the note below.
@@ -266,13 +282,6 @@ for (const width of WIDTHS) {
       await expectNoHorizontalScroll(page, `${width}px Big mode`);
 
       await page.locator("#big-exit").click();
-    });
-
-    // Revived by Phase 6 (preferences).
-    test.fixme("the preferences panel reflows", async ({ page }) => {
-      await openApp(page, MID_PERIOD);
-      await openSettings(page, "preferences");
-      await expectNoHorizontalScroll(page, `${width}px settings/preferences`);
     });
   });
 }

@@ -92,6 +92,22 @@
   }
 }
 
+/* The browser's own chrome follows the theme too.
+
+   `<meta name="color-scheme" content="light dark">` in layout.tsx is written on
+   the SERVER, which cannot know that this user forced light while their OS is
+   dark - so it stays at the OS default and these two rules narrow it once the
+   pre-paint script has put the attribute on <html>. Without them, forcing light
+   leaves the scrollbars, the number spinners and the canvas behind the page
+   dark, which is exactly the mismatch the meta tag exists to prevent. */
+:root[data-theme="light"] {
+  color-scheme: light;
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+}
+
 /* Repeated for the explicit toggle so it beats the OS in both directions. */
 :root[data-theme="dark"] {
   --paper: #1b1224;
@@ -1758,7 +1774,58 @@ body.is-settings .viewswitch {
 }
 
 /* ============================================================
-   20. INVALID FIELDS - last in the file, deliberately
+   20. PREFERENCES
+   The device's own settings. `.field`, `.field__legend`, `.field__hint`,
+   `.field__options` and `.option` live with the other form styles above - they
+   came over from the retired build for this panel and were inert until Phase 6
+   built it.
+   ============================================================ */
+
+.offset {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-2);
+}
+
+/* The control skin again, scoped to this panel exactly as the editor's and the
+   calendar's are. Three copies of six declarations is the shape this stylesheet
+   has settled on; a single `.panel input` rule would reach controls in the other
+   two panels that have deliberately different metrics. */
+.offset input[type="number"] {
+  /* Wide enough for "-300" and the spinners, and no wider. A full-width box for
+     a three-digit number reads as a field that wants a sentence. */
+  width: 7rem;
+  min-height: 44px;
+  padding: 0 var(--s-3);
+  font-family: var(--font-body);
+  font-size: 1rem;
+  color: var(--fg);
+  background: var(--bg);
+  border: var(--border-passive);
+  border-radius: var(--r-md);
+}
+
+.offset input:hover {
+  border-color: var(--fg);
+}
+
+.offset__unit {
+  font-size: 0.9375rem;
+  color: var(--fg-soft);
+}
+
+.offset__readout {
+  /* The one place the committed offset is stated in words. The box says "12";
+     this says which way 12 goes, which is the part a signed integer cannot. */
+  max-width: 52ch;
+  margin: var(--s-2) 0 0;
+  font-size: 0.875rem;
+  color: var(--fg-soft);
+}
+
+/* ============================================================
+   21. INVALID FIELDS - last in the file, deliberately
    ============================================================ */
 
 /* This rule has to come after EVERY rule that sets a `border` shorthand on a
@@ -1780,6 +1847,7 @@ body.is-settings .viewswitch {
 .editor input[aria-invalid="true"],
 .editor select[aria-invalid="true"],
 .addoverride input[aria-invalid="true"],
-.addoverride select[aria-invalid="true"] {
+.addoverride select[aria-invalid="true"],
+.offset input[aria-invalid="true"] {
   border-color: var(--danger);
 }

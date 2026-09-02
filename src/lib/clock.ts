@@ -72,3 +72,39 @@ export function localNow(now: Date): LocalNow {
     weekday: now.getDay(),
   };
 }
+
+/** The last second of a local day, which is where a forward shift stops. */
+const LAST_SECOND_OF_DAY = 86399;
+
+/**
+ * The same reading, nudged by the user's bell offset.
+ *
+ * THE POINT OF THIS FUNCTION IS WHAT IT DOES NOT DO. The obvious way to build a
+ * bell offset is to shift every period's `startMin` and `endMin`, and it is
+ * wrong: the schedule is the thing that gets exported, imported and shared, so
+ * baking one building's clock skew into it hands that skew to everyone the link
+ * is sent to. The offset belongs to the DEVICE, so it is applied to the device's
+ * reading of the clock, once, on the way into the engine - beside the
+ * seconds conversion `stateAt` already documents as its front door.
+ *
+ * A positive offset moves the reading FORWARD, which makes the countdown reach
+ * zero earlier - the correction a user wants when the real bell rings before
+ * BellTab says it should.
+ *
+ * The date and the weekday are deliberately untouched. They select WHICH
+ * schedule runs, and a two-minute correction to a bell controller is not
+ * evidence about which day it is; letting the offset move them would mean a
+ * schedule could change at 23:59 because the bells run fast.
+ *
+ * Clamped rather than wrapped for the same reason. Wrapping past midnight would
+ * pair tomorrow's second-of-day with today's date, which is a state no caller
+ * could interpret. Clamping instead freezes the reading for at most
+ * `BELL_OFFSET_LIMIT_SEC` at the very ends of the day - five minutes either side
+ * of midnight, where no bell schedule has anything to say.
+ */
+export function shiftNow(now: LocalNow, offsetSec: number): LocalNow {
+  if (offsetSec === 0) return now;
+
+  const shifted = Math.min(Math.max(now.secOfDay + offsetSec, 0), LAST_SECOND_OF_DAY);
+  return shifted === now.secOfDay ? now : { ...now, secOfDay: shifted };
+}

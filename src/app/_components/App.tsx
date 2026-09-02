@@ -3,12 +3,14 @@
 import { useEffect, useRef, useState } from "react";
 import { useNow } from "@/app/_lib/useNow";
 import { saveLibrary, useLibrary } from "@/app/_lib/libraryStore";
+import { savePreferences, usePreferences } from "@/app/_lib/preferencesStore";
+import { applyTheme } from "@/app/_lib/theme";
 import { addSchedule } from "@/app/_lib/library";
 import { clearShareFragment, incomingSchedule } from "@/app/_lib/shareLink";
 import type { ValidSchedule } from "@/lib/schedule";
 import { tabTitleFor, viewForNow } from "@/app/_lib/today";
 import { formatClock } from "@/lib/format";
-import type { LocalNow } from "@/lib/clock";
+import { shiftNow, type LocalNow } from "@/lib/clock";
 import { NowView } from "@/app/_components/NowView";
 import { SettingsView, type PanelId } from "@/app/_components/SettingsView";
 import { PeriodAnnouncer } from "@/app/_components/PeriodAnnouncer";
@@ -32,6 +34,23 @@ const PENDING = "--";
 export function App() {
   const now = useNow();
   const library = useLibrary();
+  const preferences = usePreferences();
+
+  /**
+   * The theme, kept on `<html>` after the first paint.
+   *
+   * `THEME_SCRIPT` in layout.tsx has already done this before a pixel was
+   * drawn; what this effect adds is everything after that - pressing a radio,
+   * and the `storage` event that carries the change into every other tab on the
+   * origin. Both write the same attribute from the same stored value, so the
+   * two never disagree about what the page should look like.
+   *
+   * An effect rather than a render-time write because it touches a node outside
+   * this tree. `document.documentElement` is not React's to render.
+   */
+  useEffect(() => {
+    applyTheme(document.documentElement, preferences.theme);
+  }, [preferences.theme]);
 
   // Which panel, or none. A boolean plus a separate panel id would let the two
   // disagree; this way "settings is open on the calendar" is one value, which is
@@ -39,7 +58,21 @@ export function App() {
   const [openPanel, setOpenPanel] = useState<PanelId | null>(null);
   const settingsOpen = openPanel !== null;
 
-  const view = now === null ? null : viewForNow(library, now);
+  /**
+   * The bell offset, applied ONCE, here, on the way into the engine.
+   *
+   * Everything downstream - the digits, the progress bar, the tab title, the
+   * boundary announcer - is a derived view of this one value, so correcting the
+   * clock in one place corrects all four. The alternative, shifting the
+   * schedule's stored minutes, would put one building's clock skew into every
+   * backup and every share link; see `shiftNow` for the full argument.
+   *
+   * The wall clock below deliberately does NOT get the shifted reading. It is
+   * there so a user can check the countdown against something, and a clock that
+   * moves with the correction is not something to check against.
+   */
+  const view =
+    now === null ? null : viewForNow(library, shiftNow(now, preferences.bellOffsetSec));
 
   /**
    * A schedule somebody sent, waiting to be accepted or dismissed.
@@ -190,6 +223,8 @@ export function App() {
         <SettingsView
           library={library}
           save={saveLibrary}
+          preferences={preferences}
+          savePreferences={savePreferences}
           now={now}
           initialPanel={openPanel}
           headingRef={headingRef}
