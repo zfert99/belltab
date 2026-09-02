@@ -58,20 +58,20 @@ An older note, kept for the same reason:
 **Testing:** 340 Vitest tests over the pure engine, the parser, the formatters,
 the clock reader, the day resolver, the editor's draft model, the storage
 boundary, the library mutators, the share codec and the preferences boundary,
-plus **486 Playwright tests across three engines** — Chrome, WebKit and
-Firefox — of which 471 run and 15 are parked. Everything still parked is Big
-mode.
+plus **522 Playwright tests across three engines** — Chrome, WebKit and
+Firefox — **none of them parked**, which is true for the first time in the
+project. The last parked block was Big mode's, and Phase 6 built it.
 
-The reflow gate that Phase 0 calls for runs the four Now-view states, the
-editor, the calendar panel and the confirm dialog at 320/375/768/1024/1440, with
+The reflow gate that Phase 0 calls for runs the four Now-view states, Big mode,
+the editor, the calendar panel, the preferences panel and the confirm dialog at 320/375/768/1024/1440, with
 a 60-character unbroken name typed into a period, the schedule name, a picker
 chip, a `<select>` option and an exception row. `e2e/a11y.spec.ts` adds an
 `@axe-core/playwright` sweep over ten journeys, including both error states and
 the open modal, failing on any critical or serious violation.
 
-Every parked block names the phase that revives it; the Day view's, which named
-none, was deleted on 2026-09-01 rather than left. See **Open gaps** in
-`Docs/build-log.md`.
+Every parked block named the phase that revived it, and every one of them has
+now been revived. The Day view's, which named none, was deleted on 2026-09-01
+rather than left. See **Open gaps** in `Docs/build-log.md`.
 
 The repo is at `github.com/zfert99/belltab`, with `main` protected by GitHub
 Flow (one PR per change, squash-merged).
@@ -119,7 +119,7 @@ retires it, since a browser cannot load a `.ts` module directly.
 | **3** | The editor — build and edit a schedule, overlap blocking | 🎨 | ✅ Done |
 | **4** | Day types — the **editing UI** for schedules and the calendar | 🎨 | ✅ Done |
 | **5** | Sharing — versioned hash encoding, export/import | ⚙️ | ✅ Done |
-| **6** | Comfort — theme and bell offset ✅; Big mode, wake lock, chime, PWA | 🎨 | 🚧 In progress |
+| **6** | Comfort — theme, bell offset, Big mode ✅; wake lock, chime, PWA | 🎨 | 🚧 In progress |
 | **7** | Cutover — hub rewrite, origin host, project card, sitemap | 🔀 | 📋 Planned |
 
 ---
@@ -397,12 +397,30 @@ scripts of its own per page whose bytes change with every build, `headers()`
 cannot see the rendered HTML to hash them, and the supported nonce path needs
 middleware `AGENTS.md` bans. See the Decisions table in `Docs/build-log.md`.
 
-### Part 2 — the rest
+### Part 2a — Big mode ✅
 
-- **Big mode** — the full-screen countdown for a projector. The CSS has shipped
-  since the plain build (`body.is-big` and its dozen rules in `globals.css`) and
-  `e2e/reflow.spec.ts` has a block parked on `#view-big` / `#big-exit`; what is
-  missing is the switcher and the view itself.
+- ✅ The projector view, as a MODE laid over the Now view rather than a second
+  view: `body.is-big` scales the one countdown and takes the authoring chrome
+  away, so the two cannot drift apart. The CSS had shipped unrendered since the
+  plain build was retired.
+- ✅ One button in (`#view-big`), one button out (`#big-exit`, plus Escape).
+  Not a two-state switcher — its second state would have been "normal".
+- ✅ Two inherited CSS decisions reversed rather than ported: the bounds footer
+  stays (it was hidden in favour of a period strip that was never rebuilt), and
+  the mode keeps the schedule name while dropping the app's name (the rule was
+  written when those were the same element). See **Decisions** in
+  `Docs/build-log.md`.
+- ✅ Opening settings force-exits the mode, so an empty state's call to action
+  cannot render the editor inside a full-bleed projector layout.
+
+**Gate: met.** `e2e/big-mode.spec.ts` asserts sameness rather than appearance —
+same ids, same digits, same tab title, and the recompute-on-return behaviour
+still correct through the mode — plus focus in both directions, the first-paint
+focus guard, and that the mode adds no live region. The reflow gate runs it at
+all five widths, which revives the last parked block in the repo.
+
+### Part 2b — the rest
+
 - **Screen Wake Lock** behind an explicit toggle, feature-detected, re-acquired
   on `visibilitychange` (the lock auto-releases when the tab hides).
 - **Opt-in foreground chime and notification**, with copy that says plainly that
@@ -423,7 +441,7 @@ say (so it never announced), an `aria-describedby` that dropped the range hint
 at the moment it was needed, and a draft that ignored a change made in another
 tab. See **Bugs found** in `Docs/build-log.md`.
 
-**Gate for part 2:** nothing in it promises background behaviour the web cannot
+**Gate for part 2b:** nothing in it promises background behaviour the web cannot
 deliver.
 
 ## Phase 7 — Cutover 🔀

@@ -172,6 +172,11 @@ development too, so the bare origin is a 404 exactly as it is in production.
 | 2026-08-26 | Dark mode declared twice — media query *and* `[data-theme]` | `:root:not([data-theme="light"])` inside the media query lets a future toggle override the OS in both directions. |
 | 2026-08-26 | Tab title uses `Math.ceil` on remaining minutes | `floor` shows `0m` for the last 59 seconds of a period, which reads as "it is over" when it is not. |
 | 2026-08-26 | Every DOM write is `textContent`; `innerHTML` banned in this codebase | Period names will arrive from share links, i.e. from strangers. `innerHTML` here is an XSS hole triggered by sending someone a URL. |
+| 2026-09-02 | Big mode is a MODE laid over the Now view, not a second view | There is one countdown in this codebase and `body.is-big` scales it. A second component rendering the same numbers bigger would look identical in a screenshot and drift the first time one of them was fixed — which is the failure the whole "one clock, one subscriber" rule exists to prevent, one layer up. The E2E asserts sameness (same ids, same values, same title) rather than appearance for that reason. |
+| 2026-09-02 | One button in, one button out — not a two-state view switcher | `globals.css` carries `.viewswitch` from the retired build, where it toggled between the Now view and a Day view that no longer exists. A switcher whose second state is "normal" is a control that mostly says nothing. So `#view-big` is an action, and the mode supplies its own way back through `#big-exit` — one quiet pill at the bottom of the projector, plus Escape. |
+| 2026-09-02 | The bounds footer STAYS in Big mode, reversing the inherited rule | It was hidden because the period strip said the same thing better — and the strip belonged to the retired plain build and has never been rebuilt. Hiding the only line that reads "Next: Passing at 10:05" in favour of an element that is not on the page is a decision that survives a port because nobody re-reads the reason. Scaled up instead. |
+| 2026-09-02 | Big mode keeps the schedule name and drops the app's name, which is the opposite of what the rule said | `.is-big .screen__schedule` was written when `.screen__schedule` WAS the schedule name; in the current markup it is the `<h1>` reading "BellTab" and the name lives in `#schedule-name`. The selector kept working and stopped meaning what its comment said. The current behaviour is the better one — "Regular" versus "Half day" is what a teacher glancing up wants confirmed, and nobody in the room needs told the app's name — so the comment was corrected to the code rather than the other way round. |
+| 2026-09-02 | Opening settings force-exits Big mode | The "No school today" call to action is a `.minibutton`, which Big mode scales but does not hide, so a projector showing an empty day has a live route into the editor. Without the guard the settings panel renders inside the full-bleed projector layout, which is a screen nobody designed. Covered by a test rather than a comment. |
 | 2026-09-02 | Preferences live under their own `localStorage` key, not inside the library | A bell offset measures ONE building's bell controller against ONE device's clock. Folding it into the library would carry it into the JSON backup and into every share link — so a teacher who measured their bells at twelve seconds fast would silently hand that skew to everyone they sent a schedule to, inside what looks like a timetable. The theme is the same shape of thing: a choice about a screen, not about a school day. `belltab.prefs.v1`, separate from `belltab.v1`. |
 | 2026-09-02 | The bell offset shifts the CLOCK READING, never the stored schedule | Same argument, one layer down. Shifting `startMin`/`endMin` is the obvious implementation and it is the one that leaks: the schedule is the thing that gets exported, imported and shared. `shiftNow` applies it once at the engine's front door, beside the seconds conversion `stateAt` already documents, so the digits, the progress bar, the tab title and the announcer all correct together and the stored schedule is untouched. |
 | 2026-09-02 | The offset moves `secOfDay` only — never the date or the weekday, and it clamps at both ends of the day | The date and weekday select WHICH schedule runs, and a correction to a bell controller is not evidence about which day it is; letting the offset move them would let a schedule change at 23:59 because the bells run fast. Wrapping past midnight would pair tomorrow's second-of-day with today's date, a reading no caller could interpret, so it clamps instead — freezing for at most five minutes at the ends of a day where no bell rings. |
@@ -506,10 +511,10 @@ Lunch before Period 3" is a statement about the timetable, not about a list.
 | 2026-08-26 | The headers have still never been verified on Vercel | `vercel.json` is gone and the list now lives in `next.config.ts`, verified against a real `next start`. What remains unverified is the deploy itself, and the hub's rewrite in Phase 7 — a second hop that can drop headers. |
 | 2026-08-27 | `next build` now needs the network | `next/font/google` fetches the three families at BUILD time. Runtime is still network-free — that invariant is untouched, and the emitted HTML was checked for Google hosts — but an offline `npm run build` now fails where it used to succeed. Next caches the downloads, so this bites a cold checkout rather than a rebuild. Self-hosting the `.woff2` files in-repo with `next/font/local` would remove it; not done, because it means committing binaries and hand-tracking upstream revisions. |
 | 2026-08-27 | Next ships a live region we did not write | `div#__next-route-announcer__` is `aria-live="assertive"` `role="alert"`, injected by the App Router after hydration and not removable. It should stay silent — one route, no client navigation — but `AGENTS.md`'s "never wrap the countdown in a live region" now has a framework-owned region on the page to coexist with. The announcer spec enumerates it so a second one cannot arrive unnoticed. |
+| 2026-09-02 | Three CSS rules are inert, and all three are the retired build's | `.viewswitch__btn[aria-pressed="true"]` styled a two-state switcher that Big mode deliberately did not become; `body.is-settings .viewswitch` hid it while settings was open, which conditional rendering does instead; and `.is-big .strip*` styles a period strip that has never been rebuilt. All three were already inert before Phase 6 and none was introduced by it. Left rather than swept up, on the same reasoning as the row below: deleting styles is a different decision from deleting the code that stopped using them, and it should be made on purpose. |
 | 2026-09-01 | The Day view's dead code outlived its tests | The parked assertions are gone (see Closed), but the view left residue behind: `formatDayCaption` in `src/lib/format.ts` is exported, fully tested and imported by nothing, and `globals.css` still carries `.day__summary`, `.day__remaining` and their siblings. Deliberately left rather than swept up in the same change — deleting a tested pure function is a different decision from deleting a test that named no phase, and it should be made on purpose. |
 | 2026-08-27 | The Phase 2 gate is unverified in Safari | The roadmap's gate names Safari specifically, because its throttling thresholds are the thinnest evidence in the research. What is verified is Chrome, with a scripted clock: `visibilitychange` and `focus` both recompute correctly across a ten-minute sleep and across two period boundaries. The `test/three-engines` spike ran the same suite green on WebKit, which is a data point and not the gate — a real Safari tab on a real device, backgrounded for real minutes, is what is owed, and Playwright's WebKit is not Safari (see the row below). |
 | 2026-08-27 | The design system's period-change crossfade is not implemented | `Docs/design/design-system.md` section 4 asks for a single 150ms crossfade of the period name at a boundary. The name swaps instantly. The global `prefers-reduced-motion` block already covers the reduced path, so adding it is additive; not doing it is the honest state today. |
-| 2026-09-02 | The E2E suite is 157 live and 5 parked, per engine | 486 in total across Chrome, WebKit and Firefox: 471 run, 15 parked. Everything still parked needs Big mode, which is the other half of Phase 6, and the block names it. |
 | 2026-08-27 | The editor is a long tab chain | Twelve rows of six controls is seventy-two stops between the schedule name and the bottom of the form, and the keyboard test needs a 120-press budget to cross it. Nothing is unreachable and nothing is trapped, so this is not a failure — but a skip link, or grouping each row so a screen reader can jump by row, would make it usable rather than merely operable. |
 | 2026-08-27 | There is no undo | Deleting a *period* is still immediate and unconfirmed, and the only way back is to retype it. Deliberate for a four-field row whose result is visible behind the editor. Deleting a whole *schedule* now goes through a modal confirmation, which is the half of this gap Phase 4 closed; a real undo is still owed and would remove the need for the dialog. |
 | 2026-08-27 | The schedule name field has no visible label | It carries a `.visually-hidden` "Schedule name", so assistive tech is fine, but sighted users see a large text box containing "Regular" and have to infer what it is. The retired build had the same shape. A visible label or a placeholder is owed. |
@@ -535,6 +540,8 @@ Lunch before Period 3" is a statement about the timetable, not about a list.
 
 | Opened | Closed | Item |
 | --- | --- | --- |
+| 2026-09-02 | 2026-09-02 | The E2E suite has parked tests — it does not any more. 522 across three engines, **none parked**, for the first time in the project. The last block was Big mode's, parked since Phase 1 named the phase that would revive it. |
+| 2026-08-27 | 2026-09-02 | Roughly half of `globals.css` is inert — closed properly this time. Big mode's dozen rules have shipped unrendered since the plain build was retired and now paint. What is left inert is three rules, enumerated in their own row above. |
 | 2026-09-02 | 2026-09-02 | `inputMode="numeric"` on the signed bell-offset field made a negative offset untypeable on iOS, which draws neither a minus key nor a spinner. Review finding 1. |
 | 2026-09-02 | 2026-09-02 | The bell-offset error was mounted only when it had something to say, so it never announced — the trap `ScheduleEditor.tsx` documents at length. Always rendered and polite now. Review finding 2. |
 | 2026-09-02 | 2026-09-02 | `aria-describedby` swapped the range hint out for the error instead of listing both. Review finding 3. |
@@ -3821,3 +3828,71 @@ fails on the pre-fix code.
 One fix is reasoned rather than measured and is carried as an open gap:
 `inputMode="text"` rests on iOS preferring `inputmode` over the input's type,
 which is documented and has not been checked on real hardware from this repo.
+
+### 2026-09-02 12:59 — Phase 6, part 2a: Big mode
+
+`feat/phase-6-big-mode`. The projector view, and the last parked test in the
+repo.
+
+**It is a mode, not a view.** `body.is-big` and a dozen rules that have shipped
+in `globals.css` since the plain build was retired, doing nothing, now scale the
+Now view up and take the authoring chrome away. There is one countdown in this
+codebase and Big mode wears it — which is why `e2e/big-mode.spec.ts` asserts
+SAMENESS: same ids, same digits, same tab title, same recompute-on-return
+behaviour, and one bounding box bigger than the other. A second component
+rendering the same numbers larger would pass a screenshot review and drift the
+first time one of the two was fixed.
+
+**One button in, one button out.** `.viewswitch` came from the retired build,
+where it toggled Now against a Day view that no longer exists; a switcher whose
+second state is "normal" is a control that mostly says nothing. So `#view-big`
+is an action and the mode supplies its own way back — `#big-exit`, a quiet pill
+at the bottom, plus Escape, which takes precedence over the settings Escape
+because Big mode is the harder one to leave by pointing.
+
+**Two inherited CSS decisions turned out to be wrong, and both were reversed
+rather than ported.**
+
+The first: the rule hid `.bounds`, on the stated grounds that the period strip
+said the same thing better. The strip belonged to the plain build and has never
+been rebuilt, so what actually shipped would have hidden the only line reading
+"Next: Passing at 10:05" in favour of an element that is not on the page. Kept
+and scaled instead.
+
+The second is subtler and is the one worth remembering. `.is-big
+.screen__schedule` was written when `.screen__schedule` WAS the schedule name.
+In the current markup it is the `<h1>` reading "BellTab", and the schedule name
+lives in `#schedule-name` — so the selector kept matching, kept hiding
+something, and stopped meaning what its comment said. **A selector that still
+matches after a rename is not a selector that still works.** The current
+behaviour is the better one, so the comment was corrected to the code rather
+than the other way round.
+
+Both were found by looking at the rendered page rather than by reading the CSS,
+which is the argument for having looked.
+
+**Opening settings force-exits the mode**, because the "No school today" call to
+action is a `.minibutton` — scaled by Big mode, not hidden by it — so a
+projector showing an empty day has a live route into the editor. Without the
+guard the settings panel renders inside a full-bleed projector layout.
+
+**Focus follows the mode in both directions, and not on first paint.** The
+effect runs once on mount with the mode off, and without a guard that would put
+focus on the Big mode button before the user has touched anything. There is a
+test for the guard as well as for the behaviour, because "does not steal focus"
+is the kind of thing that only fails silently.
+
+**No new live region, asserted.** Big mode is a class and some CSS; it must not
+arrive with an announcement, and `e2e/big-mode.spec.ts` enumerates the page's
+regions the way `announcer.spec.ts` and `editor.spec.ts` already do for their
+own screens.
+
+Playwright: 486 to 522 across three engines, **none parked** — the first time
+that has been true in this project. `e2e/big-mode.spec.ts` adds 11 per engine,
+the axe sweep adds 1, and the reflow gate's Big mode block is live at all five
+widths. Unit tests are unchanged at 340; nothing in this slice is pure logic,
+which is itself the reason it is a separate PR from the preferences half.
+
+`npm run lint`, `npm run typecheck`, `npm run build`, `npx vitest run`,
+`npx markdownlint-cli "**/*.md"` and `npx playwright test` all pass, with the
+known macOS-WebKit exception in `editor.spec.ts`.

@@ -820,12 +820,27 @@ body.is-big {
   border-radius: 0;
 }
 
-/* The schedule name and the edit button are authoring chrome, useless at ten
-   feet. The wall clock stays - a clock on a classroom projector earns its
-   space - and the bounds footer goes because the strip already says it. */
+/* What goes: the app's own name, which nobody in the room needs told, and the
+   settings button, which is authoring chrome and useless at ten feet. What
+   stays: the wall clock, because a clock on a classroom projector earns its
+   space, and the SCHEDULE name beside it, because "Regular" versus "Half day"
+   is exactly the thing a teacher glancing up wants confirmed.
+
+   That last part is a correction. This rule was written against the retired
+   build, where `.screen__schedule` WAS the schedule name; in the current markup
+   it is the <h1> reading "BellTab" and the schedule name is `#schedule-name`.
+   So the selector kept working and stopped meaning what its comment said.
+
+   THE BOUNDS FOOTER STAYS TOO, which reverses what this rule used to do. It
+   was hidden here because the period strip below said the same thing in a
+   better form - and the strip belonged to the retired plain build and has
+   never been rebuilt. Hiding the only line that says "Next: Passing at 10:05"
+   in favour of an element that is not on the page is the kind of decision that
+   survives a port because nobody re-reads the reason. Scaled up instead, two
+   rules down. The `.is-big .strip*` rules below were already inert for the
+   same reason and are left rather than swept up; see Open gaps. */
 .is-big .screen__schedule,
 .is-big .icon-button,
-.is-big .bounds,
 .is-big .viewswitch {
   display: none;
 }
@@ -842,8 +857,29 @@ body.is-big {
   font-size: clamp(1.75rem, 6vw, 5rem);
 }
 
+/* The units caption scales too. At the ordinary 0.6875rem under a 26rem number
+   it is not a caption, it is a smudge - and it is the only thing separating
+   "3:38" the hour from "3:38" the minute, which is the ambiguity it exists to
+   resolve. */
+.is-big .countdown__units {
+  font-size: clamp(0.75rem, 1.4vw, 1.25rem);
+}
+
 .is-big .countdown__time {
   font-size: clamp(4rem, min(26vw, 30vh), 26rem);
+}
+
+/* The footer, kept and scaled. Read from the back of a room rather than from a
+   laptop, so the 0.75rem the ordinary view uses for the two clock edges is not
+   enough - but it stays well under the period name, because "Next: Passing at
+   10:05" is a supporting line and not the answer. */
+.is-big .bounds {
+  gap: var(--s-2) var(--s-6);
+}
+
+.is-big .bounds__edge,
+.is-big .bounds__next {
+  font-size: clamp(0.875rem, 1.8vw, 1.5rem);
 }
 
 .is-big .strip {
