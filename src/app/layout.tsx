@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Fredoka, Manrope, Space_Mono } from "next/font/google";
+import { THEME_SCRIPT } from "@/app/_lib/theme";
 import "./globals.css";
 
 /**
@@ -62,6 +63,10 @@ export const metadata: Metadata = {
  * build shipped. It is what makes the browser's own chrome - form controls,
  * scrollbars, the canvas behind the page - follow the dark tokens in
  * globals.css rather than staying stubbornly white behind a dark page.
+ *
+ * It stays `light dark` - the OS default - and globals.css NARROWS it to one
+ * value under `[data-theme]`. The meta tag cannot do that itself: it is written
+ * on the server, and which theme the user chose is in `localStorage`.
  */
 export const viewport: Viewport = {
   width: "device-width",
@@ -72,7 +77,25 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" className={`${fredoka.variable} ${manrope.variable} ${spaceMono.variable}`}>
-      <body>{children}</body>
+      <body>
+        {/*
+          The theme, applied before anything is drawn.
+
+          FIRST child of <body>, and inline, because both are what make it work:
+          a parser-blocking script runs before the elements after it are parsed,
+          and an inline one runs with no fetch in front of it - not even a cached
+          one. A user who has forced light while their OS is dark would otherwise
+          see a frame of the wrong palette on every load, which is the flash the
+          retired plain build solved this same way. See `THEME_SCRIPT` for why it
+          is not hashed, which was the original plan.
+
+          `dangerouslySetInnerHTML` is how React renders a script body at all,
+          and the name is doing no work here: the content is a module constant
+          this repo wrote, with no interpolation of anything from anywhere.
+        */}
+        <script dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }} />
+        {children}
+      </body>
     </html>
   );
 }

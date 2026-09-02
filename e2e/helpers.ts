@@ -63,14 +63,25 @@ export interface OpenOptions {
    * is the moment worth testing. `null` clears the key.
    */
   storage?: string | null;
+  /**
+   * The same, for the preferences key.
+   *
+   * A second option rather than a second call, because the theme is applied by
+   * a script that runs before the page has painted - a preference written after
+   * `goto` would miss the only moment the pre-paint path can be observed at all.
+   */
+  preferences?: string | null;
 }
 
 export const STORAGE_KEY = "belltab.v1";
 
+/** Kept in step with `PREFERENCES_KEY` in src/app/_lib/preferences.ts. */
+export const PREFERENCES_STORAGE_KEY = "belltab.prefs.v1";
+
 export async function openApp(
   page: Page,
   at: string = MID_PERIOD,
-  { storage }: OpenOptions = {},
+  { storage, preferences }: OpenOptions = {},
 ): Promise<void> {
   const target = new Date(at);
 
@@ -95,13 +106,18 @@ export async function openApp(
   await page.clock.install({ time: new Date(target.getTime() - 60_000) });
   await page.clock.pauseAt(target);
 
-  if (storage !== undefined) {
+  for (const [key, value] of [
+    [STORAGE_KEY, storage],
+    [PREFERENCES_STORAGE_KEY, preferences],
+  ] as const) {
+    if (value === undefined) continue;
+
     await page.addInitScript(
-      ([key, value]) => {
-        if (value === null) window.localStorage.removeItem(key);
-        else window.localStorage.setItem(key, value);
+      ([storageKey, storageValue]) => {
+        if (storageValue === null) window.localStorage.removeItem(storageKey);
+        else window.localStorage.setItem(storageKey, storageValue);
       },
-      [STORAGE_KEY, storage] as const,
+      [key, value] as const,
     );
   }
 
@@ -210,8 +226,8 @@ export async function expectNoHorizontalScroll(page: Page, label: string): Promi
  * asked for by name. The panel assertion afterwards is what actually matters
  * either way.
  *
- * Callers passing "preferences" are still parked, and will fail on the panel
- * assertion until Phase 6 builds it.
+ * Phase 6 adds a fourth panel, "preferences", and with it the last of the
+ * callers this helper was written in anticipation of.
  */
 export async function openSettings(page: Page, panel = "schedules"): Promise<void> {
   await page.locator("#settings-toggle").click();

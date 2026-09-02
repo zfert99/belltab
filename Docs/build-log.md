@@ -172,6 +172,14 @@ development too, so the bare origin is a 404 exactly as it is in production.
 | 2026-08-26 | Dark mode declared twice — media query *and* `[data-theme]` | `:root:not([data-theme="light"])` inside the media query lets a future toggle override the OS in both directions. |
 | 2026-08-26 | Tab title uses `Math.ceil` on remaining minutes | `floor` shows `0m` for the last 59 seconds of a period, which reads as "it is over" when it is not. |
 | 2026-08-26 | Every DOM write is `textContent`; `innerHTML` banned in this codebase | Period names will arrive from share links, i.e. from strangers. `innerHTML` here is an XSS hole triggered by sending someone a URL. |
+| 2026-09-02 | Preferences live under their own `localStorage` key, not inside the library | A bell offset measures ONE building's bell controller against ONE device's clock. Folding it into the library would carry it into the JSON backup and into every share link — so a teacher who measured their bells at twelve seconds fast would silently hand that skew to everyone they sent a schedule to, inside what looks like a timetable. The theme is the same shape of thing: a choice about a screen, not about a school day. `belltab.prefs.v1`, separate from `belltab.v1`. |
+| 2026-09-02 | The bell offset shifts the CLOCK READING, never the stored schedule | Same argument, one layer down. Shifting `startMin`/`endMin` is the obvious implementation and it is the one that leaks: the schedule is the thing that gets exported, imported and shared. `shiftNow` applies it once at the engine's front door, beside the seconds conversion `stateAt` already documents, so the digits, the progress bar, the tab title and the announcer all correct together and the stored schedule is untouched. |
+| 2026-09-02 | The offset moves `secOfDay` only — never the date or the weekday, and it clamps at both ends of the day | The date and weekday select WHICH schedule runs, and a correction to a bell controller is not evidence about which day it is; letting the offset move them would let a schedule change at 23:59 because the bells run fast. Wrapping past midnight would pair tomorrow's second-of-day with today's date, a reading no caller could interpret, so it clamps instead — freezing for at most five minutes at the ends of a day where no bell rings. |
+| 2026-09-02 | The pre-paint theme script is inline and **unhashed**, reversing the plan for this session | A hash is only worth having next to a real `script-src`, and this app cannot ship one — see the row below. Given that, an external file in `public/` buys nothing and costs a fetch, and a fetch is a window in which the page can paint the wrong palette. Inline is the only version with no window at all. |
+| 2026-09-02 | A real `script-src` is **unavailable** to this app, measured rather than assumed | Next emits two inline scripts of its own into every page: a 43-byte bootstrap and ~5 KB of flight data whose bytes change with every build (they carry the chunk hashes). `headers()` in `next.config.ts` runs without any knowledge of the rendered HTML, so neither can be hashed there, and a hash-based `script-src` would block the framework's own hydration. The supported answer is a per-request nonce from middleware, and this repo ships no `middleware.ts` on purpose — see the CVE-2025-29927 rule in `AGENTS.md`. The CSP therefore stays `frame-ancestors 'none'`. |
+| 2026-09-02 | `localStorage` plumbing became a factory, `createLocalStore` | Phase 6 needs a second key and the choice was two copies of `libraryStore.ts` or one parameterised copy. The caching rules in it are subtle enough — a module-level memo against the raw string, because `getSnapshot` must be referentially stable, plus a `storageWorks` latch because re-reading after a throw silently reverts every edit — that a second hand-written copy is a second place to get them subtly wrong. `useLibrary`/`saveLibrary` keep their names, so nothing else changed. |
+| 2026-09-02 | Preferences degrade **field by field**, unlike the library which is all-or-nothing | A library is one interlocking thing — a calendar pointing at schedules — so half of one is broken rather than smaller. Preferences are independent scalars: a theme name that no longer exists says nothing about whether a measured offset is still usable, and discarding the offset because the theme was renamed is a worse answer than either field can justify. |
+| 2026-09-02 | The theme is three radio buttons, not a two-state toggle | "System" is a real choice and the default one: it follows `prefers-color-scheme` and keeps following it when the OS flips at sunset. A two-state toggle has to pick a starting side, which silently converts every user into someone who has overridden their OS. A native radio group also brings arrow-key navigation, one tab stop for the group, and "Theme, Light, radio button 2 of 3" for free. |
 | 2026-09-01 | Every schedule in a **library** carries a non-null unique id, minted at the parse boundary | The calendar points at schedules by id, so a library schedule without one is a schedule no weekday and no override could ever select. A *single* schedule may still have none — one typed into the editor, one decoded from a share link — so this is a collection guarantee, expressed as `IdentifiedSchedule` and produced by `parseScheduleCollection`. |
 | 2026-09-01 | The narrowing to `IdentifiedSchedule` is a **type predicate**, not a second cast | `parseSchedule`'s double assertion is the only one in `src/`, and this log says a second would read as a lie in a diff. `isIdentified` narrows without asserting, because the intersection is assignable to the parameter type. |
 | 2026-09-01 | Duplicating a schedule hands the boundary the **source's own id** and lets it renumber the copy | The original comes first in the list, so it keeps the id and the copy is minted a fresh one. One place in the codebase decides what an id is, and the duplicate path exercises it rather than working around it. |
@@ -498,11 +506,10 @@ Lunch before Period 3" is a statement about the timetable, not about a list.
 | 2026-08-26 | The headers have still never been verified on Vercel | `vercel.json` is gone and the list now lives in `next.config.ts`, verified against a real `next start`. What remains unverified is the deploy itself, and the hub's rewrite in Phase 7 — a second hop that can drop headers. |
 | 2026-08-27 | `next build` now needs the network | `next/font/google` fetches the three families at BUILD time. Runtime is still network-free — that invariant is untouched, and the emitted HTML was checked for Google hosts — but an offline `npm run build` now fails where it used to succeed. Next caches the downloads, so this bites a cold checkout rather than a rebuild. Self-hosting the `.woff2` files in-repo with `next/font/local` would remove it; not done, because it means committing binaries and hand-tracking upstream revisions. |
 | 2026-08-27 | Next ships a live region we did not write | `div#__next-route-announcer__` is `aria-live="assertive"` `role="alert"`, injected by the App Router after hydration and not removable. It should stay silent — one route, no client navigation — but `AGENTS.md`'s "never wrap the countdown in a live region" now has a framework-owned region on the page to coexist with. The announcer spec enumerates it so a second one cannot arrive unnoticed. |
-| 2026-08-27 | Theme persistence is gone, and its replacement needs a CSP hash | The retired `index.html` set `data-theme` from `localStorage` in a render-blocking inline script, to avoid a flash of the wrong theme. `globals.css` still honours `[data-theme]`, but nothing sets it. Phase 6 owes both the toggle and a way to apply it before first paint that does not need an unhashed inline `<script>`. |
 | 2026-09-01 | The Day view's dead code outlived its tests | The parked assertions are gone (see Closed), but the view left residue behind: `formatDayCaption` in `src/lib/format.ts` is exported, fully tested and imported by nothing, and `globals.css` still carries `.day__summary`, `.day__remaining` and their siblings. Deliberately left rather than swept up in the same change — deleting a tested pure function is a different decision from deleting a test that named no phase, and it should be made on purpose. |
 | 2026-08-27 | The Phase 2 gate is unverified in Safari | The roadmap's gate names Safari specifically, because its throttling thresholds are the thinnest evidence in the research. What is verified is Chrome, with a scripted clock: `visibilitychange` and `focus` both recompute correctly across a ten-minute sleep and across two period boundaries. The `test/three-engines` spike ran the same suite green on WebKit, which is a data point and not the gate — a real Safari tab on a real device, backgrounded for real minutes, is what is owed, and Playwright's WebKit is not Safari (see the row below). |
 | 2026-08-27 | The design system's period-change crossfade is not implemented | `Docs/design/design-system.md` section 4 asks for a single 150ms crossfade of the period name at a boundary. The name swaps instantly. The global `prefers-reduced-motion` block already covers the reduced path, so adding it is additive; not doing it is the honest state today. |
-| 2026-09-01 | The E2E suite is 122 live and 10 parked, per engine | 396 in total across Chrome, WebKit and Firefox: 366 run, 30 parked. Everything still parked needs the preferences panel or Big mode, both Phase 6, and every block names its phase. |
+| 2026-09-02 | The E2E suite is 157 live and 5 parked, per engine | 486 in total across Chrome, WebKit and Firefox: 471 run, 15 parked. Everything still parked needs Big mode, which is the other half of Phase 6, and the block names it. |
 | 2026-08-27 | The editor is a long tab chain | Twelve rows of six controls is seventy-two stops between the schedule name and the bottom of the form, and the keyboard test needs a 120-press budget to cross it. Nothing is unreachable and nothing is trapped, so this is not a failure — but a skip link, or grouping each row so a screen reader can jump by row, would make it usable rather than merely operable. |
 | 2026-08-27 | There is no undo | Deleting a *period* is still immediate and unconfirmed, and the only way back is to retype it. Deliberate for a four-field row whose result is visible behind the editor. Deleting a whole *schedule* now goes through a modal confirmation, which is the half of this gap Phase 4 closed; a real undo is still owed and would remove the need for the dialog. |
 | 2026-08-27 | The schedule name field has no visible label | It carries a `.visually-hidden` "Schedule name", so assistive tech is fine, but sighted users see a large text box containing "Regular" and have to infer what it is. The retired build had the same shape. A visible label or a placeholder is owed. |
@@ -516,12 +523,24 @@ Lunch before Period 3" is a statement about the timetable, not about a list.
 | 2026-09-01 | The schedule picker has no keyboard-efficient path | The chips are ordinary buttons in a `role="group"`, so reaching the fifth schedule is five tabs, and they sit above an editor that is already seventy-two stops deep. Arrow-key roving focus over the chips would fix it, and is what an ARIA tablist would have brought if the rest of that contract were worth taking on. |
 | 2026-09-01 | Deleting the schedule that is running is not called out | The confirmation says any day pointing at the schedule falls back to no school, but it does not say that *today* is one of those days, which is the case where the countdown blanks the moment the dialog closes. The information is on the calendar panel, one tab away. |
 | 2026-09-01 | The weekday map is not reachable from the countdown's "no school today" screen in one step | The empty state links to the calendar panel, which is right for the common case — a one-off. Somebody whose *Saturday* genuinely runs school has to notice that the Today control writes an override and that the weekday defaults are the section below. |
+| 2026-09-02 | The page ships an unhashed inline script, and the CSP still carries no `script-src` | Half of the 2026-08-27 gap this replaces. The toggle and the pre-paint application both exist now; what does not is the hardening they were supposed to arrive with. The reason is measured and is in the Decisions table: Next's own two inline scripts cannot be hashed from `next.config.ts`, and the nonce that would fix it needs middleware this repo bans. What would change the call is Next shipping a nonce path that is not middleware, or `output: "export"` growing one. Until then the CSP is `frame-ancestors 'none'` and the honest statement is that this app has no script policy at all. |
+| 2026-09-02 | The bell offset has never been measured against a real bell | It is a correction with no calibration aid: the user is asked for a number of seconds and given no way to discover which number. The panel states which way the number goes and the wall clock beside the countdown is deliberately left unshifted so there is something to check against, but the actual workflow — stand in a corridor, hear the bell, read the phone, subtract — is unassisted. A "tap when the bell rings" button that measured it would be the fix, and is not built. |
+| 2026-09-02 | Nothing warns that a large offset is not a schedule edit | The cap is ±300 seconds, which is generous on purpose, and at the top of that range the app is five minutes out of step with its own schedule editor with only the readout to say so. Somebody who typed 300 because their timetable is wrong has fixed the symptom in the place that does not persist to a share link. |
+| 2026-09-02 | The theme radios have no `prefers-reduced-motion` sibling | `Docs/research/accessibility-responsive-qa.md` suggests an in-app "reduce animations" toggle alongside the OS one. The global media query is honoured everywhere in `globals.css`, so nothing is inaccessible; what is missing is the in-app override for someone whose OS setting does not match what they want here. Preferences is now the panel it would live in. |
+| 2026-09-02 | The macOS WebKit build does not Tab to buttons, so one editor test fails locally | `e2e/editor.spec.ts`'s keyboard walk cannot reach `#add-period` within its 120-press budget on the development machine's WebKit, because macOS omits buttons from the Tab order unless full keyboard access is on. It passes on the Linux CI runner's build and on Chrome and Firefox everywhere. Verified pre-existing on `main` by stashing this session's work and re-running. A third entry for the row above: "WebKit" is not one browser. |
+| 2026-09-02 | The `inputMode="text"` fix is reasoned, not measured on real iOS | Review finding 1 is fixed on the argument that iOS prefers `inputmode` over the input's type when choosing a keyboard, and that its `type="number"` draws no spinners. Both are well documented and neither has been checked on a real iPhone from this repo. Same class of claim as every other Safari row here: Playwright's WebKit is not Safari and none of it is iOS. What is verified is that the attribute changed nothing on Chrome, Firefox or WebKit. |
 | 2026-08-27 | Three pieces of cited evidence live in the Puzzle Lab repo, not this one | `multi-zone-migration-safety-review.md` marks its rate-limit finding **VERIFIED** against method and numbers in `src/lib/rate-limit.md`; `multi-zone-cost-and-alternatives.md` reverses its own earlier position on the authority of `puzzle-lab-hub-merge-research.md` and `vercel-cron-deployment-protection-outage.md`. All three files are real and all three are one repo away. The broken links are fixed — they now name the repo — but the claims remain unauditable from inside BellTab. Copying the three in would fix it and would also import three more documents about someone else's stack; not done, and the tradeoff is the reason. |
 
 ## Closed
 
 | Opened | Closed | Item |
 | --- | --- | --- |
+| 2026-09-02 | 2026-09-02 | `inputMode="numeric"` on the signed bell-offset field made a negative offset untypeable on iOS, which draws neither a minus key nor a spinner. Review finding 1. |
+| 2026-09-02 | 2026-09-02 | The bell-offset error was mounted only when it had something to say, so it never announced — the trap `ScheduleEditor.tsx` documents at length. Always rendered and polite now. Review finding 2. |
+| 2026-09-02 | 2026-09-02 | `aria-describedby` swapped the range hint out for the error instead of listing both. Review finding 3. |
+| 2026-09-02 | 2026-09-02 | The offset draft was not dropped when another tab changed the stored value, so the box and the readout beside it disagreed. Review finding 4. |
+| 2026-08-27 | 2026-09-02 | Theme persistence is gone — a Preferences panel with a three-way System/Light/Dark radio group writes `belltab.prefs.v1`, and an inline script at the top of `<body>` puts `data-theme` on `<html>` before a pixel is drawn. Reopened narrowly as the CSP row above, which is the half that did not land and why. |
+| 2026-09-01 | 2026-09-02 | The E2E suite is 122 live and 10 parked per engine — the preferences blocks are revived, leaving 5 parked per engine for Big mode. 486 tests across three engines, 471 run. |
 | 2026-08-26 | 2026-09-01 | WebKit and Firefox are not covered — both are Playwright projects and the suite runs on all three engines, 366 tests. The two defects the spike found were fixed on `main` first; this closes the coverage itself. |
 | 2026-08-27 | 2026-09-01 | No automated accessibility scan — `e2e/a11y.spec.ts` runs `@axe-core/playwright` over ten journeys including both error states and the open modal. It found a genuine WCAG 1.4.3 contrast failure on its first run. |
 | 2026-08-27 | 2026-09-01 | Cross-tab sync is untested — `e2e/editor.spec.ts` opens two pages on one context and asserts an edit in the editor reaches a countdown, and a tab title, left open in the other. No reload, no tick. |
@@ -580,6 +599,58 @@ Lunch before Period 3" is a statement about the timetable, not about a list.
 ---
 
 ## Bugs found
+
+### 2026-09-02 — four defects in the preferences panel, all found by review
+
+A `high`-effort code review of the Phase 6 part 1 tree, run before the branch
+had a single commit on it. Everything structural came back clean — the
+`localStore` extraction is a faithful move, `shiftNow` clamps rather than wraps
+and leaves `isoDate`/`weekday` alone, the offset is applied at exactly one seam,
+and `THEME_SCRIPT` and `loadPreferences` agree on every malformed-storage case
+the reviewer could construct. All four findings were in the new FORM, which is
+the third phase running that the newest form is where the defects are.
+
+**1. `inputMode="numeric"` made negative offsets untypeable on iOS.** iOS picks
+the on-screen keyboard from `inputmode` in preference to the input type, and
+`numeric` is the digits-only keypad — no minus key. iOS Safari also draws no
+spinner buttons for `type="number"`, so an iPhone had no way at all to express
+"the bells run late". Copied straight from `PeriodRow.tsx`, where the field is a
+period's LENGTH, is unsigned, and `numeric` is correct. Now `inputMode="text"`,
+which costs a physical-keyboard user nothing.
+
+**Lesson:** an attribute copied from a similar-looking field carries that
+field's assumptions with it. The two inputs are both numbers; only one of them
+can be negative, and that is the whole difference.
+
+**2. The offset error was mounted conditionally, so it never announced.**
+`ScheduleEditor.tsx` documents this exact trap in a twelve-line comment — a live
+region has to be in the accessibility tree BEFORE its text changes, so one that
+appears along with its message is routinely missed — and the new panel was
+written without it. The failure it hides is the bad one: an out-of-range value
+is refused, the countdown carries on running the old offset, and nothing says so
+to anyone who cannot see the red border. Now always rendered, `.visually-hidden`
+when empty, `aria-live="polite"`, exactly as the editor's is.
+
+**Lesson:** axe cannot see this. The scan passed on the broken version, because
+a conditionally-mounted error is valid markup — it is only wrong across time.
+Two of this repo's a11y gates ran green over it and the review caught it.
+
+**3. `aria-describedby` swapped the hint out for the error.** So the sentence
+stating the ±300 range was removed from the field at precisely the moment the
+user exceeded it. Now it lists both ids.
+
+**4. The draft was never dropped when the stored value changed underneath it.**
+An edit in another tab reaches `preferencesStore` through the `storage` event,
+but the number box kept showing whatever had been typed into it while the
+readout beside it showed the new value. The JSDoc above the component explicitly
+claimed this case was handled; it was not. Fixed with the React docs' pattern
+for resetting state on a prop change — an assignment during render, guarded by
+the last-seen value — and covered by a two-page cross-tab test.
+
+**Lesson, and it is the same one as the `aria-invalid` border in Phase 4:** a
+comment describing behaviour is not evidence of it. This one named three cases
+the `null` state covered and the third was aspirational. If a comment enumerates
+cases, each case is a test.
 
 ### 2026-08-26 — three "engine failures" that were bad test expectations
 
@@ -3612,3 +3683,141 @@ the same thing on all three engines.
 396 Playwright tests across three engines, 30 parked. `npm run lint`,
 `npm run typecheck`, `npx vitest run`, `npx markdownlint-cli` and
 `npm run build` all pass.
+
+### 2026-09-02 11:41 — Phase 6, part 1: preferences, the theme and the bell offset
+
+`feat/phase-6-preferences`. The half of Phase 6 with real invariants to respect,
+split from the half — wake lock, chime, notification, PWA manifest — that is
+permission-gated and mostly assertable only through its refused branches.
+
+**A fourth settings panel, and its first job is to not be part of a schedule.**
+The theme and the bell offset go in `belltab.prefs.v1`, beside `belltab.v1`
+rather than inside it, and that split is the whole design rather than
+housekeeping. A bell offset measures one building's bell controller against one
+device's clock; carried in the library it would ride along in the JSON backup
+and — silently — in every share link, so somebody who measured their bells at
+twelve seconds fast would hand that skew to everyone they sent a timetable to.
+
+**The offset shifts the clock reading, not the schedule.** `shiftNow` in
+`clock.ts` adds the seconds to `secOfDay` and hands the result to
+`viewForNow`, once, at the same seam where `stateAt` already converts minutes
+to seconds. The obvious implementation — walk the periods and move every
+`startMin`/`endMin` — is the one that leaks, for exactly the reason above. It
+also would have needed the countdown, the title, the bar and the announcer to
+agree about a mutation; applied to the reading, all four correct together
+because all four are derived views of it.
+
+Two things `shiftNow` deliberately does not do, both tested: it never touches
+`isoDate` or `weekday` — those choose WHICH schedule runs, and a bell controller
+being fast is not evidence about what day it is — and it clamps at 0 and 86399
+rather than wrapping. Wrapping would pair tomorrow's second-of-day with today's
+date, which is a reading no caller could interpret. Clamping freezes it for at
+most five minutes at the ends of a day when no bell rings.
+
+**The flash of the wrong theme is fixed, and the CSP is not.** `globals.css` has
+carried `[data-theme]` since the retired build and needed nothing; what was
+missing was anything to set it. `THEME_SCRIPT` runs inline as the first child of
+`<body>`, before `<main>` is parsed, and a React effect keeps it in step
+afterwards — including across tabs, which the store gives for free.
+
+**That reverses the plan this session started with, and the reversal is
+measured.** The intent was an inline script plus its sha256 in a real
+`script-src`. Next emits two inline scripts of its own into every page — a
+43-byte bootstrap and about 5 KB of flight data carrying the build's chunk
+hashes — and `headers()` in `next.config.ts` is evaluated with no knowledge of
+the rendered HTML, so neither can be hashed there. A hash-based `script-src`
+would block the framework's own hydration. The supported fix is a per-request
+nonce from middleware, and `AGENTS.md` bans `middleware.ts` over CVE-2025-29927.
+So: inline, unhashed, CSP unchanged at `frame-ancestors 'none'`, and the gap
+narrowed to say precisely that rather than closed.
+
+An external file in `public/` was the other candidate and would at least have
+been `'self'`-compatible for a future policy. It was rejected because it buys
+nothing today and costs a fetch, and a fetch — even a cached one — is a window
+in which the page can paint the wrong palette. Inline is the only version with
+no window at all.
+
+**`color-scheme` follows the theme now, in CSS.** The `<meta>` tag is written on
+the server, which cannot know the user forced light while their OS is dark, so
+it stays `light dark` and two `[data-theme]` rules narrow it. Without them a
+forced-light page keeps dark scrollbars and dark number spinners, which is the
+exact mismatch the meta tag exists to prevent.
+
+**`libraryStore.ts` became a factory.** Phase 6 needed a second key, and the
+choice was a second hand-written copy of that file or one parameterised copy.
+`createLocalStore` won because the rules in it are subtle — a module-level memo
+against the raw string, because `getSnapshot` must return a referentially stable
+value or React re-renders forever, and a `storageWorks` latch, because
+re-reading after `localStorage` throws silently reverts every edit the user
+makes. Two copies is two places to get that subtly wrong. `useLibrary` and
+`saveLibrary` keep their names, so nothing else in the app changed.
+
+**Preferences degrade field by field, which the library deliberately does not.**
+`loadLibrary` is all-or-nothing because a library is one interlocking thing —
+half a calendar pointing at half a set of schedules is broken rather than
+smaller. Preferences are independent scalars, so a theme name that no longer
+exists must not take a measured offset down with it. Both rules have tests.
+
+**The number field keeps a draft.** Binding a controlled input straight to the
+stored integer makes it uneditable: clearing the box to retype produces `""`,
+`Number("")` is `0`, and committing that wipes the offset the instant somebody
+selects the field. So the string on screen is local and commits only when it
+parses, an empty box is an edit rather than an error, and blur throws the draft
+away so a refused value cannot sit in the box looking committed while the
+countdown runs on something else.
+
+**Found while wiring the panel:** the invalid-field rule at the bottom of
+`globals.css` enumerates `.editor` and `.addoverride` by name, so a new panel's
+`aria-invalid` control gets the attribute and no red border — the same failure
+that shipped unnoticed through Phase 3 and Phase 4. `.offset` added to the
+selector list in the same change. The comment above that rule now has a third
+reason to be read before adding a form anywhere.
+
+**One WebKit failure, pre-existing.** `e2e/editor.spec.ts`'s keyboard walk
+cannot reach `#add-period` within 120 Tab presses on the development machine's
+WebKit, because macOS leaves buttons out of the Tab order unless full keyboard
+access is on. Verified against `main` by stashing this session's work and
+re-running, so it is not this change; it passes on the Linux CI runner's build
+and on Chrome and Firefox everywhere. Recorded as a third entry under "WebKit is
+not one browser".
+
+Unit tests: 305 to 340 — 29 for the preferences boundary and the theme script,
+6 for `shiftNow`. Playwright: 426 to 486 across three engines, of which 471 run
+and 15 are parked; `e2e/preferences.spec.ts` adds 18 per engine and the axe
+sweep adds 2, and the parked preferences reflow block is live. Only Big mode is
+still parked.
+
+`npm run lint`, `npm run typecheck`, `npm run build`, `npx vitest run`,
+`npx markdownlint-cli "**/*.md"` and `npx playwright test` all pass, with the
+one macOS-WebKit exception above.
+
+### 2026-09-02 12:37 — the review pass on Phase 6 part 1
+
+A `high`-effort review of the branch before it had a commit on it, following the
+convention Phase 4 set. Four defects, all four in the new form, all four fixed in
+the same session — the details and the lessons are under **Bugs found**, and the
+rows are in **Closed**.
+
+Worth recording as a pattern rather than four incidents: **the newest form is
+where the defects are, three phases running.** Phase 4's review found three, all
+in the dated-exception form. This one found four, all in the preferences form,
+and two of them were failures to apply a rule this codebase had already written
+down at length — the live-region-must-pre-exist comment in `ScheduleEditor.tsx`,
+and the "a comment describing behaviour is not evidence of it" lesson from the
+`aria-invalid` border. Writing a new form is apparently not a state in which
+past comments get read.
+
+The a11y consequence is the one to carry forward: **the axe sweep passed on the
+broken version.** A conditionally-mounted error node is valid markup; it is only
+wrong across time, and a scan of one moment cannot see that. `e2e/a11y.spec.ts`
+is a floor, and this is the second time this log has had to say so.
+
+Three new E2E tests came out of the fixes rather than the features: the error
+node exists and is silent before it speaks, the panel owns exactly one live
+region while it is open (the counterpart to the invariants in
+`announcer.spec.ts` and `editor.spec.ts`), and a two-page cross-tab test that
+fails on the pre-fix code.
+
+One fix is reasoned rather than measured and is carried as an open gap:
+`inputMode="text"` rests on iOS preferring `inputmode` over the input's type,
+which is documented and has not been checked on real hardware from this repo.

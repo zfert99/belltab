@@ -8,6 +8,21 @@ evidence behind the technical decisions is
 **Status legend:** ✅ Done · 🚧 In progress · 📋 Planned · ⛔ Blocked (prereq)
 **Tracks:** 🏗️ Setup · ⚙️ Engine · 🎨 UI · 🔀 Infra · 🔗 Integration
 
+**Status (2026-09-02, after Phase 6 part 1):** the app now has settings of its
+own, kept deliberately apart from the user's data. A Preferences panel holds a
+three-way theme — System, Light, Dark, with System the default and a real
+choice rather than the absence of one — applied to `<html>` before the first
+paint, and a bell offset that nudges the countdown to match a building's real
+bells. The offset moves the CLOCK READING and never the stored schedule, so a
+share link and a backup carry one school's timetable and not one device's clock
+skew.
+
+What is left of Phase 6 is Big mode, the wake lock, the chime and notification,
+and the PWA manifest. Then Phase 7, the cutover.
+
+> **Superseded 2026-09-02.** The paragraph below described `main` after Phase 5
+> and is kept because the Phase 6 plan was written against it.
+
 **Status (2026-09-01, after Phase 4):** the app is now the user's end to end.
 One clock drives the digits, the progress bar, the tab title and the boundary
 announcer, all recomputed from `Date.now()`. The editor adds, renames, retimes,
@@ -40,11 +55,12 @@ An older note, kept for the same reason:
 > yet. The UI is rebuilt on the engine phase by phase from here, starting with
 > the countdown.
 
-**Testing:** 252 Vitest tests over the pure engine, the parser, the formatters,
+**Testing:** 340 Vitest tests over the pure engine, the parser, the formatters,
 the clock reader, the day resolver, the editor's draft model, the storage
-boundary, the library mutators and the share codec, plus **426 Playwright tests
-across three engines** — Chrome, WebKit and Firefox — of which 396 run and 30
-are parked.
+boundary, the library mutators, the share codec and the preferences boundary,
+plus **486 Playwright tests across three engines** — Chrome, WebKit and
+Firefox — of which 471 run and 15 are parked. Everything still parked is Big
+mode.
 
 The reflow gate that Phase 0 calls for runs the four Now-view states, the
 editor, the calendar panel and the confirm dialog at 320/375/768/1024/1440, with
@@ -103,7 +119,7 @@ retires it, since a browser cannot load a `.ts` module directly.
 | **3** | The editor — build and edit a schedule, overlap blocking | 🎨 | ✅ Done |
 | **4** | Day types — the **editing UI** for schedules and the calendar | 🎨 | ✅ Done |
 | **5** | Sharing — versioned hash encoding, export/import | ⚙️ | ✅ Done |
-| **6** | Comfort — bell offset, wake lock, chime, PWA, theme | 🎨 | 🚧 Next |
+| **6** | Comfort — theme and bell offset ✅; Big mode, wake lock, chime, PWA | 🎨 | 🚧 In progress |
 | **7** | Cutover — hub rewrite, origin host, project card, sitemap | 🔀 | 📋 Planned |
 
 ---
@@ -350,14 +366,64 @@ renders but is never asserted, and an import cannot be undone.
 
 ## Phase 6 — Comfort 🎨
 
-- **Bell offset** — nudge every time by ±N seconds to match the real bell.
+Split into two, on the line between logic that can be tested without a browser
+and behaviour that is permission-gated and can mostly only be tested through its
+refused branches. Part 1 is done.
+
+### Part 1 — the Preferences panel, the theme and the bell offset ✅
+
+- ✅ A fourth settings panel, and the first thing in the app that is
+  deliberately NOT part of a schedule. Both settings live in
+  `belltab.prefs.v1`, beside the library rather than inside it, so neither
+  travels in a share link or a JSON backup. A bell offset measures one
+  building's bell controller against one device's clock; a theme is a choice
+  about a screen.
+- ✅ **Bell offset**, ±300 seconds, applied to the CLOCK READING and never to
+  the stored schedule. `shiftNow` moves `secOfDay` only — never the date or the
+  weekday, which choose which schedule runs — and clamps at both ends of the day
+  rather than wrapping into a reading no caller could interpret.
+- ✅ **Theme**, three ways: System, Light, Dark. System is the default and a
+  real choice, not the absence of one — it follows `prefers-color-scheme` and
+  keeps following it when the OS flips at sunset. Applied to `<html>` by an
+  inline script before the first paint, which closes the flash-of-wrong-theme
+  gap open since the plain build was retired.
+- ✅ `color-scheme` narrowed in CSS under `[data-theme]`, so the browser's own
+  scrollbars and number spinners follow an explicit choice the server-rendered
+  `<meta>` tag cannot know about.
+
+**Not done, and the reason is measured:** the theme script is inline and
+**unhashed**, and the CSP still carries no `script-src`. Next emits two inline
+scripts of its own per page whose bytes change with every build, `headers()`
+cannot see the rendered HTML to hash them, and the supported nonce path needs
+middleware `AGENTS.md` bans. See the Decisions table in `Docs/build-log.md`.
+
+### Part 2 — the rest
+
+- **Big mode** — the full-screen countdown for a projector. The CSS has shipped
+  since the plain build (`body.is-big` and its dozen rules in `globals.css`) and
+  `e2e/reflow.spec.ts` has a block parked on `#view-big` / `#big-exit`; what is
+  missing is the switcher and the view itself.
 - **Screen Wake Lock** behind an explicit toggle, feature-detected, re-acquired
   on `visibilitychange` (the lock auto-releases when the tab hides).
 - **Opt-in foreground chime and notification**, with copy that says plainly that
   they work only while the tab is open. Audio needs a prior user gesture.
-- PWA manifest and installability. Dark mode.
+- PWA manifest and installability.
 
-**Gate:** nothing in this phase promises background behaviour the web cannot
+**Gate for part 1: met.** `e2e/preferences.spec.ts` drives the offset through
+the digits, the tab title and storage, proves an out-of-range value leaves the
+running one alone, proves an emptied box is an edit rather than a reset, and
+proves the theme is on `<html>` before anything is drawn and absent for System.
+Two more assert the split: preferences stay out of the library's key, and
+survive an import that replaces every schedule and the whole calendar.
+
+A `high`-effort code review of the finished tree found four defects, all in the
+new form and all fixed in the same session: an `inputMode` that made a negative
+offset untypeable on iOS, an error node mounted only when it had something to
+say (so it never announced), an `aria-describedby` that dropped the range hint
+at the moment it was needed, and a draft that ignored a change made in another
+tab. See **Bugs found** in `Docs/build-log.md`.
+
+**Gate for part 2:** nothing in it promises background behaviour the web cannot
 deliver.
 
 ## Phase 7 — Cutover 🔀
