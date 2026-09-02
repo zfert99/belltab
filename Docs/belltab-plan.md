@@ -239,8 +239,13 @@ overrides, and a "use this schedule today" control.
 **Phase 5 — Sharing.** The versioned encode/decode pipeline, share-link UI, JSON
 export/import, and the round-trip fixture suite.
 
-**Phase 6 — Comfort.** Bell offset, Screen Wake Lock behind an explicit toggle,
-opt-in foreground chime and notification with honest copy, PWA manifest, theme.
+**Phase 6 — Comfort.** Bell offset, theme, Big mode (the projector view),
+Screen Wake Lock behind an explicit toggle, opt-in foreground chime and
+notification with honest copy, PWA manifest.
+
+Big mode was added to this list on 2026-09-02, having been absent from it since
+this document was written; see **Deviations** in `Docs/build-log.md` for where
+it came from and why it was built anyway.
 
 **Phase 7 — Cutover.** Hub rewrite, origin host, project card, sitemap.
 

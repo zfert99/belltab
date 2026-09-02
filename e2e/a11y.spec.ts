@@ -112,6 +112,23 @@ test.describe("the countdown", () => {
   });
 });
 
+test.describe("big mode", () => {
+  /**
+   * The projector, which is the one screen in the app that changes what is on
+   * it purely with CSS. `display: none` on the header controls takes them out
+   * of the accessibility tree as well, which is correct here - but it also
+   * means axe is scanning a genuinely different document, not the same one at a
+   * different size.
+   */
+  test("has no serious violations", async ({ page }) => {
+    await openApp(page, MID_PERIOD);
+    await page.locator("#view-big").click();
+    await expect(page.locator("#big-exit")).toBeVisible();
+
+    await expectNoSeriousViolations(page, "big mode");
+  });
+});
+
 test.describe("settings", () => {
   test("the schedules panel has no serious violations", async ({ page }) => {
     await openApp(page, MID_PERIOD);

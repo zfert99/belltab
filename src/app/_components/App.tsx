@@ -59,6 +59,32 @@ export function App() {
   const settingsOpen = openPanel !== null;
 
   /**
+   * Big mode: the projector.
+   *
+   * A MODE laid over the Now view, not a second view. `globals.css` scales the
+   * same elements up and takes the authoring chrome away, so there is exactly
+   * one countdown in this codebase and no way for two of them to drift apart.
+   * That is why this is a boolean here rather than a third value in a view
+   * union - there is nothing to render differently, only bigger.
+   */
+  const [big, setBig] = useState(false);
+
+  /**
+   * The mode is a class on `<body>`, because the two rules that matter -
+   * zeroing the body's padding and letting the card go full-bleed - are about
+   * the page rather than about anything in this tree. `document.body` is not
+   * React's to render, so this is an effect, exactly like the theme.
+   *
+   * The cleanup is not decoration: without it a remount leaves the class behind
+   * and the ordinary view renders inside a projector layout. Strict Mode's
+   * double mount in development is what would find that.
+   */
+  useEffect(() => {
+    document.body.classList.toggle("is-big", big);
+    return () => document.body.classList.remove("is-big");
+  }, [big]);
+
+  /**
    * The bell offset, applied ONCE, here, on the way into the engine.
    *
    * Everything downstream - the digits, the progress bar, the tab title, the
@@ -138,6 +164,31 @@ export function App() {
 
   const toggleRef = useRef<HTMLButtonElement | null>(null);
   const headingRef = useRef<HTMLHeadingElement | null>(null);
+  const bigEnterRef = useRef<HTMLButtonElement | null>(null);
+  const bigExitRef = useRef<HTMLButtonElement | null>(null);
+
+  /**
+   * Focus follows the mode, in both directions - and not on first paint.
+   *
+   * Entering Big mode unmounts the button that was just pressed, so without
+   * this the next Tab starts from the top of the document; leaving it puts
+   * focus back on the control that was used to enter, which is where a keyboard
+   * user expects to be left.
+   *
+   * The `hasBeenBig` guard is what keeps the mount pass quiet. This effect runs
+   * once with `big === false` on every load, and without the guard that would
+   * steal focus to the Big mode button before the user has touched anything.
+   */
+  const hasBeenBig = useRef(false);
+
+  useEffect(() => {
+    if (big) {
+      hasBeenBig.current = true;
+      bigExitRef.current?.focus();
+    } else if (hasBeenBig.current) {
+      bigEnterRef.current?.focus();
+    }
+  }, [big]);
 
   // Focus follows the view swap in both directions. Opening moves it to the
   // settings heading; closing returns it to the button that was pressed, which
@@ -159,18 +210,39 @@ export function App() {
   // open delete confirmation and leave the modal standing on the countdown.
   // That is a regression this repo has already shipped once; see Bugs found in
   // Docs/build-log.md, and `e2e/confirm-dialog.spec.ts` for the contract.
+  //
+  // Big mode is on the same key and takes precedence, because it is the mode
+  // that is hardest to get out of by pointing: its exit is one quiet pill at
+  // the bottom of a projector screen, and the header's own controls are hidden.
+  // The two are mutually exclusive in practice - see `openSettingsFrom` - so
+  // the ordering below is a floor rather than a decision the user can observe.
   useEffect(() => {
-    if (!settingsOpen) return;
+    if (!settingsOpen && !big) return;
 
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key !== "Escape") return;
       if (document.querySelector("dialog[open]") !== null) return;
-      setOpenPanel(null);
+      if (big) setBig(false);
+      else setOpenPanel(null);
     };
 
     document.addEventListener("keydown", onKeyDown);
     return () => document.removeEventListener("keydown", onKeyDown);
-  }, [settingsOpen]);
+  }, [settingsOpen, big]);
+
+  /**
+   * Opening settings leaves Big mode first.
+   *
+   * Not hypothetical: the "No school today" screen's call to action is a
+   * `.minibutton`, which Big mode scales but does not hide, so a projector
+   * showing an empty day has a live route into the editor. Without this the
+   * settings panel would render inside the full-bleed projector layout, which
+   * is a screen nobody designed.
+   */
+  const openSettingsFrom = (panel: PanelId) => {
+    setBig(false);
+    setOpenPanel(panel);
+  };
 
   return (
     <>
@@ -230,7 +302,42 @@ export function App() {
           headingRef={headingRef}
         />
       ) : (
-        <NowView view={view} onOpenSettings={setOpenPanel} />
+        <>
+          <NowView view={view} onOpenSettings={openSettingsFrom} />
+
+          {/*
+            One button in, one button out, rather than a two-state switcher.
+
+            `globals.css` carries `.viewswitch` from the retired build, where it
+            toggled between the Now view and a Day view that no longer exists. A
+            switcher whose second state is "normal" is a control that mostly
+            says nothing, so this is an action: press it to go big, and the mode
+            supplies its own way back.
+          */}
+          {big ? (
+            <button
+              type="button"
+              className="bigexit"
+              id="big-exit"
+              ref={bigExitRef}
+              onClick={() => setBig(false)}
+            >
+              Exit big mode
+            </button>
+          ) : (
+            <div className="viewswitch">
+              <button
+                type="button"
+                className="viewswitch__btn"
+                id="view-big"
+                ref={bigEnterRef}
+                onClick={() => setBig(true)}
+              >
+                Big mode
+              </button>
+            </div>
+          )}
+        </>
       )}
 
       {/*

@@ -26,9 +26,9 @@ import {
  * and the reason the clamp has an upper bound at all. Phase 4 added the two
  * surfaces most likely to break it - a panel built out of `<select>`s whose
  * options are user-typed names, and a modal whose fixed positioning escapes the
- * body's width. Phase 6 added the preferences panel. Big mode still has no
- * markup; that block is parked at the bottom rather than deleted, and it names
- * its phase.
+ * body's width. Phase 6 added the preferences panel and Big mode, and with Big
+ * mode the parked list at the bottom of this file is empty - every block it
+ * held has been revived by the phase it named.
  */
 
 const WIDTHS = [320, 375, 768, 1024, 1440];
@@ -243,37 +243,20 @@ for (const width of WIDTHS) {
 
       await expectNoHorizontalScroll(page, `${width}px settings/preferences`);
     });
-  });
-}
-
-/**
- * PARKED until Phase 6 builds Big mode.
- *
- * The calendar panel and the confirm dialog came back with Phase 4 and the
- * preferences panel with the first half of Phase 6; all three are live above.
- * One block is left. The assertions are unchanged and the ids are the contract
- * the rebuilt UI has to meet; the block is revived by deleting its `.fixme`
- * once the markup it names exists.
- *
- * **Every block here names the phase that revives it.** The Day view's
- * assertions used to sit alongside these and named none - see the note below.
- */
-for (const width of WIDTHS) {
-  test.describe(`at ${width} CSS px (parked)`, () => {
-    test.use({ viewport: { width, height: 720 } });
 
     /**
-     * Revived by Phase 6 (Big mode). The Now view half is live above.
+     * Big mode, live since Phase 6 and the last block to come off the parked
+     * list. It is the hardest of these to satisfy: the countdown is
+     * `clamp(4rem, min(26vw, 30vh), 26rem)`, so at 320px it is being asked to
+     * draw the widest thing in the app at its most constrained.
      *
-     * **The Day view's half of this was deleted on 2026-09-01, not parked.**
-     * It drove `#view-day`, `#day-view` and `#past-toggle` through a view the
+     * **The Day view's half of this was deleted on 2026-09-01, not parked.** It
+     * drove `#view-day`, `#day-view` and `#past-toggle` through a view the
      * retired plain build shipped and no phase ever scheduled back - so unlike
-     * every other block here it named no phase, and its ids were a contract
-     * nothing had agreed to. A parked test is a promise with a date on it; one
-     * with no date is a test file lying slowly. The decision and what remains
-     * of that view are recorded in Docs/build-log.md.
+     * every other parked block it named no phase, and its ids were a contract
+     * nothing had agreed to. See Docs/build-log.md.
      */
-    test.fixme("Now and Big both reflow to one column", async ({ page }) => {
+    test("Now and Big both reflow to one column", async ({ page }) => {
       await openApp(page, MID_PERIOD);
       await expectNoHorizontalScroll(page, `${width}px Now view`);
 
