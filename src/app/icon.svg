@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <!--
+    The bell, in the design system's own voice: butterscotch fill, chunky ink
+    outline, rounded joins. One glyph is the source for every icon size - the
+    PNGs in public/ are screenshots of this file taken by
+    scripts/render-icons.mjs, so a redesign is one edit and one re-render.
+  -->
+  <g fill="#e8a33d" stroke="#2b1b12" stroke-width="6" stroke-linejoin="round" stroke-linecap="round">
+    <path d="M50 14 C36 14 29 26 29 40 C29 54 24 62 18 68 L82 68 C76 62 71 54 71 40 C71 26 64 14 50 14 Z" />
+    <path d="M40 78 C40 84 44 88 50 88 C56 88 60 84 60 78 Z" fill="#2b1b12" />
+  </g>
+</svg>

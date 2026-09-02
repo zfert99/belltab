@@ -65,7 +65,11 @@ Phases 2–4 and its tests are parked, not deleted. See **Open gaps**.
 - Big mode, the projector view — the same countdown, scaled, with the authoring
   chrome taken away.
 
-**Not started:** the PWA manifest — the last item in Phase 6.
+- Installable: a web app manifest with the bell icon at every size the
+  platforms ask for, `standalone` display, and everything scoped inside
+  `/bell`. No service worker, on purpose — see Decisions.
+
+**Phase 6 is complete.** What remains is Phase 7, the cutover.
 
 ### Files
 
@@ -326,6 +330,9 @@ development too, so the bare origin is a 404 exactly as it is in production.
 | 2026-09-02 | The chime is synthesised, not shipped | Two sine partials with an exponential decay, built on the one `AudioContext` the page ever creates. No audio file means nothing fetched at runtime (the no-network invariant), nothing to license, and no asset whose bytes need a story in a repo that intends to reach 1.0 with approximately zero runtime dependencies. |
 | 2026-09-02 | A Test button beside the chime toggle | The offset shipped without a calibration aid and the gap table has carried that complaint since the day it landed; the chime was not given the same hole. A bell you cannot hear until a real period ends is unverifiable, and the button doubles as the autoplay-unlocking gesture and as a volume check — and commits nothing, which its E2E asserts. |
 | 2026-09-02 | `blocked` outranks `off` in the notification status | Once permission is denied, re-ticking the box cannot even raise the prompt — the ask resolves denied with no UI — so the box is disabled and the sentence points at the browser's site settings, the only lever that still exists. Showing this before the user ticks anything spares them discovering it by the box refusing to work. |
+| 2026-09-02 | The PWA ships a manifest and no service worker | Chrome stopped requiring a SW for installation when it dropped the offline-capability check, so the manifest alone buys the whole ask — an icon, a window, a home-screen entry. What a SW would add is offline caching, which the research doc explicitly says not to over-invest in (there is no server to be offline FROM), plus an update lifecycle that is a famous way to serve stale HTML after a deploy. The one real thing it would buy — Android notifications — keeps its open-gap row, now with the price written on it. |
+| 2026-09-02 | One SVG glyph is the source of every icon, rasterised by a committed script | `src/app/icon.svg` is the design; `scripts/render-icons.mjs` screenshots it at five sizes through the Playwright already in devDependencies, so no image library joins the repo for a file that changes roughly never. The PNGs are committed rather than built: a build step needing a browser binary would slow every CI run to regenerate identical bytes. Maskable variants keep the bell inside the central safe zone at 56%; the plain set sits at 72%. |
+| 2026-09-02 | The manifest's colours are pinned to the live `--paper` token by a test | `background_color` and `theme_color` paint the splash and the installed window's chrome before any CSS loads, and nothing else would notice them drifting from the palette. `e2e/pwa.spec.ts` reads the computed `--paper` off the real page and asserts the manifest matches, so a palette change cannot leave the splash behind. One colour, the light paper: the manifest predates dark mode and takes a single value, and the page re-themes the moment it paints. |
 
 ## Deviations from the plan docs
 
@@ -591,6 +598,8 @@ half.
 | 2026-09-02 | The chime has never been heard | Same shape as the wake lock's projector gap: every assertion is against a stubbed `AudioContext`, so what is proven is that two oscillators start with the right envelope, not that the sound is audible over a classroom, pleasant at 8am, or even correctly wired to the speakers. The Test button exists so a human can judge it in one press; no human from this repo has. Volume is also fixed — a gain preference would be the follow-up if the fixed level turns out wrong. |
 | 2026-09-02 | Page-created notifications do not work on Android Chrome | `new Notification(...)` throws there — Android requires a service worker to show notifications. The constructor is wrapped so the bell cannot take the clock down, which means the feature is silently absent on Android rather than broken. The PWA slice is the natural place to revisit: a manifest brings a service worker into scope, and `registration.showNotification` is the Android-shaped version of the same feature. |
 | 2026-09-02 | The chime's `locked` sentence is all but unobservable | Reaching the panel takes a click or a keypress, and either one is the gesture that unlocks the chime — so by the time the readout is visible it says "ready". The sentence still earns its place (a refused `resume()` under an OS-level block would land there and stay), but no E2E can show it through the UI, and the suite says so where it asserts the behaviour instead. |
+| 2026-09-02 | BellTab has never been installed | The manifest is asserted the way a browser's install machinery would read it — every icon serves, every URL carries the `/bell` prefix, the colours match the page — but the install prompt itself is browser UI no page context can reach, and what the installed window looks like on a real phone or a real dock is unverifiable from this repo. Same family as the projector and the chime: one human, one device, one press. |
+| 2026-09-02 | A dark-mode install gets a light splash | The manifest takes one `background_color` and one `theme_color`, and they are the light paper. A user whose device is dark sees a cream splash for the moment before the page paints and re-themes. The spec has no per-scheme colours; what would close this is the `user_preferences` manifest member if it ever ships beyond proposals, and until then the honest statement is that the splash is single-theme by web-platform limitation. |
 
 ## Closed
 
@@ -4236,3 +4245,59 @@ known macOS-WebKit exception in `editor.spec.ts`.
 **Still owed in Phase 6:** the PWA manifest, which is also where the Android
 notification gap (page-created notifications throw there; a service worker's
 `showNotification` is the fix) naturally reopens.
+
+### 2026-09-02 16:12 — the manifest, and with it the end of Phase 6
+
+The last item in the comfort phase, and the smallest: BellTab is installable.
+
+**A manifest and deliberately nothing else.** The decision that shaped the
+slice is the service worker that is NOT in it, and the Decisions table has the
+argument in full. The short version: installation stopped requiring one when
+Chrome dropped its offline-capability check, offline caching is a stated
+non-goal for an app with no server to be offline from, and a SW's update
+lifecycle is a well-known way to serve stale HTML after a deploy. The one real
+thing a SW would buy — Android notifications, where page-created ones throw —
+keeps its open-gap row with the price now written on it.
+
+**One glyph, five renders.** `src/app/icon.svg` is a butterscotch bell with the
+design system's chunky ink outline, and it is the only drawing in the repo.
+`scripts/render-icons.mjs` screenshots it at five sizes through the Playwright
+already in devDependencies — 192 and 512 plain, 192 and 512 maskable (bell at
+56%, inside the launcher-crop safe zone), and the 180px `apple-icon.png` that
+Next's file convention turns into the `apple-touch-icon` link. The PNGs are
+committed rather than built; a build step that needs a browser binary to
+regenerate identical bytes would tax every CI run for a file that changes
+roughly never.
+
+**The `/bell` prefix is spelled out by hand in every manifest URL.** `basePath`
+scopes where the manifest FILE is served and rewrites nothing inside it. The
+spec would resolve relative URLs against the manifest's own location, but an
+explicit prefix is one less subtlety to be wrong about — and a wrong one here
+fails only at install time, silently, which is why `e2e/pwa.spec.ts` fetches
+every URL the manifest names and asserts each serves at the type it claims.
+
+**The colours are pinned to the page.** The suite reads the computed `--paper`
+token off the real page and asserts `background_color` and `theme_color` match,
+so a palette change cannot leave the splash screen behind. One colour, the
+light paper: the manifest takes a single value, and a dark-mode install
+therefore gets a cream splash for one moment — recorded as an open gap with the
+web-platform limitation named.
+
+**Verified against a real server before the tests were written:** the manifest
+serves at `/bell/manifest.webmanifest`, Next emits the manifest link, the SVG
+favicon link and the apple-touch-icon link on its own, and all six image URLs
+return 200 at the right content type.
+
+**Tests:** unit unchanged at 377 — nothing in this slice is pure logic.
+Playwright 588 → 600: four new per engine in `e2e/pwa.spec.ts`, asserting the
+contract a browser's install machinery reads. What no test claims is that the
+install prompt appears or what the installed window looks like — browser UI,
+out of reach, in Open gaps beside the projector and the chime.
+
+`npm run lint`, `npm run typecheck`, `npm run build`, `npx vitest run`,
+`npx markdownlint-cli "**/*.md"` and `npx playwright test` all pass, with the
+known macOS-WebKit exception in `editor.spec.ts`.
+
+**Phase 6 is complete.** Theme, bell offset, Big mode, wake lock, chime,
+notification, manifest — the comfort phase closed in four PRs across two days.
+What remains is Phase 7: the cutover to `biscuitlab.net/bell`.
