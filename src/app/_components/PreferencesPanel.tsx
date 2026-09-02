@@ -8,21 +8,30 @@ import {
 } from "@/app/_lib/preferences";
 import { THEMES, type Theme } from "@/app/_lib/theme";
 import { describeWakeLock, type WakeLockStatus } from "@/app/_lib/wakeLock";
+import {
+  askForNotifications,
+  describeChime,
+  describeNotify,
+  previewChime,
+  unlockChime,
+  type BellStatuses,
+} from "@/app/_lib/bells";
 
 /**
  * The settings that belong to the device rather than to the school day.
  *
- * Three controls, and the reason they sit together is that none of them is part
- * of a schedule: a theme is a choice about a screen, a wake lock is a demand on
- * one device's power management, and a bell offset is a measurement of one
- * building's clock. Putting any of them in the library would carry it into every
- * backup and every share link - see the note at the top of `preferences.ts` for
- * why that is the wrong answer.
+ * Four groups, and the reason they sit together is that none of them is part
+ * of a schedule: a theme is a choice about a screen, a wake lock and the bells
+ * are demands on one device's power and sound, and a bell offset is a
+ * measurement of one building's clock. Putting any of them in the library would
+ * carry it into every backup and every share link - see the note at the top of
+ * `preferences.ts` for why that is the wrong answer.
  *
  * Ordered screen-outwards: what the page looks like, what the device does with
- * it, and only then the one setting that changes the numbers. The offset is last
- * because it is the only one that could be mistaken for editing a schedule, and
- * the distance from the other two is part of saying so.
+ * it (the screen it holds awake, the sounds and toasts it raises), and only
+ * then the one setting that changes the numbers. The offset is last because it
+ * is the only one that could be mistaken for editing a schedule, and the
+ * distance from the others is part of saying so.
  *
  * Ordinary native controls, exactly as the editor uses: a radio group the
  * browser gives arrow-key navigation to for free, a checkbox that needs no ARIA
@@ -50,6 +59,9 @@ export interface PreferencesPanelProps {
    * projector needs it.
    */
   wakeLockStatus: WakeLockStatus;
+  /** Same arrangement as the wake lock's: computed by the one `useBells` in
+   * `App.tsx`, which outlives this panel, and passed down. */
+  bellStatuses: BellStatuses;
   headingRef: RefObject<HTMLHeadingElement | null>;
 }
 
@@ -57,6 +69,7 @@ export function PreferencesPanel({
   preferences,
   save,
   wakeLockStatus,
+  bellStatuses,
   headingRef,
 }: PreferencesPanelProps) {
   return (
@@ -100,6 +113,8 @@ export function PreferencesPanel({
       </fieldset>
 
       <WakeLockField preferences={preferences} save={save} status={wakeLockStatus} />
+
+      <BellsField preferences={preferences} save={save} statuses={bellStatuses} />
 
       <BellOffsetField preferences={preferences} save={save} />
     </div>
@@ -182,6 +197,127 @@ function WakeLockField({
       <p className="visually-hidden" id="wake-lock-alert" aria-live="polite">
         {status === "refused"
           ? "This device refused to keep the screen awake. Battery saver is the usual reason."
+          : ""}
+      </p>
+    </fieldset>
+  );
+}
+
+/**
+ * The two bells - a chime and a system notification - and the plain truth about
+ * when they can ring.
+ *
+ * The hint carries the sentence the research doc insists on: both work only
+ * while the tab is open, a backgrounded tab can be up to a minute late, and a
+ * closed one never rings. Promising more is the one thing this feature must not
+ * do - the web cannot deliver it without the server this app refuses to have.
+ */
+function BellsField({
+  preferences,
+  save,
+  statuses,
+}: {
+  preferences: Preferences;
+  save: (next: Preferences) => void;
+  statuses: BellStatuses;
+}) {
+  const chimeUnavailable = statuses.chime === "unsupported";
+  // `blocked` disables the box too: once permission is denied, ticking cannot
+  // even produce the prompt again - the browser resolves the ask as denied
+  // without showing anything - so an enabled box would be a lever connected to
+  // nothing. The readout says where the real lever is.
+  const notifyUnavailable = statuses.notify === "unsupported" || statuses.notify === "blocked";
+
+  return (
+    <fieldset className="field">
+      <legend className="field__legend">Bells</legend>
+      <p className="field__hint" id="bells-hint">
+        A chime and a system notification when a period starts or ends. Both work only while a
+        BellTab tab is open: a tab in the background can ring up to a minute late, and a closed
+        tab never rings.
+      </p>
+
+      <div className="field__options">
+        <label className="option">
+          <input
+            type="checkbox"
+            id="chime"
+            checked={preferences.chimeOnBell && !chimeUnavailable}
+            disabled={chimeUnavailable}
+            aria-describedby="bells-hint chime-status"
+            onChange={(event) => {
+              // The tick is a user gesture, which is exactly what the autoplay
+              // policy wants `resume()` called inside. Doing it here is what
+              // makes the common path never see the `locked` status at all.
+              if (event.target.checked) unlockChime();
+              save({ ...preferences, chimeOnBell: event.target.checked });
+            }}
+          />
+          Play a chime
+        </label>
+        <button
+          type="button"
+          className="minibutton"
+          id="chime-test"
+          disabled={chimeUnavailable}
+          aria-describedby="chime-status"
+          onClick={() => void previewChime()}
+        >
+          Test
+        </button>
+      </div>
+      {/*
+        A Test button, because a bell you cannot hear until a real period ends
+        is unverifiable - the same reasoning the build log records against the
+        offset's missing calibration aid, applied while the control is being
+        built instead of afterwards. It also doubles as the unlock gesture and
+        as a volume check, and it works with the toggle off so the sound can be
+        judged before anything is committed.
+      */}
+      <p className="offset__readout" id="chime-status">
+        {describeChime(statuses.chime)}
+      </p>
+
+      <div className="field__options">
+        <label className="option">
+          <input
+            type="checkbox"
+            id="notify"
+            checked={preferences.notifyOnBell && !notifyUnavailable}
+            disabled={notifyUnavailable}
+            aria-describedby="bells-hint notify-status"
+            onChange={(event) => {
+              if (!event.target.checked) {
+                save({ ...preferences, notifyOnBell: false });
+                return;
+              }
+
+              // Ask first, store only a grant. A preference saved before the
+              // prompt resolves would tick the box for a feature the user may
+              // be about to refuse - and a stored `true` in this repo means
+              // "this was granted once", which the status logic leans on.
+              void askForNotifications().then((result) => {
+                if (result === "granted") save({ ...preferences, notifyOnBell: true });
+              });
+            }}
+          />
+          Show a notification
+        </label>
+      </div>
+      <p className="offset__readout" id="notify-status">
+        {describeNotify(statuses.notify)}
+      </p>
+
+      {/*
+        The same pattern as the wake lock's alert, for the same reason: the one
+        outcome here that is both silent and wrong-looking is a refused
+        permission - the box just declines to tick - and the readout above does
+        not announce its changes. Carries text only for `blocked`; the routine
+        statuses stay out of assistive tech's way.
+      */}
+      <p className="visually-hidden" id="notify-alert" aria-live="polite">
+        {statuses.notify === "blocked"
+          ? "The browser has blocked notifications for this site. Allow them in the browser's site settings to use this."
           : ""}
       </p>
     </fieldset>

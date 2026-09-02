@@ -58,12 +58,14 @@ Phases 2–4 and its tests are parked, not deleted. See **Open gaps**.
   recipient presses a button, and JSON export/import as the durable backup.
 - Preferences, in their own storage key so none of them travels in a share link
   or a backup: a three-way theme applied before the first paint, a bell offset
-  that shifts the clock reading rather than the schedule, and a Screen Wake Lock
-  toggle that keeps a projector lit and says out loud when the device refuses.
+  that shifts the clock reading rather than the schedule, a Screen Wake Lock
+  toggle that keeps a projector lit and says out loud when the device refuses,
+  and two opt-in bells — a synthesised chime and a background-tab notification —
+  that ring on the same boundaries the announcer speaks.
 - Big mode, the projector view — the same countdown, scaled, with the authoring
   chrome taken away.
 
-**Not started:** chime and notification, PWA manifest.
+**Not started:** the PWA manifest — the last item in Phase 6.
 
 ### Files
 
@@ -317,6 +319,13 @@ development too, so the bare origin is a 404 exactly as it is in production.
 | 2026-09-02 | The wake lock readout is NOT a live region; a separate hidden one speaks only for a refusal | The readout flips between "held" and "waiting" every time the tab is hidden and shown, which is normal, correct and several times an hour. A live region on it would be exactly the per-tick chatter `AGENTS.md` bans on the countdown, and users who are read a status they did not need learn to ignore the line that also reports real problems. What genuinely needs announcing is a box that was ticked and did not take effect, which is otherwise silent — so the polite region carries the refusal and nothing else. |
 | 2026-09-02 | `navigator.wakeLock` is STUBBED in the E2E suite, at the boundary | Whether a real lock is granted depends on the OS, the battery and whether the CI runner has a screen — a suite asserting against the genuine article would pass on a laptop and fail on a runner, the same class of problem the clock fixtures exist to solve. `AGENTS.md` permits mocking at boundaries and this is one. What it buys is the three branches no browser in the matrix produces on demand: an absent API, a refusal, and the tab leaving and coming back. What it does not buy is evidence that a real projector stays lit; that is an open gap. |
 | 2026-09-02 | Feature detection through `useSyncExternalStore`, not an effect | `"wakeLock" in navigator` is a fact about the environment that the server cannot know, which is the same shape as `localStorage` — and `localStore.ts` already documents why the hook for it is `useSyncExternalStore`: it takes a server snapshot, so both sides render `false` on the first pass and hydration is safe by construction. It also avoids a synchronous `setState` in an effect, which this repo's `react-hooks/set-state-in-effect` rule forbids. |
+| 2026-09-02 | The chime, the notification and the announcer share one definition of "the bell" | All three key on `boundaryKey` and speak `announcementFor`, the pair the announcer has used since Phase 2. Three hand-rolled boundary detectors would eventually disagree about what counts as a bell — the first paint, midnight rolling "after" into "before", a renamed period — and a bell that rings when the announcer stays silent is a bug no one test would ever catch. One definition means the surfaces cannot drift. |
+| 2026-09-02 | A notification is suppressed while the tab is visible | A toast about the screen the user is looking at is noise; the feature exists for the tab that is open but behind something. The "ready" sentence in the panel says "while this tab is in the background" so the suppression reads as the promise being kept rather than a bug. |
+| 2026-09-02 | `notifyOnBell` is stored only after a permission grant | Saving on tick would persist a preference for a feature the user may be about to refuse, and a ticked box over a denied permission is a control that lies. Stored `true` therefore MEANS "granted once", which the status logic leans on: `unasked` can only be reached by the browser's site settings changing underneath a saved preference, never by the app's own flow. |
+| 2026-09-02 | A slept-through stretch rings once, for the state being woken into | Jumping from 09:30 to 10:11 crosses two bells; a frozen tab was present for neither. Replaying missed bells would be the decrement mistake in audible form — deriving events from elapsed time instead of recomputing state. One chime for where you are now is the recompute rule applied to sound, and the E2E asserts exactly two oscillator starts for the jump. |
+| 2026-09-02 | The chime is synthesised, not shipped | Two sine partials with an exponential decay, built on the one `AudioContext` the page ever creates. No audio file means nothing fetched at runtime (the no-network invariant), nothing to license, and no asset whose bytes need a story in a repo that intends to reach 1.0 with approximately zero runtime dependencies. |
+| 2026-09-02 | A Test button beside the chime toggle | The offset shipped without a calibration aid and the gap table has carried that complaint since the day it landed; the chime was not given the same hole. A bell you cannot hear until a real period ends is unverifiable, and the button doubles as the autoplay-unlocking gesture and as a volume check — and commits nothing, which its E2E asserts. |
+| 2026-09-02 | `blocked` outranks `off` in the notification status | Once permission is denied, re-ticking the box cannot even raise the prompt — the ask resolves denied with no UI — so the box is disabled and the sentence points at the browser's site settings, the only lever that still exists. Showing this before the user ticks anything spares them discovering it by the box refusing to work. |
 
 ## Deviations from the plan docs
 
@@ -579,6 +588,9 @@ half.
 | 2026-09-02 | The wake lock has never held a real screen open | Every assertion in `e2e/wake-lock.spec.ts` is against a stub, deliberately and for the reason in the Decisions table — but that means the evidence for the feature working is evidence that the code calls the API correctly, not that a laptop driving a projector stays lit for fifty minutes. The gap is the same shape as every Safari row in this file: what is owed is one real machine, one real projector, one real period. |
 | 2026-09-02 | A refusal is never retried while the tab stays visible | The lock is re-requested on every `visibilitychange` back to visible, which covers the common recovery — the user switches away and back. It is not retried if the reason for the refusal goes away while the tab is still on screen, which is exactly what happens when somebody plugs the laptop in and battery saver switches itself off. Unticking and re-ticking the box fixes it and nothing on screen says so. A retry on `online`/power events, or simply on the next period boundary, would close it. |
 | 2026-09-02 | Nothing connects Big mode to the wake lock in the UI | The two features exist for the same room and the same afternoon, and a user who finds Big mode is given no hint that the setting which stops the projector sleeping is three taps away in Preferences. Deliberately not auto-acquired (see Decisions), but "deliberately not automatic" is an argument for a prompt, not for silence. A line in Big mode's exit pill, or a note in the preferences panel naming the projector case, would do it. |
+| 2026-09-02 | The chime has never been heard | Same shape as the wake lock's projector gap: every assertion is against a stubbed `AudioContext`, so what is proven is that two oscillators start with the right envelope, not that the sound is audible over a classroom, pleasant at 8am, or even correctly wired to the speakers. The Test button exists so a human can judge it in one press; no human from this repo has. Volume is also fixed — a gain preference would be the follow-up if the fixed level turns out wrong. |
+| 2026-09-02 | Page-created notifications do not work on Android Chrome | `new Notification(...)` throws there — Android requires a service worker to show notifications. The constructor is wrapped so the bell cannot take the clock down, which means the feature is silently absent on Android rather than broken. The PWA slice is the natural place to revisit: a manifest brings a service worker into scope, and `registration.showNotification` is the Android-shaped version of the same feature. |
+| 2026-09-02 | The chime's `locked` sentence is all but unobservable | Reaching the panel takes a click or a keypress, and either one is the gesture that unlocks the chime — so by the time the readout is visible it says "ready". The sentence still earns its place (a refused `resume()` under an OS-level block would land there and stay), but no E2E can show it through the UI, and the suite says so where it asserts the behaviour instead. |
 
 ## Closed
 
@@ -651,6 +663,40 @@ half.
 ---
 
 ## Bugs found
+
+### 2026-09-02 — the test could not see the locked chime, because looking is a gesture
+
+Caught on the first run of `e2e/bells.spec.ts`, and the feature was not broken —
+the test's premise was.
+
+The plan: restore a stored `chimeOnBell: true`, open the preferences panel,
+assert the readout says the chime is locked (no user gesture has blessed the
+`AudioContext` yet), then click somewhere and assert it unlocked. The readout
+said "ready" before the first assertion ran. Of course it did: **reaching the
+panel takes a click, and a click is the unlocking gesture.** The hook's
+first-touch-unlocks listener — built precisely so nobody would have to find the
+panel and re-tick a box that already looks on — had done its job during the
+navigation the test performed to go and look. Keyboard navigation fares no
+better; a keypress unlocks too.
+
+The fix inverts the test: assert the *behaviour* with no navigation at all — a
+context exists, a boundary rings nothing, the page has not been touched — then
+touch the page once, ring a boundary, and only then open the panel and read
+"ready". The locked sentence itself is covered by the unit suite and recorded as
+all-but-unobservable in Open gaps.
+
+**The lesson:** a state designed to dissolve on first interaction cannot be
+inspected by any test that interacts its way to the inspection point. The
+observation is the gesture. Asserting such a state means reading its effects
+(nothing rang) rather than its label — and if a label can only be seen by a road
+that destroys it, say so in the docs rather than leaving the next person to
+rediscover it with a failing test.
+
+The same session also relearned a Playwright detail worth one line:
+`locator.check()` fails on a checkbox that deliberately does not become checked
+— the notification toggle refuses to tick until the permission grant returns,
+which is the behaviour under test — so the deny-path test must use `click()` and
+assert the box stayed unticked.
 
 ### 2026-09-02 — a test that proved the opposite of what it claimed, because `addInitScript` re-runs on reload
 
@@ -4121,3 +4167,72 @@ known macOS-WebKit exception in `editor.spec.ts`.
 
 **Still owed in Phase 6 part 2b:** the opt-in chime and notification, and the PWA
 manifest.
+
+### 2026-09-02 15:55 — the chime and the notification (Phase 6 part 2b, second slice)
+
+The two ways a bell reaches somebody who is not looking at the page, built on
+the one piece of boundary machinery the app already had.
+
+**One definition of "the bell".** `useBells` keys on `boundaryKey` and speaks
+`announcementFor` — the exact pair `PeriodAnnouncer` has used since Phase 2 — so
+the chime, the notification and the screen-reader announcement cannot disagree
+about what counts as a period change. A boundary the announcer would say nothing
+about (first paint, midnight rolling into "before") rings nothing. The
+notification's text IS the announcement: "Passing has started.", tagged so each
+toast replaces the last instead of piling up.
+
+**Both are foreground features, and the panel says so in the user's language:**
+a tab in the background can ring up to a minute late, and a closed tab never
+rings. That sentence is the research doc's conclusion — Notification Triggers is
+dead, there is no Web Alarms API, a service worker will not self-wake without a
+push server — folded into a hint instead of promised away.
+
+**The chime is synthesised** — two sine partials, exponential decay, ~1.2
+seconds, on the page's one `AudioContext` — so nothing is fetched, shipped or
+licensed. The autoplay policy shapes the plumbing: a context created without a
+gesture starts suspended, so ticking the box (a gesture) unlocks in the change
+handler, a Test button unlocks-then-rings in the right async order, and a
+restored preference arms a first-touch-anywhere listener so yesterday's setup
+works this morning without finding the panel again.
+
+**The notification asks on tick and stores only a grant.** A stored `true`
+therefore means "granted once", and the status logic leans on that: `unasked`
+is only reachable by the site settings resetting a permission behind a saved
+preference. `blocked` outranks `off` — a denied permission cannot even raise
+the prompt again, so the box is disabled and the sentence points at the
+browser's site settings, the only lever left. Suppressed while the tab is
+visible: a toast about the screen you are watching is noise.
+
+**A slept-through stretch rings once.** Jumping the clock across two bells
+produces one chime, for the state being woken into — the recompute rule made
+audible. Replaying missed bells would be deriving events from elapsed time,
+which is the decrement mistake this repo exists to refuse.
+
+**Two test-design lessons, one recorded under Bugs found:** the chime's
+`locked` state cannot be inspected by any test that interacts its way to the
+inspection point, because the observation is the unlocking gesture; and
+Playwright's `check()` fails on a box that deliberately refuses to tick until a
+permission resolves — the deny path needs `click()`.
+
+**Tests:** unit 353 → 377. The preferences boundary's boolean tests were
+generalised to `it.each` over the three boolean fields — this file broke on
+both of the last two fields added, each time on assertions that were not about
+the new field, so the full-object assertions now spread `DEFAULT_PREFERENCES`.
+Fourteen of the new tests are `bells.test.ts`, pinning the wording: every
+status a full sentence, no two alike, the blocked one pointing at site
+settings, the ready one carrying "in the background".
+
+Playwright 552 → 588: twelve new per engine in `e2e/bells.spec.ts`, all driven
+through real clock boundaries against stubbed `AudioContext` and `Notification`
+(the wake lock's stub-at-the-boundary argument, inherited). The default case
+asserts more than silence: no context is constructed and no permission asked —
+a user who wants none of this carries none of it. The live-region enumeration
+went two → three and caught `notify-alert` on its first run.
+
+`npm run lint`, `npm run typecheck`, `npm run build`, `npx vitest run`,
+`npx markdownlint-cli "**/*.md"` and `npx playwright test` all pass, with the
+known macOS-WebKit exception in `editor.spec.ts`.
+
+**Still owed in Phase 6:** the PWA manifest, which is also where the Android
+notification gap (page-created notifications throw there; a service worker's
+`showNotification` is the fix) naturally reopens.

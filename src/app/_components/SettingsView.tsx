@@ -5,6 +5,7 @@ import type { LocalNow } from "@/lib/clock";
 import type { Library } from "@/app/_lib/library";
 import type { Preferences } from "@/app/_lib/preferences";
 import type { WakeLockStatus } from "@/app/_lib/wakeLock";
+import type { BellStatuses } from "@/app/_lib/bells";
 import { scheduleIndexToEdit } from "@/app/_lib/today";
 import { SchedulesPanel } from "@/app/_components/SchedulesPanel";
 import { CalendarPanel } from "@/app/_components/CalendarPanel";
@@ -57,6 +58,8 @@ export interface SettingsViewProps {
   savePreferences: (next: Preferences) => void;
   /** Held by `App.tsx`, which outlives this screen - see PreferencesPanel. */
   wakeLockStatus: WakeLockStatus;
+  /** Likewise: one `useBells`, in `App.tsx`, and this is its report. */
+  bellStatuses: BellStatuses;
   now: LocalNow | null;
   /** Which panel to open on - the countdown's empty states link into both. */
   initialPanel: PanelId;
@@ -69,6 +72,7 @@ export function SettingsView({
   preferences,
   savePreferences,
   wakeLockStatus,
+  bellStatuses,
   now,
   initialPanel,
   headingRef,
@@ -122,6 +126,7 @@ export function SettingsView({
             preferences={preferences}
             save={savePreferences}
             wakeLockStatus={wakeLockStatus}
+            bellStatuses={bellStatuses}
             headingRef={headingRef}
           />
         )}

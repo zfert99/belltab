@@ -33,6 +33,10 @@ schedule lives in your browser and in a shareable link.
   or locking while BellTab is on it, which is the other half of projecting a
   countdown at a room. Off unless you ask for it, and it tells you plainly when
   your device refuses rather than leaving you to notice the screen went dark.
+- **Bells, if you want them** — an optional chime and an optional system
+  notification when a period starts or ends. Both are honest about the web's
+  limits: they work while a BellTab tab is open, a background tab can ring up to
+  a minute late, and a closed tab never rings.
 - **Light, dark, or whatever your device says** — applied before the page
   paints, so there is no flash of the wrong one.
 - **Share by link** — the whole schedule compresses into the URL fragment. Send

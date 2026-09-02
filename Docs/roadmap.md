@@ -8,6 +8,20 @@ evidence behind the technical decisions is
 **Status legend:** ✅ Done · 🚧 In progress · 📋 Planned · ⛔ Blocked (prereq)
 **Tracks:** 🏗️ Setup · ⚙️ Engine · 🎨 UI · 🔀 Infra · 🔗 Integration
 
+**Status (2026-09-02, after Phase 6 part 2b's second slice):** the app can now
+be heard. Two opt-in bells ring at period boundaries — a synthesised chime and a
+system notification for the backgrounded tab — keyed on the same
+`boundaryKey`/`announcementFor` pair the screen-reader announcer has used since
+Phase 2, so the three surfaces share one definition of "the bell". Both are
+honest foreground features: the panel says in plain words that a background tab
+can ring up to a minute late and a closed one never rings, which is the research
+doc's conclusion folded into copy instead of promised away.
+
+What is left of Phase 6 is the PWA manifest. Then Phase 7, the cutover.
+
+> **Superseded 2026-09-02.** The paragraph below described `main` after the wake
+> lock and is kept because the bells were planned against it.
+
 **Status (2026-09-02, after Phase 6 part 2b's first slice):** the app can now
 hold the screen open. A "Keep the screen awake" preference takes a Screen Wake
 Lock while the tab is visible and re-takes it on every return, which is what a
@@ -69,10 +83,11 @@ An older note, kept for the same reason:
 > yet. The UI is rebuilt on the engine phase by phase from here, starting with
 > the countdown.
 
-**Testing:** 353 Vitest tests over the pure engine, the parser, the formatters,
+**Testing:** 377 Vitest tests over the pure engine, the parser, the formatters,
 the clock reader, the day resolver, the editor's draft model, the storage
 boundary, the library mutators, the share codec, the preferences boundary and
-the wake lock's wording, plus **552 Playwright tests across three engines** —
+the wake lock's and the bells' wording, plus **588 Playwright tests across
+three engines** —
 Chrome, WebKit and Firefox — **none of them parked**, which is true for the first
 time in the project. The last parked block was Big mode's, and Phase 6 built it.
 
@@ -133,7 +148,7 @@ retires it, since a browser cannot load a `.ts` module directly.
 | **3** | The editor — build and edit a schedule, overlap blocking | 🎨 | ✅ Done |
 | **4** | Day types — the **editing UI** for schedules and the calendar | 🎨 | ✅ Done |
 | **5** | Sharing — versioned hash encoding, export/import | ⚙️ | ✅ Done |
-| **6** | Comfort — theme, bell offset, Big mode, wake lock ✅; chime, PWA | 🎨 | 🚧 In progress |
+| **6** | Comfort — theme, bell offset, Big mode, wake lock, bells ✅; PWA | 🎨 | 🚧 In progress |
 | **7** | Cutover — hub rewrite, origin host, project card, sitemap | 🔀 | 📋 Planned |
 
 ---
@@ -464,10 +479,37 @@ unticking, which is the version of this bug that keeps a laptop awake all night
 and reports nothing. Whether a real machine driving a real projector stays lit
 for a real period is carried as an open gap.
 
+### Part 2b — the chime and the notification ✅
+
+- ✅ **Opt-in, off by default, and one definition of "the bell":** both key on
+  `boundaryKey` and speak `announcementFor`, the announcer's own pair, so the
+  chime, the toast and the screen-reader announcement cannot drift into
+  disagreeing about what counts as a period change.
+- ✅ **The chime is synthesised** on the page's one `AudioContext` — nothing
+  fetched, shipped or licensed. The toggle's own tick is the autoplay-unlocking
+  gesture; a restored preference arms a first-touch-anywhere listener; a Test
+  button rings without committing anything.
+- ✅ **The notification asks on tick and stores only a grant**, is suppressed
+  while the tab is visible (a toast about the screen you are watching is
+  noise), and retires the control with an honest sentence once permission is
+  denied — the prompt cannot be raised again, so the sentence points at the
+  browser's site settings instead.
+- ✅ **The copy the plan demanded:** both work only while a tab is open, a
+  background tab can be up to a minute late, a closed tab never rings.
+- ✅ **A slept-through stretch rings once**, for the state being woken into —
+  the recompute rule made audible, asserted as exactly two oscillator starts
+  across a two-bell jump.
+
+**Gate: met against stubs, on the wake lock's argument.** `e2e/bells.spec.ts`
+replaces `AudioContext` and `Notification` before load and drives every bell
+through real clock boundaries — including the default case, which asserts a
+user who wants none of this carries none of it: no context constructed, no
+permission asked. Whether the chime is audible and pleasant over a real
+classroom is carried as an open gap; the Test button exists so judging it costs
+one press.
+
 ### Part 2b — the rest
 
-- **Opt-in foreground chime and notification**, with copy that says plainly that
-  they work only while the tab is open. Audio needs a prior user gesture.
 - PWA manifest and installability.
 
 **Gate for part 1: met.** `e2e/preferences.spec.ts` drives the offset through
