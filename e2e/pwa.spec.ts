@@ -103,6 +103,24 @@ test.describe("the web app manifest", () => {
     expect(manifest.theme_color).toBe(paper);
   });
 
+  test("names its one public address, and its sitemap agrees", async ({ page }) => {
+    await openApp(page);
+
+    // The canonical is what tells a crawler that the origin host the hub's
+    // proxy reaches is not a second site. It is an absolute production URL by
+    // design, so this asserts content rather than reachability.
+    await expect(page.locator('link[rel="canonical"]')).toHaveAttribute(
+      "href",
+      "https://biscuitlab.net/bell",
+    );
+
+    // And the sitemap - which exists for the hub's index to point at - names
+    // the same address, served from inside the base path.
+    const response = await page.request.get(`${BASE_PATH}/sitemap.xml`);
+    expect(response.status()).toBe(200);
+    expect(await response.text()).toContain("<loc>https://biscuitlab.net/bell</loc>");
+  });
+
   test("ships a favicon and an apple-touch-icon that serve", async ({ page }) => {
     await openApp(page);
 

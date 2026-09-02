@@ -47,8 +47,22 @@ const spaceMono = Space_Mono({
   variable: "--font-space-mono",
 });
 
+/**
+ * No `title` here on purpose - App.tsx renders the countdown into a `<title>`
+ * tag, and two owners is what caused the fight the build log records.
+ *
+ * `metadataBase` + canonical are Phase 7's: BellTab is served at
+ * `biscuitlab.net/bell` through the hub's rewrite, and the canonical is what
+ * tells a crawler that the origin host the proxy reaches
+ * (`origin-bell.biscuitlab.net/bell`, which is also publicly resolvable) is not
+ * a second site. The one page names its one address. `basePath` is NOT applied
+ * to metadata URLs by Next, so the `/bell` here is spelled out - the same
+ * discipline as `manifest.ts`, for the same reason.
+ */
 export const metadata: Metadata = {
+  metadataBase: new URL("https://biscuitlab.net"),
   description: "A school bell schedule countdown that lives in your browser tab.",
+  alternates: { canonical: "/bell" },
 };
 
 /**

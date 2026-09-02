@@ -562,9 +562,20 @@ behaviour the web cannot deliver.
 
 ## Phase 7 — Cutover 🔀
 
+Planned 2026-09-02 against the hub's `multi-zone-migration-runbook.md` and the
+Puzzle Lab cutover log — the validated sequence, minus everything auth-shaped.
+In order: canonical + sitemap in this repo ✅, a dormant `BELL_ORIGIN` rewrite
+in the hub, the Vercel project + origin host + one grey-cloud CNAME, the flip
+(set `BELL_ORIGIN`, redeploy the hub), the gate, and only then the card and the
+hub's sitemap index (which also closes that runbook's own deferred item, now
+that `/puzzles/sitemap.xml` exists).
+
 **This repo:** its own Vercel project, Deployment Protection on, a dedicated
-custom origin host (e.g. `origin-bell.biscuitlab.net`) so the hub's proxy can
-reach it while the `*.vercel.app` alias stays locked.
+custom origin host (`origin-bell.biscuitlab.net`) so the hub's proxy can
+reach it while the `*.vercel.app` alias stays locked. Done in code 2026-09-02:
+`metadataBase` + a canonical naming `biscuitlab.net/bell` (what tells a crawler
+the origin host is not a second site), and a one-URL sitemap for the hub's
+index to point at.
 
 **Hub repo (`Biscuit-Website`):** add `BELL_ORIGIN`, add both rewrites (bare
 `/bell` and `/bell/:path*` — the bare path does not always match `:path*`),
@@ -593,6 +604,10 @@ still locked to direct traffic.
 ## Open questions
 
 - ~~**Repo name and remote.**~~ Resolved: `github.com/zfert99/belltab`.
-- **Does the hub's project index need a card before Phase 7**, or does BellTab
-  stay unlisted until cutover?
-- **Is `/bell` final**, or does it become `/belltab` to match the repo name?
+- ~~**Does the hub's project index need a card before Phase 7?**~~ Resolved
+  2026-09-02: the card lands AFTER the flip is verified, in its own hub PR —
+  the order Puzzle Lab used. A card pointing at a 404 is worse than no card.
+- ~~**Is `/bell` final?**~~ Resolved 2026-09-02: `/bell`. It is what the plan
+  says throughout and what `basePath` has shipped as since Phase 0; a repo
+  keeping a longer name than its URL is normal, and the rename would buy
+  nothing for the cost of touching every doc and the manifest.

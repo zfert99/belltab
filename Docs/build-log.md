@@ -4301,3 +4301,44 @@ known macOS-WebKit exception in `editor.spec.ts`.
 **Phase 6 is complete.** Theme, bell offset, Big mode, wake lock, chime,
 notification, manifest — the comfort phase closed in four PRs across two days.
 What remains is Phase 7: the cutover to `biscuitlab.net/bell`.
+
+### 2026-09-02 16:35 — Phase 7 planned, and the BellTab side of it built
+
+The planning pass ran against the hub repo's own evidence:
+`Biscuit-Website/Docs/multi-zone-migration-runbook.md` (validated) and
+`multi-zone-cutover-log.md` (what actually went wrong doing Puzzle Lab). Three
+lessons inherited directly: the rewrite target must be a dedicated custom
+origin host with Deployment Protection ON — the `*.vercel.app` alias is
+protection-locked, which is the log's issue #3; both rewrite entries are
+needed because bare `/bell` does not always match `:path*`; and the project
+card must be a hard-nav `<a>` via the `crossZone` flag the hub already has.
+BellTab is the easy version — no auth, no rpID, no legacy subdomain, no 301
+track.
+
+Both open questions resolved with the user: **the path is `/bell`**, and **the
+card lands after the flip is verified**, in its own hub PR, in the order Puzzle
+Lab used.
+
+What this slice adds to THIS repo is the crawler's half of the cutover:
+
+- **`metadataBase` + a canonical of `https://biscuitlab.net/bell`.** The origin
+  host the proxy reaches is publicly resolvable, so without a canonical the
+  same page would exist at two addresses and a crawler would have to guess
+  which one is real. The one page names its one address. `basePath` does not
+  rewrite metadata URLs, so the `/bell` is spelled out — the same discipline as
+  `manifest.ts`, verified the same way, against a running `next start`.
+- **A one-URL `sitemap.ts`**, because the hub's cutover step is a
+  `<sitemapindex>` naming each zone's sitemap, and a zone without one is
+  invisible to it. `/puzzles/sitemap.xml` returning 200 today is what unblocks
+  the hub finally building that index — the runbook deferred it and BellTab's
+  card PR is where it lands.
+
+**Tests:** Playwright 600 → 603 — one new assertion block in `e2e/pwa.spec.ts`
+pinning the canonical and the sitemap's `<loc>` to the same address. Unit
+unchanged at 377.
+
+**What remains is outside this repo:** the hub's dormant rewrite, the Vercel
+project and origin host (driven by CLI with the user's approval, pausing before
+each outward action), one grey-cloud CNAME at Cloudflare that only the user can
+add, the flip, the gate — and then the card. The deploy is also where a year of
+"unverifiable from this machine" gap rows finally meet a real device.
