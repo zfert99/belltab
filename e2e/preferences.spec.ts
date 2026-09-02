@@ -82,7 +82,7 @@ test.describe("the bell offset", () => {
 
     expect(
       await page.evaluate((key) => window.localStorage.getItem(key), PREFERENCES_STORAGE_KEY),
-    ).toBe(JSON.stringify({ theme: "system", bellOffsetSec: 90 }));
+    ).toBe(JSON.stringify({ theme: "system", bellOffsetSec: 90, keepScreenAwake: false }));
   });
 
   test("refuses a value past the cap and keeps running on the last good one", async ({ page }) => {
@@ -130,10 +130,16 @@ test.describe("the bell offset", () => {
     await expect(error).toContainText("whole number of seconds");
   });
 
-  test("the panel owns exactly one live region while it is open", async ({ page }) => {
+  test("the panel owns exactly two live regions while it is open", async ({ page }) => {
     // The counterpart to the closed-view invariant in announcer.spec.ts and the
     // editor's in editor.spec.ts. Every live region in this app is a decision;
     // this is what makes an extra one arriving unnoticed impossible.
+    //
+    // It went from one to two when the wake lock landed, and it caught that on
+    // the first run - which is the whole point. Both new regions have to be
+    // argued for out loud rather than noticed six weeks later: `wake-lock-alert`
+    // speaks only for a refused lock, never for the ordinary hidden tab that
+    // flips the readout beside it several times an hour.
     await openApp(page, MID_PERIOD);
     await openSettings(page, "preferences");
 
@@ -144,7 +150,12 @@ test.describe("the bell offset", () => {
       );
 
     expect(regions.sort()).toEqual(
-      ["div#__next-route-announcer__", "p#period-announcer", "p#bell-offset-error"].sort(),
+      [
+        "div#__next-route-announcer__",
+        "p#period-announcer",
+        "p#bell-offset-error",
+        "p#wake-lock-alert",
+      ].sort(),
     );
   });
 
@@ -282,7 +293,7 @@ test.describe("preferences and the library", () => {
     // against one device. A backup that carried it would hand that skew to
     // whoever restored the file, and a share link would do it silently.
     await openApp(page, MID_PERIOD, {
-      preferences: JSON.stringify({ theme: "dark", bellOffsetSec: 42 }),
+      preferences: JSON.stringify({ theme: "dark", bellOffsetSec: 42, keepScreenAwake: true }),
     });
 
     const library = await page.evaluate(
@@ -294,18 +305,25 @@ test.describe("preferences and the library", () => {
     // hold nothing at all - either way it must not mention preferences.
     expect(library).not.toContain("bellOffsetSec");
     expect(library).not.toContain("theme");
+    expect(library).not.toContain("keepScreenAwake");
 
     const preferences = await page.evaluate(
       (key) => window.localStorage.getItem(key),
       PREFERENCES_STORAGE_KEY,
     );
 
-    expect(preferences).toBe(JSON.stringify({ theme: "dark", bellOffsetSec: 42 }));
+    // The exact bytes, not a subset. A preference that is read back but never
+    // written again is one a later save would silently drop, and asserting the
+    // whole string is what makes the round trip through `serializePreferences`
+    // part of the contract rather than an implementation detail.
+    expect(preferences).toBe(
+      JSON.stringify({ theme: "dark", bellOffsetSec: 42, keepScreenAwake: true }),
+    );
   });
 
   test("survive importing a whole library over the top", async ({ page }) => {
     await openApp(page, MID_PERIOD, {
-      preferences: JSON.stringify({ theme: "dark", bellOffsetSec: 42 }),
+      preferences: JSON.stringify({ theme: "dark", bellOffsetSec: 42, keepScreenAwake: true }),
     });
     await openSettings(page, "preferences");
 
@@ -342,5 +360,12 @@ test.describe("preferences and the library", () => {
 
     await page.locator("#tab-preferences").click();
     await expect(offsetInput(page)).toHaveValue("42");
+
+    // The third preference, asserted through storage rather than through the
+    // checkbox: whether the box renders ticked depends on whether the engine
+    // has the API at all, and this test is about what an import may not touch.
+    expect(
+      await page.evaluate((key) => window.localStorage.getItem(key), PREFERENCES_STORAGE_KEY),
+    ).toContain('"keepScreenAwake":true');
   });
 });

@@ -56,9 +56,24 @@ export interface Preferences {
    * behind. Zero, the default, means the device clock is taken at its word.
    */
   bellOffsetSec: number;
+  /**
+   * Whether to hold a screen wake lock while the countdown is on screen.
+   *
+   * Off by default, and that is a decision rather than an oversight. A wake lock
+   * stops a laptop dimming and stops a phone locking, which is exactly right for
+   * a projector and exactly wrong for a tab somebody left open on a train. The
+   * research (`background-timers-and-schedule-modeling.md`) asks for "an
+   * explicit toggle" for the same reason, so the default has to be the state
+   * nobody is surprised by.
+   */
+  keepScreenAwake: boolean;
 }
 
-export const DEFAULT_PREFERENCES: Preferences = { theme: "system", bellOffsetSec: 0 };
+export const DEFAULT_PREFERENCES: Preferences = {
+  theme: "system",
+  bellOffsetSec: 0,
+  keepScreenAwake: false,
+};
 
 export { THEMES };
 export type { Theme };
@@ -91,11 +106,22 @@ export function loadPreferences(raw: string | null): Preferences {
     return DEFAULT_PREFERENCES;
   }
 
-  const source = decoded as { theme?: unknown; bellOffsetSec?: unknown };
+  const source = decoded as {
+    theme?: unknown;
+    bellOffsetSec?: unknown;
+    keepScreenAwake?: unknown;
+  };
 
   return {
     theme: isTheme(source.theme) ? source.theme : DEFAULT_PREFERENCES.theme,
     bellOffsetSec: parseBellOffset(source.bellOffsetSec) ?? DEFAULT_PREFERENCES.bellOffsetSec,
+    // A boolean needs no parser of its own - there is no half-typed draft of a
+    // checkbox for a caller to want reported differently, which is the whole
+    // reason `parseBellOffset` exists as a separate export.
+    keepScreenAwake:
+      typeof source.keepScreenAwake === "boolean"
+        ? source.keepScreenAwake
+        : DEFAULT_PREFERENCES.keepScreenAwake,
   };
 }
 
@@ -126,5 +152,6 @@ export function serializePreferences(preferences: Preferences): string {
   return JSON.stringify({
     theme: preferences.theme,
     bellOffsetSec: preferences.bellOffsetSec,
+    keepScreenAwake: preferences.keepScreenAwake,
   });
 }

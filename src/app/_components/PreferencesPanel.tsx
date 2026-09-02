@@ -7,20 +7,28 @@ import {
   type Preferences,
 } from "@/app/_lib/preferences";
 import { THEMES, type Theme } from "@/app/_lib/theme";
+import { describeWakeLock, type WakeLockStatus } from "@/app/_lib/wakeLock";
 
 /**
  * The settings that belong to the device rather than to the school day.
  *
- * Two controls, and the reason they sit together is that neither is part of a
- * schedule: a theme is a choice about a screen and a bell offset is a
- * measurement of one building's clock. Putting them in the library would carry
- * both into every backup and every share link - see the note at the top of
- * `preferences.ts` for why that is the wrong answer.
+ * Three controls, and the reason they sit together is that none of them is part
+ * of a schedule: a theme is a choice about a screen, a wake lock is a demand on
+ * one device's power management, and a bell offset is a measurement of one
+ * building's clock. Putting any of them in the library would carry it into every
+ * backup and every share link - see the note at the top of `preferences.ts` for
+ * why that is the wrong answer.
+ *
+ * Ordered screen-outwards: what the page looks like, what the device does with
+ * it, and only then the one setting that changes the numbers. The offset is last
+ * because it is the only one that could be mistaken for editing a schedule, and
+ * the distance from the other two is part of saying so.
  *
  * Ordinary native controls, exactly as the editor uses: a radio group the
- * browser gives arrow-key navigation to for free, and a number input whose
- * spinners work on every engine (unlike `type="time"`, which one WebKit build
- * refuses synthetic keystrokes on entirely - see Docs/build-log.md).
+ * browser gives arrow-key navigation to for free, a checkbox that needs no ARIA
+ * at all, and a number input whose spinners work on every engine (unlike
+ * `type="time"`, which one WebKit build refuses synthetic keystrokes on entirely
+ * - see Docs/build-log.md).
  */
 
 const THEME_LABELS: Record<Theme, string> = {
@@ -32,10 +40,25 @@ const THEME_LABELS: Record<Theme, string> = {
 export interface PreferencesPanelProps {
   preferences: Preferences;
   save: (next: Preferences) => void;
+  /**
+   * What the wake lock is actually doing, computed by the one `useWakeLock` in
+   * `App.tsx` and passed down rather than read again here.
+   *
+   * A second call would work - the browser reference-counts locks - and would
+   * be wrong anyway: this panel unmounts every time the user goes back to the
+   * countdown, so a lock owned by it would be dropped at the exact moment the
+   * projector needs it.
+   */
+  wakeLockStatus: WakeLockStatus;
   headingRef: RefObject<HTMLHeadingElement | null>;
 }
 
-export function PreferencesPanel({ preferences, save, headingRef }: PreferencesPanelProps) {
+export function PreferencesPanel({
+  preferences,
+  save,
+  wakeLockStatus,
+  headingRef,
+}: PreferencesPanelProps) {
   return (
     <div className="panel" id="panel-preferences">
       <h2 className="panel__title" id="settings-title" tabIndex={-1} ref={headingRef}>
@@ -76,8 +99,92 @@ export function PreferencesPanel({ preferences, save, headingRef }: PreferencesP
         </div>
       </fieldset>
 
+      <WakeLockField preferences={preferences} save={save} status={wakeLockStatus} />
+
       <BellOffsetField preferences={preferences} save={save} />
     </div>
+  );
+}
+
+/**
+ * "Keep the screen awake", and an honest account of whether it worked.
+ *
+ * A checkbox, not a switch built out of a button: `type="checkbox"` already
+ * reports "checked"/"not checked" to a screen reader, takes Space, and needs no
+ * ARIA at all. The one thing added to it is the readout below, because a
+ * checkbox that is ticked while the OS quietly refuses the lock is a control
+ * that lies - and every reason it can be refused (battery saver, an engine
+ * without the API, a permissions policy) is invisible from the tick box.
+ */
+function WakeLockField({
+  preferences,
+  save,
+  status,
+}: {
+  preferences: Preferences;
+  save: (next: Preferences) => void;
+  status: WakeLockStatus;
+}) {
+  const unsupported = status === "unsupported";
+
+  return (
+    <fieldset className="field">
+      <legend className="field__legend">Screen</legend>
+      <p className="field__hint" id="wake-lock-hint">
+        Stops the screen dimming or locking while BellTab is on it, which is what
+        a countdown on a projector needs. It only holds while this tab is
+        visible, and it uses more battery.
+      </p>
+
+      <div className="field__options">
+        <label className="option">
+          <input
+            type="checkbox"
+            id="wake-lock"
+            checked={preferences.keepScreenAwake && !unsupported}
+            /*
+              Disabled rather than hidden when the API is missing. A control that
+              vanishes on some engines leaves a user who was told about the
+              feature hunting for it; one that is visibly unavailable, with the
+              readout below saying why, answers the question instead.
+            */
+            disabled={unsupported}
+            aria-describedby="wake-lock-hint wake-lock-status"
+            onChange={(event) =>
+              save({ ...preferences, keepScreenAwake: event.target.checked })
+            }
+          />
+          Keep the screen awake
+        </label>
+      </div>
+
+      <p className="offset__readout" id="wake-lock-status">
+        {describeWakeLock(status)}
+      </p>
+
+      {/*
+        A refusal is the only thing here worth interrupting anybody for, and it
+        is the reason this region exists at all.
+
+        The readout above is deliberately NOT a live region. Its text flips
+        between "held" and "waiting" every time the tab is hidden and shown,
+        which is a normal, correct, several-times-an-hour event that nobody
+        needs read to them - and AGENTS.md's rule about live regions exists to
+        stop exactly that kind of per-tick chatter. What a user does need told is
+        that the box they just ticked did not take effect, which is silent
+        otherwise.
+
+        Always rendered and hidden rather than mounted with its message, for the
+        reason `ScheduleEditor.tsx` and the bell offset both document: a region
+        that arrives together with its text is one screen readers routinely
+        miss.
+      */}
+      <p className="visually-hidden" id="wake-lock-alert" aria-live="polite">
+        {status === "refused"
+          ? "This device refused to keep the screen awake. Battery saver is the usual reason."
+          : ""}
+      </p>
+    </fieldset>
   );
 }
 

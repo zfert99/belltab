@@ -8,6 +8,20 @@ evidence behind the technical decisions is
 **Status legend:** ✅ Done · 🚧 In progress · 📋 Planned · ⛔ Blocked (prereq)
 **Tracks:** 🏗️ Setup · ⚙️ Engine · 🎨 UI · 🔀 Infra · 🔗 Integration
 
+**Status (2026-09-02, after Phase 6 part 2b's first slice):** the app can now
+hold the screen open. A "Keep the screen awake" preference takes a Screen Wake
+Lock while the tab is visible and re-takes it on every return, which is what a
+countdown projected at a room needs and what Big mode made obviously worth
+having. It is off by default and reports what actually happened rather than what
+was asked for: an engine without the API disables the control, a device that
+refuses says so out loud, and an ordinary hidden tab is not called a failure.
+
+What is left of Phase 6 is the opt-in chime and notification, and the PWA
+manifest. Then Phase 7, the cutover.
+
+> **Superseded 2026-09-02.** The paragraph below described `main` after Phase 6
+> part 1 and is kept because the wake lock was planned against it.
+
 **Status (2026-09-02, after Phase 6 part 1):** the app now has settings of its
 own, kept deliberately apart from the user's data. A Preferences panel holds a
 three-way theme — System, Light, Dark, with System the default and a real
@@ -55,12 +69,12 @@ An older note, kept for the same reason:
 > yet. The UI is rebuilt on the engine phase by phase from here, starting with
 > the countdown.
 
-**Testing:** 340 Vitest tests over the pure engine, the parser, the formatters,
+**Testing:** 353 Vitest tests over the pure engine, the parser, the formatters,
 the clock reader, the day resolver, the editor's draft model, the storage
-boundary, the library mutators, the share codec and the preferences boundary,
-plus **522 Playwright tests across three engines** — Chrome, WebKit and
-Firefox — **none of them parked**, which is true for the first time in the
-project. The last parked block was Big mode's, and Phase 6 built it.
+boundary, the library mutators, the share codec, the preferences boundary and
+the wake lock's wording, plus **552 Playwright tests across three engines** —
+Chrome, WebKit and Firefox — **none of them parked**, which is true for the first
+time in the project. The last parked block was Big mode's, and Phase 6 built it.
 
 The reflow gate that Phase 0 calls for runs the four Now-view states, Big mode,
 the editor, the calendar panel, the preferences panel and the confirm dialog at 320/375/768/1024/1440, with
@@ -119,7 +133,7 @@ retires it, since a browser cannot load a `.ts` module directly.
 | **3** | The editor — build and edit a schedule, overlap blocking | 🎨 | ✅ Done |
 | **4** | Day types — the **editing UI** for schedules and the calendar | 🎨 | ✅ Done |
 | **5** | Sharing — versioned hash encoding, export/import | ⚙️ | ✅ Done |
-| **6** | Comfort — theme, bell offset, Big mode ✅; wake lock, chime, PWA | 🎨 | 🚧 In progress |
+| **6** | Comfort — theme, bell offset, Big mode, wake lock ✅; chime, PWA | 🎨 | 🚧 In progress |
 | **7** | Cutover — hub rewrite, origin host, project card, sitemap | 🔀 | 📋 Planned |
 
 ---
@@ -419,10 +433,39 @@ still correct through the mode — plus focus in both directions, the first-pain
 focus guard, and that the mode adds no live region. The reflow gate runs it at
 all five widths, which revives the last parked block in the repo.
 
+### Part 2b — the Screen Wake Lock ✅
+
+- ✅ **A "Keep the screen awake" preference**, off by default and feature-detected.
+  Off is a decision: a wake lock is right for a projector and wrong for a tab
+  left open in somebody's bag, so the default has to be the state nobody is
+  surprised by. An engine without the API gets a disabled control and a sentence
+  saying why, rather than a control that quietly vanishes.
+- ✅ **Re-acquired on every `visibilitychange` back to visible**, because the
+  user agent takes the lock back whenever the document stops being visible. The
+  same lesson as the countdown's, in a second domain: nothing may be treated as
+  state that stays true while the tab is away.
+- ✅ **A request is never made from a hidden document**, which the spec rejects.
+  Without that guard an ordinary backgrounded tab would report a refusal — the
+  one status that is supposed to mean something is wrong.
+- ✅ **Five statuses rather than a boolean**, because "the toggle is on" and "the
+  screen is being held awake" are different facts and every real failure lives in
+  the gap between them.
+- ✅ **One lock, mounted in `App.tsx`**, above both screens. Owning it in the
+  preferences panel would release it the moment the user went back to the
+  countdown.
+- ✅ Big mode deliberately does **not** turn it on. See **Decisions** in
+  `Docs/build-log.md`.
+
+**Gate: met against a stub, not against a projector.**
+`e2e/wake-lock.spec.ts` replaces `navigator.wakeLock` before the page loads and
+drives the three branches no browser in the matrix produces on demand — an
+absent API, a refusal, and the tab leaving and coming back — plus the release on
+unticking, which is the version of this bug that keeps a laptop awake all night
+and reports nothing. Whether a real machine driving a real projector stays lit
+for a real period is carried as an open gap.
+
 ### Part 2b — the rest
 
-- **Screen Wake Lock** behind an explicit toggle, feature-detected, re-acquired
-  on `visibilitychange` (the lock auto-releases when the tab hides).
 - **Opt-in foreground chime and notification**, with copy that says plainly that
   they work only while the tab is open. Audio needs a prior user gesture.
 - PWA manifest and installability.
@@ -441,8 +484,8 @@ say (so it never announced), an `aria-describedby` that dropped the range hint
 at the moment it was needed, and a draft that ignored a change made in another
 tab. See **Bugs found** in `Docs/build-log.md`.
 
-**Gate for part 2b:** nothing in it promises background behaviour the web cannot
-deliver.
+**Gate for the rest of part 2b:** nothing in it promises background behaviour the
+web cannot deliver.
 
 ## Phase 7 — Cutover 🔀
 
