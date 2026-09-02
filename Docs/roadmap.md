@@ -8,6 +8,21 @@ evidence behind the technical decisions is
 **Status legend:** ✅ Done · 🚧 In progress · 📋 Planned · ⛔ Blocked (prereq)
 **Tracks:** 🏗️ Setup · ⚙️ Engine · 🎨 UI · 🔀 Infra · 🔗 Integration
 
+**Status (2026-09-02, Phase 6 complete):** BellTab is installable. A web app
+manifest — bell icon at every size the platforms ask for, `standalone` display,
+everything scoped inside `/bell` — closes the comfort phase, deliberately
+without a service worker (Chrome no longer requires one to install, offline is
+a non-goal, and the Decisions table in `Docs/build-log.md` has the rest). The
+icons are five Playwright renders of one committed SVG glyph, and the E2E
+fetches everything the manifest names the way a browser's install machinery
+would.
+
+All of Phase 6 is done: theme, bell offset, Big mode, wake lock, chime,
+notification, manifest. What remains is Phase 7, the cutover.
+
+> **Superseded 2026-09-02.** The paragraph below described `main` after the
+> bells and is kept because the manifest was planned against it.
+
 **Status (2026-09-02, after Phase 6 part 2b's second slice):** the app can now
 be heard. Two opt-in bells ring at period boundaries — a synthesised chime and a
 system notification for the backgrounded tab — keyed on the same
@@ -86,7 +101,7 @@ An older note, kept for the same reason:
 **Testing:** 377 Vitest tests over the pure engine, the parser, the formatters,
 the clock reader, the day resolver, the editor's draft model, the storage
 boundary, the library mutators, the share codec, the preferences boundary and
-the wake lock's and the bells' wording, plus **588 Playwright tests across
+the wake lock's and the bells' wording, plus **600 Playwright tests across
 three engines** —
 Chrome, WebKit and Firefox — **none of them parked**, which is true for the first
 time in the project. The last parked block was Big mode's, and Phase 6 built it.
@@ -148,7 +163,7 @@ retires it, since a browser cannot load a `.ts` module directly.
 | **3** | The editor — build and edit a schedule, overlap blocking | 🎨 | ✅ Done |
 | **4** | Day types — the **editing UI** for schedules and the calendar | 🎨 | ✅ Done |
 | **5** | Sharing — versioned hash encoding, export/import | ⚙️ | ✅ Done |
-| **6** | Comfort — theme, bell offset, Big mode, wake lock, bells ✅; PWA | 🎨 | 🚧 In progress |
+| **6** | Comfort — theme, bell offset, Big mode, wake lock, bells, PWA | 🎨 | ✅ Done |
 | **7** | Cutover — hub rewrite, origin host, project card, sitemap | 🔀 | 📋 Planned |
 
 ---
@@ -508,9 +523,25 @@ permission asked. Whether the chime is audible and pleasant over a real
 classroom is carried as an open gap; the Test button exists so judging it costs
 one press.
 
-### Part 2b — the rest
+### Part 2b — the manifest ✅
 
-- PWA manifest and installability.
+- ✅ Installable: `src/app/manifest.ts`, `standalone`, id/start_url/scope all
+  `/bell`, every URL spelled out with the prefix by hand (`basePath` rewrites
+  nothing inside the file).
+- ✅ One SVG glyph — the butterscotch bell — rendered to five committed PNGs by
+  `scripts/render-icons.mjs` through the Playwright already in devDependencies:
+  plain and maskable at 192/512, plus the 180px apple-touch-icon.
+- ✅ **No service worker, on purpose.** Installation no longer needs one,
+  offline is a non-goal, and the update-lifecycle risk buys nothing here. The
+  Android notification gap keeps its row, with the SW named as its price.
+- ✅ Colours pinned to the page: the E2E reads the live `--paper` token and
+  asserts the manifest matches, so a palette change cannot strand the splash.
+
+**Gate: met as a contract, not as an install.** `e2e/pwa.spec.ts` fetches what
+a browser's install machinery would fetch — the manifest, all four icons, the
+favicon, the apple-touch-icon — and asserts each serves at the type it claims
+from inside `/bell`. Whether the prompt appears on a real device is carried in
+Open gaps beside the projector and the chime.
 
 **Gate for part 1: met.** `e2e/preferences.spec.ts` drives the offset through
 the digits, the tab title and storage, proves an out-of-range value leaves the
@@ -526,8 +557,8 @@ say (so it never announced), an `aria-describedby` that dropped the range hint
 at the moment it was needed, and a draft that ignored a change made in another
 tab. See **Bugs found** in `Docs/build-log.md`.
 
-**Gate for the rest of part 2b:** nothing in it promises background behaviour the
-web cannot deliver.
+**Gate for part 2b, kept throughout:** nothing in it promises background
+behaviour the web cannot deliver.
 
 ## Phase 7 — Cutover 🔀
 

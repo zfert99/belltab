@@ -41,6 +41,9 @@ schedule lives in your browser and in a shareable link.
   paints, so there is no flash of the wrong one.
 - **Share by link** — the whole schedule compresses into the URL fragment. Send
   it to a colleague; nothing is uploaded anywhere.
+- **Installable** — add it to a phone's home screen or a laptop's dock and it
+  opens in its own window, bell icon and all. There is still no server behind
+  it; installing changes where it lives, not what it knows.
 
 ## What it deliberately does not do
 
