@@ -23,7 +23,14 @@ schedule lives in your browser and in a shareable link.
 - **Honest empty states** — before first bell, after last bell, and days with no
   schedule are first-class screens, not blanks.
 - **Bell offset** — real bells never match the published schedule. Nudge every
-  time by ±N seconds so the countdown matches the bell you actually hear.
+  time by ±N seconds so the countdown matches the bell you actually hear. The
+  correction is applied to the clock, never to the schedule, so it stays on your
+  device and never travels in a link you send.
+- **Big mode** — the same countdown, scaled for a projector at the front of a
+  room. It is a presentation mode over the ordinary view rather than a second
+  screen, so the two cannot disagree.
+- **Light, dark, or whatever your device says** — applied before the page
+  paints, so there is no flash of the wrong one.
 - **Share by link** — the whole schedule compresses into the URL fragment. Send
   it to a colleague; nothing is uploaded anywhere.
 

@@ -502,6 +502,33 @@ own length.
 here. Not blocking, and the behaviour is what a user wants either way — "move
 Lunch before Period 3" is a statement about the timetable, not about a list.
 
+### Big mode was never in the plan's Phase 6 — 2026-09-02
+
+`Docs/belltab-plan.md` listed Phase 6 as "bell offset, wake lock, chime and
+notification, PWA manifest, theme". Big mode is not in that sentence and never
+was. What it was in: `globals.css`, which has carried `body.is-big` and eleven
+sibling rules since the plain build was retired, and `e2e/reflow.spec.ts`, whose
+parked block named **Phase 6 (Big mode)** as the phase that would revive it.
+
+So two of this repo's own artefacts asserted a scope item the authoritative
+scope document did not contain, and had done since Phase 1. The roadmap's Phase
+6 bullets did not mention it either — which is how a parked test came to name a
+phase that had not agreed to revive it, the mirror image of the Day view problem
+recorded on 2026-09-01 (a parked test naming NO phase).
+
+It was surfaced rather than assumed: the recommendation for what to build next
+flagged the discrepancy and said one of the two had to be wrong. The user's
+answer was "big mode is in", so it was built.
+
+**Owed to reconcile: done.** `Docs/belltab-plan.md` now names Big mode in Phase
+6, with a dated note saying it was added late and pointing here.
+
+**Lesson:** a parked test is a promise, and a promise needs somebody on the
+other end of it. "Every parked block names the phase that revives it" was the
+rule this repo adopted on 2026-09-01, and it is not sufficient on its own — the
+phase has to name the block back. Checking that the plan agrees is the missing
+half.
+
 ## Open gaps
 
 | Opened | Item | Notes |
@@ -534,6 +561,9 @@ Lunch before Period 3" is a statement about the timetable, not about a list.
 | 2026-09-02 | The theme radios have no `prefers-reduced-motion` sibling | `Docs/research/accessibility-responsive-qa.md` suggests an in-app "reduce animations" toggle alongside the OS one. The global media query is honoured everywhere in `globals.css`, so nothing is inaccessible; what is missing is the in-app override for someone whose OS setting does not match what they want here. Preferences is now the panel it would live in. |
 | 2026-09-02 | The macOS WebKit build does not Tab to buttons, so one editor test fails locally | `e2e/editor.spec.ts`'s keyboard walk cannot reach `#add-period` within its 120-press budget on the development machine's WebKit, because macOS omits buttons from the Tab order unless full keyboard access is on. It passes on the Linux CI runner's build and on Chrome and Firefox everywhere. Verified pre-existing on `main` by stashing this session's work and re-running. A third entry for the row above: "WebKit" is not one browser. |
 | 2026-09-02 | The `inputMode="text"` fix is reasoned, not measured on real iOS | Review finding 1 is fixed on the argument that iOS prefers `inputmode` over the input's type when choosing a keyboard, and that its `type="number"` draws no spinners. Both are well documented and neither has been checked on a real iPhone from this repo. Same class of claim as every other Safari row here: Playwright's WebKit is not Safari and none of it is iOS. What is verified is that the attribute changed nothing on Chrome, Firefox or WebKit. |
+| 2026-09-02 | A projector in Big mode still goes to sleep | The exact failure the Screen Wake Lock exists to prevent, and the wake lock is Phase 6 part 2b. Big mode makes it more obviously worth having rather than less: a laptop driving a projector dims mid-period and the countdown a room is watching goes dark. Nothing about Big mode forecloses it — the toggle will be a preference, and acquiring the lock on entering the mode is the obvious default to argue about then. |
+| 2026-09-02 | Big mode does not survive a reload | It is component state, deliberately: a mode you cannot see the way out of is worse than one you have to re-enter, and a projector is set up once per session by somebody standing at the machine. If a room ever wants a permanent display, that is a preference rather than a change to this state — and it would need the wake lock first to be worth anything. |
+| 2026-09-02 | Big mode does not request fullscreen | It fills the viewport (`100dvh`), which leaves the browser chrome and the OS bar on screen. The Fullscreen API would take those too and needs a user gesture, which the button already is. Not done because it adds an exit path the app does not control — the browser's own Escape-to-leave races the mode's — and that interaction deserves being designed rather than added. |
 | 2026-08-27 | Three pieces of cited evidence live in the Puzzle Lab repo, not this one | `multi-zone-migration-safety-review.md` marks its rate-limit finding **VERIFIED** against method and numbers in `src/lib/rate-limit.md`; `multi-zone-cost-and-alternatives.md` reverses its own earlier position on the authority of `puzzle-lab-hub-merge-research.md` and `vercel-cron-deployment-protection-outage.md`. All three files are real and all three are one repo away. The broken links are fixed — they now name the repo — but the claims remain unauditable from inside BellTab. Copying the three in would fix it and would also import three more documents about someone else's stack; not done, and the tradeoff is the reason. |
 
 ## Closed
@@ -606,6 +636,37 @@ Lunch before Period 3" is a statement about the timetable, not about a list.
 ---
 
 ## Bugs found
+
+### 2026-09-02 — two Big mode CSS rules that kept matching and stopped meaning anything
+
+Neither ever shipped — the rules were inert from the moment the plain build was
+retired until Phase 6 rendered them — so nothing broke in front of a user. Both
+are recorded anyway, because the way they went wrong is the interesting part and
+because the fix is only obvious once you have seen the page.
+
+**1. The rule hid the bounds footer in favour of an element that does not
+exist.** Its comment said the footer could go "because the strip already says
+it", and the period strip belonged to the retired build and has never been
+rebuilt. What Big mode would have shipped is a projector screen with no line
+reading "Next: Passing at 10:05" — the single most useful sentence on it — for a
+reason that stopped being true two phases earlier.
+
+**2. `.is-big .screen__schedule` hid the wrong element, silently.** It was
+written when `.screen__schedule` WAS the schedule name. In the current markup
+that class is on the `<h1>` reading "BellTab", and the schedule name lives in
+`#schedule-name`. So the selector kept matching, kept hiding *something*, never
+errored, and quietly stopped doing what its own comment claimed.
+
+**Lesson: a selector that still matches after a rename is not a selector that
+still works.** This is the CSS form of the lesson the `aria-invalid` border
+taught in Phase 4 and the preferences JSDoc taught earlier today — a rule or a
+comment describing behaviour is not evidence of it. The difference here is that
+there is no compiler and no test that can catch it: both rules were valid CSS
+matching real elements, and a screenshot was the only thing that could tell.
+
+**Both were found by rendering the page, not by reading the file.** That is the
+whole finding. The CSS had been read several times across the phases that ported
+it; what had never been done was look at what it drew.
 
 ### 2026-09-02 — four defects in the preferences panel, all found by review
 
@@ -3896,3 +3957,39 @@ which is itself the reason it is a separate PR from the preferences half.
 `npm run lint`, `npm run typecheck`, `npm run build`, `npx vitest run`,
 `npx markdownlint-cli "**/*.md"` and `npx playwright test` all pass, with the
 known macOS-WebKit exception in `editor.spec.ts`.
+
+### 2026-09-02 13:10 — the documentation audit that found three holes
+
+Prompted by a direct question — "everything documented?" — and answered by
+checking the sections `AGENTS.md` requires rather than by saying yes. Three
+things were missing, and all three were in the same blind spot: the parts of the
+log that are not the session narrative.
+
+**The plan never contained Big mode.** Recorded under **Deviations**, and
+`Docs/belltab-plan.md` now names it. The lesson is in that entry and it is
+about this repo's own conventions: "every parked block names the phase that
+revives it" is half a rule, and the phase has to name the block back.
+
+**The two wrong Big mode CSS rules had no Bugs found entry.** They were written
+up under **Decisions** and in the session log, which is where the reasoning
+goes — but `AGENTS.md` asks for the lesson under **Bugs found**, and the lesson
+here (a selector that still matches after a rename is not a selector that still
+works) is one this log has now learned in three forms: an `aria-invalid` border
+that never painted, a JSDoc that claimed a case it did not handle, and two CSS
+rules that hid the wrong things. Filed properly.
+
+**Three Big mode open gaps were missing:** the projector still sleeps, the mode
+does not survive a reload, and it does not request fullscreen. The first is the
+one that matters, and it is the argument for doing the wake lock next.
+
+The README also gained Big mode and the theme, and its bell-offset bullet now
+says the correction stays on the device — which is the whole reason preferences
+got their own storage key and was not stated anywhere a user would read it.
+
+**Worth recording as a pattern:** the session log gets written while the work is
+fresh, exactly as the rules ask, and the *tables* get written from whatever the
+narrative happened to mention. Decisions and Bugs found both got entries this
+session; Deviations did not, and Deviations is the one that needed a change to
+another document. Checking the four required sections one at a time is a
+different act from writing up the session, and this is the second time this
+month it has turned up something.
