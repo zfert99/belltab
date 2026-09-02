@@ -556,13 +556,24 @@ rule this repo adopted on 2026-09-01, and it is not sufficient on its own — th
 phase has to name the block back. Checking that the plan agrees is the missing
 half.
 
+### The Phase 7 gate asked for a locked origin, and the recipe forbids one — corrected 2026-09-02
+
+`Docs/roadmap.md` Phase 7 gated on "the origin host still locked to direct
+traffic". Custom production domains are exempt from Vercel's Deployment
+Protection, and that exemption is the entire mechanism by which the hub's proxy
+reaches the origin — so a locked origin host and a working rewrite are mutually
+exclusive, and Puzzle Lab's `origin-puzzles` has been publicly reachable all
+along. The gate wording is corrected to what the recipe actually delivers:
+per-deployment URLs locked, origin public, canonical carrying the duplicate
+address. Owed and delivered in the same change: the canonical shipped in PR #34
+before the origin ever served.
+
 ## Open gaps
 
 | Opened | Item | Notes |
 | --- | --- | --- |
 | 2026-08-26 | 12-hour clock has no am/pm | Matches the mockups and is unambiguous for a school day. Revisit if a schedule ever crosses noon ambiguously. |
 | 2026-08-26 | TypeScript is a major version behind on purpose | 6.0.3 rather than 7.0.2, because `typescript-eslint` cannot load under TS 7. This is a real cost — TS 7 is the Go rewrite — and it is deliberate, not neglect. Revisit when typescript-eslint#10940 lands; the upgrade should be a one-line version bump plus a full lint run. |
-| 2026-08-26 | The headers have still never been verified on Vercel | `vercel.json` is gone and the list now lives in `next.config.ts`, verified against a real `next start`. What remains unverified is the deploy itself, and the hub's rewrite in Phase 7 — a second hop that can drop headers. |
 | 2026-08-27 | `next build` now needs the network | `next/font/google` fetches the three families at BUILD time. Runtime is still network-free — that invariant is untouched, and the emitted HTML was checked for Google hosts — but an offline `npm run build` now fails where it used to succeed. Next caches the downloads, so this bites a cold checkout rather than a rebuild. Self-hosting the `.woff2` files in-repo with `next/font/local` would remove it; not done, because it means committing binaries and hand-tracking upstream revisions. |
 | 2026-08-27 | Next ships a live region we did not write | `div#__next-route-announcer__` is `aria-live="assertive"` `role="alert"`, injected by the App Router after hydration and not removable. It should stay silent — one route, no client navigation — but `AGENTS.md`'s "never wrap the countdown in a live region" now has a framework-owned region on the page to coexist with. The announcer spec enumerates it so a second one cannot arrive unnoticed. |
 | 2026-09-02 | Three CSS rules are inert, and all three are the retired build's | `.viewswitch__btn[aria-pressed="true"]` styled a two-state switcher that Big mode deliberately did not become; `body.is-settings .viewswitch` hid it while settings was open, which conditional rendering does instead; and `.is-big .strip*` styles a period strip that has never been rebuilt. All three were already inert before Phase 6 and none was introduced by it. Left rather than swept up, on the same reasoning as the row below: deleting styles is a different decision from deleting the code that stopped using them, and it should be made on purpose. |
@@ -600,11 +611,14 @@ half.
 | 2026-09-02 | The chime's `locked` sentence is all but unobservable | Reaching the panel takes a click or a keypress, and either one is the gesture that unlocks the chime — so by the time the readout is visible it says "ready". The sentence still earns its place (a refused `resume()` under an OS-level block would land there and stay), but no E2E can show it through the UI, and the suite says so where it asserts the behaviour instead. |
 | 2026-09-02 | BellTab has never been installed | The manifest is asserted the way a browser's install machinery would read it — every icon serves, every URL carries the `/bell` prefix, the colours match the page — but the install prompt itself is browser UI no page context can reach, and what the installed window looks like on a real phone or a real dock is unverifiable from this repo. Same family as the projector and the chime: one human, one device, one press. |
 | 2026-09-02 | A dark-mode install gets a light splash | The manifest takes one `background_color` and one `theme_color`, and they are the light paper. A user whose device is dark sees a cream splash for the moment before the page paints and re-themes. The spec has no per-scheme colours; what would close this is the `user_preferences` manifest member if it ever ships beyond proposals, and until then the honest statement is that the splash is single-theme by web-platform limitation. |
+| 2026-09-02 | The hub's headers overwrite BellTab's on the public URL | Measured at cutover, and it is the exact failure the 2026-08-26 gap predicted: `biscuitlab.net/bell` carries the HUB's `headers()` — its shorter Permissions-Policy, its `strict-origin-when-cross-origin` referrer policy — not this repo's. Functionality is intact by spec semantics: a feature a Permissions-Policy does not list keeps its default allowlist, which is `self` for both `screen-wake-lock` and `autoplay`, so the wake lock and the chime work through the proxy. The floor (`nosniff`, `DENY`) is identical. What is lost is BellTab's stricter denial list, and the fix is hub-owned: exclude the zone paths from the hub's `headers()` so origin headers pass through, or align the hub's policy. Origin-direct (`origin-bell.biscuitlab.net/bell`) still serves this repo's full set, which is how the difference was measured. |
+| 2026-09-02 | The origin host is publicly reachable, and cannot not be | `origin-bell.biscuitlab.net/bell` serves 200 to anyone, as `origin-puzzles` always has: custom production domains are EXEMPT from Deployment Protection, and that exemption is precisely why the hub's proxy can reach the origin at all. What IS locked is every per-deployment `*.vercel.app` URL (302). The roadmap's gate line "origin host still locked to direct traffic" was written before the recipe was understood and asked for something the recipe forbids; corrected 2026-09-02, and the canonical (`biscuitlab.net/bell`) is the mitigation for the duplicate address — which is the reason it shipped in the same phase. `belltab.vercel.app/bell` is public too, exactly as `puzzle-generator.vercel.app` is; same mitigation. |
 
 ## Closed
 
 | Opened | Closed | Item |
 | --- | --- | --- |
+| 2026-08-26 | 2026-09-02 | The headers had never been verified on Vercel — now they have been, on the real deploy AND through the hub's rewrite, and the second hop does exactly what the gap feared: the hub's `headers()` wins. The measurement and its consequences are their own gap row above; the original question ("do the headers survive the deploy") is answered. |
 | 2026-09-02 | 2026-09-02 | A projector in Big mode still goes to sleep — the Screen Wake Lock now exists, behind a preference, feature-detected and re-acquired on every `visibilitychange` back to visible. Closed with a caveat that is its own open gap above: what is proven is that the code drives the API correctly, not that a real projector stays lit. |
 | 2026-09-02 | 2026-09-02 | The E2E suite has parked tests — it does not any more. 522 across three engines, **none parked**, for the first time in the project. The last block was Big mode's, parked since Phase 1 named the phase that would revive it. |
 | 2026-08-27 | 2026-09-02 | Roughly half of `globals.css` is inert — closed properly this time. Big mode's dozen rules have shipped unrendered since the plain build was retired and now paint. What is left inert is three rules, enumerated in their own row above. |
@@ -4342,3 +4356,45 @@ project and origin host (driven by CLI with the user's approval, pausing before
 each outward action), one grey-cloud CNAME at Cloudflare that only the user can
 add, the flip, the gate — and then the card. The deploy is also where a year of
 "unverifiable from this machine" gap rows finally meet a real device.
+
+### 2026-09-02 17:05 — the cutover: biscuitlab.net/bell is live
+
+Phase 7, executed in an afternoon because two repos' worth of groundwork meant
+it was mostly turning keys. The sequence, as run:
+
+1. **PR #34 (this repo)** — canonical + sitemap — merged; the git-connected
+   Vercel project `belltab` deployed it to production automatically.
+2. **Biscuit-Website PR #50** — the dormant `BELL_ORIGIN` rewrite — merged; a
+   no-op by design until the env var existed.
+3. **Vercel, by CLI:** project created and linked, GitHub connected,
+   `origin-bell.biscuitlab.net` attached. **Cloudflare, by the user:** one
+   grey-cloud A record (`origin-bell → 76.76.21.21`); verified within minutes.
+4. **The flip:** `BELL_ORIGIN=https://origin-bell.biscuitlab.net` on the hub's
+   production env, hub redeployed (rewrites are read at build time — the
+   redeploy IS the switch). Forty seconds later `biscuitlab.net/bell` served.
+5. **Biscuit-Website PR #51** — the card, only after the gate passed.
+
+**The gate, measured:** the page serves with BellTab's title and markup; a
+`/bell/_next/*` stylesheet resolves 200 through the proxy; the canonical,
+manifest and sitemap all serve through the hub; `/puzzles` is untouched;
+per-deployment `*.vercel.app` URLs 302 behind protection.
+
+**Two findings, both now gap rows:** the hub's `headers()` overwrites
+BellTab's on the proxied hop (functionality intact — unlisted
+Permissions-Policy features keep their `self` default, so the wake lock and
+chime work at the public URL — but the stricter denial list is lost, and the
+fix is hub-owned); and the origin host is publicly reachable **by design**,
+which contradicted the roadmap's gate wording rather than the deploy — the
+correction is under Deviations, and the canonical shipped first for exactly
+this reason.
+
+**One discovery in the hub repo:** the runbook's §3 sitemap index was
+superseded months ago by `robots.ts` advertising per-zone sitemaps (with its
+own research doc), so PR #51 adds `/bell/sitemap.xml` as one line in that list
+and no index — and corrects the runbook addendum #50 wrote against the stale
+section.
+
+BellTab is deployed. What remains of Phase 7 is the hub card PR merging, and
+the follow-up the deploy finally unlocks: the year of "unverifiable from this
+machine" rows — real Safari, a real install, a real projector, a heard chime —
+now have a URL to be verified against.

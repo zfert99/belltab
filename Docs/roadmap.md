@@ -8,6 +8,20 @@ evidence behind the technical decisions is
 **Status legend:** ✅ Done · 🚧 In progress · 📋 Planned · ⛔ Blocked (prereq)
 **Tracks:** 🏗️ Setup · ⚙️ Engine · 🎨 UI · 🔀 Infra · 🔗 Integration
 
+**Status (2026-09-02, Phase 7 complete): BellTab is live at
+`biscuitlab.net/bell`.** The cutover ran the hub runbook's recipe minus
+everything auth-shaped: canonical and sitemap first, a dormant `BELL_ORIGIN`
+rewrite in the hub, the Vercel project with `origin-bell.biscuitlab.net`
+attached and one grey-cloud A record, then the flip — the env var set and the
+hub redeployed. The gate is measured and met; two findings (the hub's headers
+winning the proxied hop, and the origin host being public by design) are gap
+rows and a Deviations entry in `Docs/build-log.md`. Every phase in the table
+below is done. What the deploy unlocks is verification: the accumulated
+"unverifiable from this machine" gaps now have a URL.
+
+> **Superseded 2026-09-02, hours later.** The paragraph below described `main`
+> when Phase 6 closed and is kept because Phase 7 was planned against it.
+
 **Status (2026-09-02, Phase 6 complete):** BellTab is installable. A web app
 manifest — bell icon at every size the platforms ask for, `standalone` display,
 everything scoped inside `/bell` — closes the comfort phase, deliberately
@@ -164,7 +178,7 @@ retires it, since a browser cannot load a `.ts` module directly.
 | **4** | Day types — the **editing UI** for schedules and the calendar | 🎨 | ✅ Done |
 | **5** | Sharing — versioned hash encoding, export/import | ⚙️ | ✅ Done |
 | **6** | Comfort — theme, bell offset, Big mode, wake lock, bells, PWA | 🎨 | ✅ Done |
-| **7** | Cutover — hub rewrite, origin host, project card, sitemap | 🔀 | 📋 Planned |
+| **7** | Cutover — hub rewrite, origin host, project card, sitemap | 🔀 | ✅ Done |
 
 ---
 
@@ -585,8 +599,15 @@ add BellTab to the sitemap index.
 No rpID/passkey complication here — BellTab has no auth — so this is the easy
 version of what `Biscuit-Website/Docs/multi-zone-migration-runbook.md` describes.
 
-**Gate:** `biscuitlab.net/bell` serves with assets intact and the origin host
-still locked to direct traffic.
+**Gate (corrected 2026-09-02, and met the same day):** `biscuitlab.net/bell`
+serves with assets, headers, canonical, manifest and sitemap intact, and every
+per-deployment `*.vercel.app` URL stays locked behind Deployment Protection.
+The original wording asked for the ORIGIN host to be locked too, which the
+recipe forbids: custom production domains are exempt from protection, and that
+exemption is the entire mechanism by which the hub's proxy reaches the origin.
+`origin-bell.biscuitlab.net` is public exactly as `origin-puzzles` always has
+been; the canonical naming `biscuitlab.net/bell` is the mitigation, and it
+shipped before the origin ever served. See Deviations in `Docs/build-log.md`.
 
 ---
 
