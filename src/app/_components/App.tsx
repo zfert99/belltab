@@ -6,6 +6,7 @@ import { saveLibrary, useLibrary } from "@/app/_lib/libraryStore";
 import { savePreferences, usePreferences } from "@/app/_lib/preferencesStore";
 import { applyTheme } from "@/app/_lib/theme";
 import { useWakeLock } from "@/app/_lib/wakeLock";
+import { useBells } from "@/app/_lib/bells";
 import { addSchedule } from "@/app/_lib/library";
 import { clearShareFragment, incomingSchedule } from "@/app/_lib/shareLink";
 import type { ValidSchedule } from "@/lib/schedule";
@@ -113,6 +114,17 @@ export function App() {
    */
   const view =
     now === null ? null : viewForNow(library, shiftNow(now, preferences.bellOffsetSec));
+
+  /**
+   * The audible bell and the notification, keyed on the SHIFTED state - the
+   * same one the announcer and the digits watch - so an offset that moves the
+   * countdown moves the chime with it. That is the whole promise of the offset:
+   * every derived view of the clock agrees, including the ones you hear.
+   *
+   * Mounted here beside the wake lock for the same reason it is: a bell that
+   * rings while the editor is open is still a bell.
+   */
+  const bellStatuses = useBells(view?.kind === "scheduled" ? view.state : null, preferences);
 
   /**
    * A schedule somebody sent, waiting to be accepted or dismissed.
@@ -312,6 +324,7 @@ export function App() {
           preferences={preferences}
           savePreferences={savePreferences}
           wakeLockStatus={wakeLockStatus}
+          bellStatuses={bellStatuses}
           now={now}
           initialPanel={openPanel}
           headingRef={headingRef}

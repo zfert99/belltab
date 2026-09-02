@@ -67,12 +67,34 @@ export interface Preferences {
    * nobody is surprised by.
    */
   keepScreenAwake: boolean;
+  /**
+   * Whether a period boundary plays a short chime.
+   *
+   * Off by default, like the wake lock and for the same shape of reason: sound
+   * from a tab nobody asked to hear is the least forgivable kind of surprise.
+   * Foreground-only by the nature of the web - a hidden tab may ring up to a
+   * minute late and a closed one never rings - and the panel says so in plain
+   * words rather than promising what `Docs/research/` proves impossible.
+   */
+  chimeOnBell: boolean;
+  /**
+   * Whether a period boundary shows a system notification.
+   *
+   * Off by default. Only honoured while the browser has granted permission AND
+   * the tab is in the background - a toast about the screen you are already
+   * looking at is noise. Stored true only after permission was granted once, so
+   * a ticked box was never a lie at the moment it was written; the permission
+   * can still be revoked behind it, and the panel's readout reports that.
+   */
+  notifyOnBell: boolean;
 }
 
 export const DEFAULT_PREFERENCES: Preferences = {
   theme: "system",
   bellOffsetSec: 0,
   keepScreenAwake: false,
+  chimeOnBell: false,
+  notifyOnBell: false,
 };
 
 export { THEMES };
@@ -110,6 +132,8 @@ export function loadPreferences(raw: string | null): Preferences {
     theme?: unknown;
     bellOffsetSec?: unknown;
     keepScreenAwake?: unknown;
+    chimeOnBell?: unknown;
+    notifyOnBell?: unknown;
   };
 
   return {
@@ -122,6 +146,14 @@ export function loadPreferences(raw: string | null): Preferences {
       typeof source.keepScreenAwake === "boolean"
         ? source.keepScreenAwake
         : DEFAULT_PREFERENCES.keepScreenAwake,
+    chimeOnBell:
+      typeof source.chimeOnBell === "boolean"
+        ? source.chimeOnBell
+        : DEFAULT_PREFERENCES.chimeOnBell,
+    notifyOnBell:
+      typeof source.notifyOnBell === "boolean"
+        ? source.notifyOnBell
+        : DEFAULT_PREFERENCES.notifyOnBell,
   };
 }
 
@@ -153,5 +185,7 @@ export function serializePreferences(preferences: Preferences): string {
     theme: preferences.theme,
     bellOffsetSec: preferences.bellOffsetSec,
     keepScreenAwake: preferences.keepScreenAwake,
+    chimeOnBell: preferences.chimeOnBell,
+    notifyOnBell: preferences.notifyOnBell,
   });
 }

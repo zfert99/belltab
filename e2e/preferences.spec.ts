@@ -82,7 +82,15 @@ test.describe("the bell offset", () => {
 
     expect(
       await page.evaluate((key) => window.localStorage.getItem(key), PREFERENCES_STORAGE_KEY),
-    ).toBe(JSON.stringify({ theme: "system", bellOffsetSec: 90, keepScreenAwake: false }));
+    ).toBe(
+      JSON.stringify({
+        theme: "system",
+        bellOffsetSec: 90,
+        keepScreenAwake: false,
+        chimeOnBell: false,
+        notifyOnBell: false,
+      }),
+    );
   });
 
   test("refuses a value past the cap and keeps running on the last good one", async ({ page }) => {
@@ -130,16 +138,17 @@ test.describe("the bell offset", () => {
     await expect(error).toContainText("whole number of seconds");
   });
 
-  test("the panel owns exactly two live regions while it is open", async ({ page }) => {
+  test("the panel owns exactly three live regions while it is open", async ({ page }) => {
     // The counterpart to the closed-view invariant in announcer.spec.ts and the
     // editor's in editor.spec.ts. Every live region in this app is a decision;
     // this is what makes an extra one arriving unnoticed impossible.
     //
-    // It went from one to two when the wake lock landed, and it caught that on
-    // the first run - which is the whole point. Both new regions have to be
-    // argued for out loud rather than noticed six weeks later: `wake-lock-alert`
-    // speaks only for a refused lock, never for the ordinary hidden tab that
-    // flips the readout beside it several times an hour.
+    // It went from one to two when the wake lock landed and to three with the
+    // bells, and it caught both on the first run - which is the whole point.
+    // Every region here has to be argued for out loud rather than noticed six
+    // weeks later: `wake-lock-alert` speaks only for a refused lock and
+    // `notify-alert` only for a blocked permission, never for the routine
+    // statuses that flip beside them.
     await openApp(page, MID_PERIOD);
     await openSettings(page, "preferences");
 
@@ -155,6 +164,7 @@ test.describe("the bell offset", () => {
         "p#period-announcer",
         "p#bell-offset-error",
         "p#wake-lock-alert",
+        "p#notify-alert",
       ].sort(),
     );
   });
@@ -292,8 +302,19 @@ test.describe("preferences and the library", () => {
     // The reason for the split: a bell offset measures one building's clock
     // against one device. A backup that carried it would hand that skew to
     // whoever restored the file, and a share link would do it silently.
+    //
+    // The planted blob spells out every field because the assertion at the
+    // bottom pins the stored BYTES, and nothing in this test saves - a partial
+    // blob would be read leniently and left untouched, and the pin would fail
+    // for a reason that has nothing to do with the split being tested.
     await openApp(page, MID_PERIOD, {
-      preferences: JSON.stringify({ theme: "dark", bellOffsetSec: 42, keepScreenAwake: true }),
+      preferences: JSON.stringify({
+        theme: "dark",
+        bellOffsetSec: 42,
+        keepScreenAwake: true,
+        chimeOnBell: false,
+        notifyOnBell: false,
+      }),
     });
 
     const library = await page.evaluate(
@@ -306,6 +327,8 @@ test.describe("preferences and the library", () => {
     expect(library).not.toContain("bellOffsetSec");
     expect(library).not.toContain("theme");
     expect(library).not.toContain("keepScreenAwake");
+    expect(library).not.toContain("chimeOnBell");
+    expect(library).not.toContain("notifyOnBell");
 
     const preferences = await page.evaluate(
       (key) => window.localStorage.getItem(key),
@@ -317,7 +340,13 @@ test.describe("preferences and the library", () => {
     // whole string is what makes the round trip through `serializePreferences`
     // part of the contract rather than an implementation detail.
     expect(preferences).toBe(
-      JSON.stringify({ theme: "dark", bellOffsetSec: 42, keepScreenAwake: true }),
+      JSON.stringify({
+        theme: "dark",
+        bellOffsetSec: 42,
+        keepScreenAwake: true,
+        chimeOnBell: false,
+        notifyOnBell: false,
+      }),
     );
   });
 
