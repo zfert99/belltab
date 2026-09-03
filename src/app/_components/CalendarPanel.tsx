@@ -6,7 +6,9 @@ import type { LocalNow } from "@/lib/clock";
 import { SCHEDULE_LIMITS, parseIsoDate } from "@/lib/parse";
 import type { IsoDate, ScheduleId } from "@/lib/schedule";
 import {
+  pastOverrides,
   removeOverride,
+  removePastOverrides,
   setOverride,
   setWeekday,
   type Library,
@@ -90,6 +92,7 @@ export function CalendarPanel({ library, save, now, headingRef }: CalendarPanelP
   const parsedNewDate = parseIsoDate(newDate);
   const dateIsUnusable = newDate !== "" && parsedNewDate === null;
   const calendarIsFull = overrides.length >= SCHEDULE_LIMITS.overrides;
+  const past = now === null ? [] : pastOverrides(library, now.isoDate);
   const hasOverrideOn = (date: IsoDate) => overrides.some((entry) => entry.date === date);
   const cannotAdd = calendarIsFull && parsedNewDate !== null && !hasOverrideOn(parsedNewDate);
 
@@ -178,6 +181,28 @@ export function CalendarPanel({ library, save, now, headingRef }: CalendarPanelP
 
       <section className="calsection">
         <h3 className="calsection__title">Dated exceptions</h3>
+
+        {/*
+          The cap is 400 and nothing pruned: two years in, the list is mostly
+          dates that can never resolve again, with one Remove button each. One
+          button for all of them, shown only when there are some - today's own
+          exception is not "past", because it is still running.
+        */}
+        {past.length > 0 && (
+          <p className="panel__note" id="past-overrides">
+            {past.length === 1
+              ? "One of these is in the past and can never apply again."
+              : `${past.length} of these are in the past and can never apply again.`}{" "}
+            <button
+              type="button"
+              className="minibutton"
+              id="prune-overrides"
+              onClick={() => now !== null && save(removePastOverrides(library, now.isoDate))}
+            >
+              Remove past exceptions
+            </button>
+          </p>
+        )}
 
         <div className="addoverride">
           <label className="addoverride__field">

@@ -30,6 +30,7 @@ describe("loadPreferences", () => {
       keepScreenAwake: true,
       chimeOnBell: true,
       notifyOnBell: true,
+      reduceMotion: true,
     } as const;
     expect(loadPreferences(serializePreferences(preferences))).toEqual(preferences);
   });
@@ -80,7 +81,7 @@ describe("loadPreferences", () => {
    * suite. `it.each` over the field names rather than three hand-written
    * copies, because the copies would drift the first time a fourth is added.
    */
-  const BOOLEAN_FIELDS = ["keepScreenAwake", "chimeOnBell", "notifyOnBell"] as const;
+  const BOOLEAN_FIELDS = ["keepScreenAwake", "chimeOnBell", "notifyOnBell", "reduceMotion"] as const;
 
   it.each(BOOLEAN_FIELDS)("keeps %s on when every other field is unreadable", (field) => {
     // The field-by-field rule earning its keep: a stored theme that no longer

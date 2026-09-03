@@ -112,6 +112,26 @@ export function PreferencesPanel({
         </div>
       </fieldset>
 
+      <fieldset className="field">
+        <legend className="field__legend">Motion</legend>
+        <p className="field__hint" id="motion-hint">
+          The OS&rsquo;s own reduce-motion setting is already honoured. This cuts animation here
+          regardless of it &mdash; for a shared machine, or a projector that judders.
+        </p>
+        <div className="field__options">
+          <label className="option">
+            <input
+              type="checkbox"
+              id="reduce-motion"
+              checked={preferences.reduceMotion}
+              aria-describedby="motion-hint"
+              onChange={(event) => save({ ...preferences, reduceMotion: event.target.checked })}
+            />
+            Reduce animation
+          </label>
+        </div>
+      </fieldset>
+
       <WakeLockField preferences={preferences} save={save} status={wakeLockStatus} />
 
       <BellsField preferences={preferences} save={save} statuses={bellStatuses} />
@@ -497,6 +517,19 @@ function BellOffsetField({
 
       <p className="offset__readout" id="bell-offset-readout">
         The countdown is running {describeOffset(preferences.bellOffsetSec)}.
+        {/*
+          At a minute or more the offset has stopped being a correction and
+          started being a schedule edit made in the one place that does not
+          travel. Said here, beside the number, rather than by lowering the cap:
+          a building whose bells really are ninety seconds out is still real.
+        */}
+        {Math.abs(preferences.bellOffsetSec) >= LARGE_OFFSET_SEC && (
+          <span id="bell-offset-warning">
+            {" "}
+            That is a minute or more. If the timetable itself is wrong, edit the schedule
+            instead — this offset stays on this device and never travels in a link.
+          </span>
+        )}
       </p>
     </fieldset>
   );
@@ -506,6 +539,9 @@ function BellOffsetField({
  * The committed offset in words, because a signed integer is not an answer to
  * "which way does this go".
  */
+/** Where a correction starts to look like an edit. */
+const LARGE_OFFSET_SEC = 60;
+
 function describeOffset(offsetSec: number): string {
   if (offsetSec === 0) return "in step with this device’s clock";
 

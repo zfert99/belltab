@@ -389,3 +389,40 @@ test.describe("the exception form refuses out loud", () => {
     await expect(page.locator("#calendar-today")).toContainText("it runs Regular");
   });
 });
+
+test.describe("past exceptions", () => {
+  test("can be removed at once, keeping today's and the future's", async ({ page }) => {
+    // The fixture is Wednesday 2026-09-02. Three exceptions: one long past, one
+    // for today, one next month - and the cap is 400 with nothing pruning, so
+    // two years in this list is mostly dates that can never resolve again.
+    await openApp(page, MID_PERIOD, {
+      storage: JSON.stringify({
+        schedules: [
+          {
+            id: "regular",
+            name: "Regular",
+            periods: [{ name: "Period 1", kind: "Class", startMin: 480, endMin: 600 }],
+          },
+        ],
+        calendar: {
+          weekdays: [null, "regular", "regular", "regular", "regular", "regular", null],
+          overrides: [
+            { date: "2025-01-15", scheduleId: null },
+            { date: "2026-09-02", scheduleId: "regular" },
+            { date: "2026-10-01", scheduleId: null },
+          ],
+        },
+      }),
+    });
+    await openSettings(page, "calendar");
+
+    await expect(page.locator("#overrides li")).toHaveCount(3);
+    await expect(page.locator("#past-overrides")).toContainText("One of these is in the past");
+
+    await page.locator("#prune-overrides").click();
+
+    await expect(page.locator("#overrides li")).toHaveCount(2);
+    await expect(page.locator("#overrides li").first()).toContainText("2026-09-02");
+    await expect(page.locator("#past-overrides")).toHaveCount(0);
+  });
+});

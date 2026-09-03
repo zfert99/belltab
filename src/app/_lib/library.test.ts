@@ -14,6 +14,8 @@ import {
   setOverride,
   setWeekday,
   type Library,
+  pastOverrides,
+  removePastOverrides,
 } from "@/app/_lib/library";
 
 /**
@@ -503,5 +505,31 @@ describe("replaceLibrary", () => {
     if (!imported.ok) throw new Error("a library BellTab exported must import");
 
     expect(replaceLibrary(DEFAULT_LIBRARY, imported.value)).toEqual(edited);
+  });
+});
+
+describe("past exceptions", () => {
+  // Three exceptions around a fixed "today": one before, one on the day, one
+  // after. ISO dates compare as strings, which is the whole trick.
+  const today = "2026-09-14";
+  const withThree = setOverride(
+    setOverride(setOverride(DEFAULT_LIBRARY, "2026-09-01", null), today, "regular"),
+    "2026-10-01",
+    null,
+  );
+
+  it("names only the exceptions strictly before today", () => {
+    expect(pastOverrides(withThree, today).map((entry) => entry.date)).toEqual(["2026-09-01"]);
+  });
+
+  it("removes exactly those, keeping today's own exception because it is still running", () => {
+    const pruned = removePastOverrides(withThree, today);
+
+    expect(pruned.calendar.overrides.map((entry) => entry.date)).toEqual([today, "2026-10-01"]);
+    expect(pastOverrides(pruned, today)).toEqual([]);
+  });
+
+  it("is a no-op on a calendar with nothing in the past", () => {
+    expect(removePastOverrides(DEFAULT_LIBRARY, today)).toEqual(DEFAULT_LIBRARY);
   });
 });

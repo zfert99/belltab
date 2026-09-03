@@ -1,7 +1,7 @@
 "use client";
 
 import type { DayState } from "@/lib/engine";
-import { formatClock, splitCountdown } from "@/lib/format";
+import { boundaryKey, formatClock, splitCountdown } from "@/lib/format";
 import type { TodayView } from "@/app/_lib/today";
 import type { PanelId } from "@/app/_components/SettingsView";
 
@@ -123,7 +123,7 @@ function ScheduleFocus({ state }: { state: DayState }) {
   return (
     <>
       <div className="countdown">
-        <p className="countdown__period" id="period-name">
+        <p className="countdown__period" id="period-name" key={boundaryKey(state)}>
           {headlineFor(state)}
         </p>
         <p className="countdown__time">
