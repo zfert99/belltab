@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, type RefObject } from "react";
+import { weekdayOf } from "@/lib/dates";
 import type { LocalNow } from "@/lib/clock";
 import { SCHEDULE_LIMITS, parseIsoDate } from "@/lib/parse";
 import type { IsoDate, ScheduleId } from "@/lib/schedule";
@@ -256,10 +257,16 @@ export function CalendarPanel({ library, save, now, headingRef }: CalendarPanelP
             {overrides.map((entry) => (
               <li className="override" key={entry.date}>
                 {/*
-                  The date is shown as it is stored and as it will be exported.
-                  Mono and tabular so a column of them lines up.
+                  The date is shown as it is stored and as it will be exported -
+                  mono and tabular so a column of them lines up - with its
+                  weekday in front, because a school year is planned around
+                  "the Monday", not around "the 14th". Computed by arithmetic on
+                  the string: `new Date("2026-09-14")` is UTC midnight, which is
+                  still Sunday in New York. See `weekdayOf`.
                 */}
-                <span className="override__date">{entry.date}</span>
+                <span className="override__date">
+                  {weekdayOf(entry.date) ?? ""} {entry.date}
+                </span>
                 <span className="override__schedule">{nameOf(entry.scheduleId) ?? "No school"}</span>
                 <button
                   type="button"
@@ -271,7 +278,11 @@ export function CalendarPanel({ library, save, now, headingRef }: CalendarPanelP
                     the classic screen-reader dead end - the visible label is the
                     same for everyone, and the hidden half says which one.
                   */}
-                  Remove<span className="visually-hidden"> the exception on {entry.date}</span>
+                  Remove
+                  <span className="visually-hidden">
+                    {" "}
+                    the exception on {weekdayOf(entry.date) ?? ""} {entry.date}
+                  </span>
                 </button>
               </li>
             ))}

@@ -112,6 +112,7 @@ export function SettingsView({
             save={save}
             selected={selected}
             onSelect={setSelected}
+            now={now}
             headingRef={headingRef}
           />
         )}

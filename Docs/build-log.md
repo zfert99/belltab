@@ -339,6 +339,8 @@ development too, so the bare origin is a 404 exactly as it is in production.
 | 2026-09-03 | The editor stacks at 56rem, up from 45rem | Seven columns instead of six: the fixed columns now sum to 39.25rem plus gaps, and at 45rem the name field was left under 3rem. Stacking is always safe, so the threshold errs wide; the settings layout's two-column arrangement now holds a stacked editor between 45 and 56rem, which is fine — it was sized for the editor's width, not its shape. |
 | 2026-09-03 | A refused wake lock is retried on the next user gesture, not on a power/online event or the next period boundary | There is no event for "battery saver went off"; `online` is about the network and a period boundary is minutes away. The next thing the user does is the honest moment to ask again, and it is the same recovery the chime already uses for its autoplay lock — now through one shared `listenForGesture`, so "a gesture" is defined once. The listener exists only WHILE refused: attached for the life of the preference, every keystroke under a permanent denial would be a rejected wake-lock IPC for an answer already known. |
 | 2026-09-03 | The Big mode → wake lock signpost is a sentence with a link-styled button, not a second pill | Two pills side by side read as a two-state switch, which is exactly what Big mode was built not to be. Advice is not a control of equal weight. Shown for `off` AND `refused` — the ticked box whose projector is likeliest to go dark — through a predicate (`wantsSignpost`) rather than an equality, so a sixth status has to be given an answer instead of silently hiding the sign. |
+| 2026-09-03 | In the schedule picker, selection follows focus, and the arrows stop at the ends | Selection is cheap — it repoints the editor, nothing is saved — so making the arrows select as they move costs the user nothing and saves a Space press per chip, which is the ARIA tabs convention for exactly this shape. Clamping rather than wrapping keeps "where am I" answerable from the keyboard: an arrow that does nothing at the end tells you where the end is. |
+| 2026-09-03 | The weekday of an ISO date is arithmetic on the string, never a `Date` | `new Date("2026-09-14")` parses as UTC midnight, and `getDay()` answers in the device's zone, so west of Greenwich the evening before comes back — one day off for every user this app is likeliest to have. Sakamoto's method on three integers cannot see a timezone at all, and the test pins the fixtures' known weekdays plus a leap day. The same reason the app stores wall-clock minutes and never a `Date`. |
 
 ## Deviations from the plan docs
 
@@ -587,14 +589,10 @@ before the origin ever served.
 | 2026-08-27 | The design system's period-change crossfade is not implemented | `Docs/design/design-system.md` section 4 asks for a single 150ms crossfade of the period name at a boundary. The name swaps instantly. The global `prefers-reduced-motion` block already covers the reduced path, so adding it is additive; not doing it is the honest state today. |
 | 2026-08-27 | The editor is a long tab chain | Twelve rows of six controls is seventy-two stops between the schedule name and the bottom of the form, and the keyboard test needs a 120-press budget to cross it. Nothing is unreachable and nothing is trapped, so this is not a failure — but a skip link, or grouping each row so a screen reader can jump by row, would make it usable rather than merely operable. |
 | 2026-08-27 | There is no undo | Deleting a *period* is still immediate and unconfirmed, and the only way back is to retype it. Deliberate for a four-field row whose result is visible behind the editor. Deleting a whole *schedule* now goes through a modal confirmation, which is the half of this gap Phase 4 closed; a real undo is still owed and would remove the need for the dialog. |
-| 2026-08-27 | The schedule name field has no visible label | It carries a `.visually-hidden` "Schedule name", so assistive tech is fine, but sighted users see a large text box containing "Regular" and have to infer what it is. The retired build had the same shape. A visible label or a placeholder is owed. |
 | 2026-09-01 | An import cannot be undone | It replaces every schedule and the whole calendar, behind a confirmation that says so. Exporting first is the answer the panel gives, and it puts the export above the import for that reason. A real undo would be better and is the same gap as the one open for deleting a period. |
 | 2026-09-01 | The axe scan is critical/serious only, at one viewport | `e2e/a11y.spec.ts` fails on `critical` and `serious` and only reports `moderate` and `minor`, which is the release bar `Docs/research/accessibility-responsive-qa.md` names — and a deliberate line, since a gate that fails on `minor` is a gate people start skipping. It also runs at the default viewport only, because small-screen layout is the reflow gate's job. Neither limit is a claim that the app is clean below them. |
 | 2026-09-01 | "WebKit" is not one browser, and none of them is Safari | Measured, not assumed: the development machine's WebKit build reports `type === "text"` for both `<input type="time">` and `type="date"` and renders bare text boxes; the Linux CI runner's build implements them. Real Safari has shipped `type="time"` since 14.1 and is a third thing again. The app handles all of it — the parser was always doing the work — but any sentence of the form "X works in WebKit" now has to say which WebKit, and none of them is evidence about a Mac. |
-| 2026-09-01 | Dated exceptions have no calendar view, and no weekday name | The list shows ISO dates in date order, which is honest and unambiguous but does not tell you that 2026-09-14 is a Monday — the thing a school year is actually planned around. A month grid, or even a computed weekday label, is owed. Computing one means day-of-week arithmetic on a date string, since constructing a `Date` from "2026-09-14" parses it as UTC midnight. |
 | 2026-09-01 | Nothing warns before an exception in the past | `SCHEDULE_LIMITS.overrides` is 400 and nothing prunes. A user who has run BellTab for two years accumulates a list of dates that can never resolve again, and the only way to clear them is one Remove button at a time. |
-| 2026-09-01 | The schedule picker has no keyboard-efficient path | The chips are ordinary buttons in a `role="group"`, so reaching the fifth schedule is five tabs, and they sit above an editor that is already seventy-two stops deep. Arrow-key roving focus over the chips would fix it, and is what an ARIA tablist would have brought if the rest of that contract were worth taking on. |
-| 2026-09-01 | Deleting the schedule that is running is not called out | The confirmation says any day pointing at the schedule falls back to no school, but it does not say that *today* is one of those days, which is the case where the countdown blanks the moment the dialog closes. The information is on the calendar panel, one tab away. |
 | 2026-09-01 | The weekday map is not reachable from the countdown's "no school today" screen in one step | The empty state links to the calendar panel, which is right for the common case — a one-off. Somebody whose *Saturday* genuinely runs school has to notice that the Today control writes an override and that the weekday defaults are the section below. |
 | 2026-09-02 | The page ships an unhashed inline script, and the CSP still carries no `script-src` | Half of the 2026-08-27 gap this replaces. The toggle and the pre-paint application both exist now; what does not is the hardening they were supposed to arrive with. The reason is measured and is in the Decisions table: Next's own two inline scripts cannot be hashed from `next.config.ts`, and the nonce that would fix it needs middleware this repo bans. What would change the call is Next shipping a nonce path that is not middleware, or `output: "export"` growing one. Until then the CSP is `frame-ancestors 'none'` and the honest statement is that this app has no script policy at all. |
 | 2026-09-02 | The bell offset has never been measured against a real bell | It is a correction with no calibration aid: the user is asked for a number of seconds and given no way to discover which number. The panel states which way the number goes and the wall clock beside the countdown is deliberately left unshifted so there is something to check against, but the actual workflow — stand in a corridor, hear the bell, read the phone, subtract — is unassisted. A "tap when the bell rings" button that measured it would be the fix, and is not built. |
@@ -614,6 +612,10 @@ before the origin ever served.
 
 | Opened | Closed | Item |
 | --- | --- | --- |
+| 2026-08-27 | 2026-09-03 | The schedule name field has a visible label — "Schedule name", in the same small-caps voice as the stacked editor's row labels, above the box. |
+| 2026-09-01 | 2026-09-03 | Dated exceptions carry their weekday — "Sat 2026-09-05" — computed by arithmetic on the string (`weekdayOf`, Sakamoto's method), because `new Date("2026-09-14")` is UTC midnight and still Sunday in New York. The month grid half of the row is still not built and would be its own row if wanted. |
+| 2026-09-01 | 2026-09-03 | The schedule picker is one tab stop: roving `tabIndex`, arrows walk the chips with selection following focus, Home/End go to the ends, the arrows stop there rather than wrapping. |
+| 2026-09-01 | 2026-09-03 | Deleting the schedule that is running today is called out in the confirmation — "This is the schedule running today - the countdown will go blank." — computed from the same resolver the calendar panel reads. |
 | 2026-09-02 | 2026-09-03 | The hub's headers overwrote BellTab's on the public URL — Biscuit-Website #52 keeps the hub's `headers()` off `/bell` and `/puzzles`, and the live curl that was owed is done: `biscuitlab.net/bell` now serves BellTab's full set — `screen-wake-lock=(self)`, `autoplay=(self)`, `no-referrer`, `nosniff`, `DENY` — while `/` keeps the hub's own and `/puzzles` carries Puzzle Lab's. Measured on the deployed site, 2026-09-03 18:35. |
 | 2026-09-02 | 2026-09-03 | A refused wake lock is now retried on the next tap or key press — the same recovery the chime uses for its autoplay lock, because the cause (battery saver) clears without any event the tab could hear. The refusal sentence says so. E2E: refuse, flip the stub to grant, click the heading, held. |
 | 2026-09-02 | 2026-09-03 | Big mode and the wake lock are connected in the UI — a one-line signpost under the Big mode button, "On a projector? Keep the screen awake", opening the preferences panel. Shown only while the lock is supported and off; gone once it is on or where it cannot work. |
@@ -4590,3 +4592,41 @@ status before asserting, the gesture listener is one shared `listenForGesture`
 for the chime and the lock, `stubClipboard` lives in helpers.ts, and the
 hub-headers row moved back to Open gaps until the live curl is done — as
 `AGENTS.md` says it should.
+
+### 2026-09-03 13:30 — the editor-UX gap batch
+
+Four rows from the open-gaps table, all small, all in the editor's neighbourhood
+and none in the files the previous batch touched.
+
+**A visible label on the schedule name.** It had been `.visually-hidden` since
+the retired build — right for assistive tech, and nothing at all for a sighted
+user looking at a big box holding "Regular". One small-caps line above it, in
+the voice the stacked editor already uses for its row labels.
+
+**Weekdays beside dated exceptions.** "Sat 2026-09-05", because a school year is
+planned around the Monday and not the 14th. Computed on the string — Sakamoto's
+method on three integers — for the reason the Decisions table records: a `Date`
+built from a date-only ISO string is UTC midnight and reports the wrong weekday
+for every user west of Greenwich. `src/lib/dates.ts`, seventeen unit tests
+including the fixtures' known weekdays and a leap day.
+
+**Arrow keys on the picker.** Roving `tabIndex` makes the chip group one tab
+stop; the arrows walk it with selection following focus, Home and End go to the
+ends, and the arrows stop there rather than wrapping. This is what an ARIA
+tablist would have brought without the rest of its contract, which the
+SettingsView's own comment declined to take on in Phase 4.
+
+**"Running today" in the delete confirmation.** The dialog said any day
+pointing at the schedule would fall back to no school; it did not say that
+TODAY was one of those days, which is the case where the countdown blanks the
+moment the dialog closes. It says so now, from the same resolver the calendar
+panel reads, and only when today actually resolves to the schedule — the
+resolver's index-0 fallback for a day with no schedule is not "today's".
+
+**Tests:** unit 401 → 418 (the weekday helper). Playwright 633 → 639 — a picker
+keyboard test and a running-today test, one each per engine — and the existing
+exception assertion now expects the weekday in front.
+
+`npm run lint`, `npm run typecheck`, `npm run build`, `npx vitest run`,
+`npx markdownlint-cli "**/*.md"` and `npx playwright test` all pass, with the
+known macOS-WebKit exception in `editor.spec.ts`.

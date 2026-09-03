@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-import { openApp, openSettings } from "./helpers";
+import { openApp, openSettings, MID_PERIOD } from "./helpers";
 
 /**
  * LIVE since Phase 4, which is where deleting a SCHEDULE came back.
@@ -180,6 +180,24 @@ test.describe("the delete confirmation", () => {
    * destructive. Asserted so a future `closedby="any"` is a deliberate change
    * rather than an accident.
    */
+  test("says so when the schedule being deleted is the one running today", async ({ page }) => {
+    // The fixture is a Wednesday inside the Regular day, and the picker opens
+    // on today's schedule - so this delete would blank the countdown the
+    // moment the dialog closed, which the generic sentence never said.
+    await openApp(page, MID_PERIOD);
+    await openSettings(page);
+
+    await page.locator("#schedule-delete").click();
+    await expect(page.locator("#confirm-body")).toContainText("running today");
+    await page.getByRole("button", { name: "Cancel" }).click();
+
+    // A schedule no day points at today gets the plain sentence.
+    await page.locator("#schedule-list .schedchip", { hasText: "Delayed start" }).click();
+    await page.locator("#schedule-delete").click();
+    await expect(page.locator("#confirm-body")).not.toContainText("running today");
+    await page.getByRole("button", { name: "Cancel" }).click();
+  });
+
   test("a backdrop click does not dismiss it", async ({ page }) => {
     await page.locator("#schedule-delete").click();
     await expect(page.locator("#confirm-dialog")).toBeVisible();

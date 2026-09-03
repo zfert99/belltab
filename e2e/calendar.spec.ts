@@ -133,7 +133,10 @@ test.describe("the calendar resolves the day", () => {
     await page.locator("#today-schedule").selectOption({ label: "Regular" });
     await expect(page.locator("#calendar-today")).toContainText("it runs Regular");
     await expect(page.locator("#weekday-map select").nth(6)).toHaveValue("");
-    await expect(page.locator("#overrides li")).toContainText("2026-09-05");
+    // With its weekday in front, since a school year is planned around "the
+    // Saturday" and not "the 5th" - computed on the string, not through a
+    // `Date` that would call it Friday evening west of Greenwich.
+    await expect(page.locator("#overrides li")).toContainText("Sat 2026-09-05");
 
     await backToCountdown(page);
     await expect(scheduleName(page)).toHaveText("Regular");
