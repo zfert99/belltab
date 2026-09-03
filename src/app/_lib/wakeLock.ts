@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState, useSyncExternalStore } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { listenForGesture } from "@/app/_lib/gesture";
 
 /**
  * The Screen Wake Lock, held while the preference asks for it.
@@ -104,6 +105,16 @@ export function useWakeLock(enabled: boolean): WakeLockStatus {
     setOutcome("waiting");
   }
 
+  /**
+   * The current effect's `acquire`, for the retry listener below to call.
+   *
+   * The listener has to live in its OWN effect - keyed on the outcome, so it is
+   * attached only while refused - and that effect cannot see a function
+   * closured inside this one. A ref is the bridge; it is cleared on cleanup so
+   * a gesture after the toggle is switched off asks for nothing.
+   */
+  const acquireRef = useRef<(() => void) | null>(null);
+
   useEffect(() => {
     if (!supported || !enabled) return;
 
@@ -113,6 +124,13 @@ export function useWakeLock(enabled: boolean): WakeLockStatus {
     // the share-fragment effect in App.tsx.
     let live = true;
     let sentinel: WakeLockSentinel | null = null;
+    // A request in flight. Without this the guard below sees `sentinel ===
+    // null` for the tens of milliseconds a real request takes over IPC, and a
+    // gesture in that window - clicking the tab to bring it forward fires
+    // `visibilitychange` AND `pointerdown` - issues a second request. Two
+    // grants land, one is stored, the other is never released. Found in
+    // review before it shipped; see Bugs found, 2026-09-03.
+    let inFlight = false;
 
     const onRelease = () => {
       // Fired by the BROWSER when the tab hides, not only by our own release().
@@ -127,20 +145,29 @@ export function useWakeLock(enabled: boolean): WakeLockStatus {
       // tab - turning the one status that means "something is wrong" into the
       // one that fires every time the user switches app.
       if (document.visibilityState !== "visible") return;
+      if (inFlight) return;
       if (sentinel !== null && !sentinel.released) return;
 
+      inFlight = true;
       navigator.wakeLock.request("screen").then(
         (granted) => {
-          if (!live) {
+          inFlight = false;
+
+          // Belt and braces for the one-sentinel invariant: if a live lock is
+          // somehow already held by the time this resolves, the newer grant is
+          // the redundant one and is let go rather than orphaning the older.
+          if (!live || (sentinel !== null && !sentinel.released)) {
             void granted.release();
             return;
           }
 
+          sentinel?.removeEventListener("release", onRelease);
           sentinel = granted;
           granted.addEventListener("release", onRelease);
           setOutcome("held");
         },
         () => {
+          inFlight = false;
           if (live) setOutcome("refused");
         },
       );
@@ -150,11 +177,13 @@ export function useWakeLock(enabled: boolean): WakeLockStatus {
       if (document.visibilityState === "visible") acquire();
     };
 
+    acquireRef.current = acquire;
     acquire();
     document.addEventListener("visibilitychange", onVisibilityChange);
 
     return () => {
       live = false;
+      acquireRef.current = null;
       document.removeEventListener("visibilitychange", onVisibilityChange);
 
       if (sentinel !== null) {
@@ -166,10 +195,51 @@ export function useWakeLock(enabled: boolean): WakeLockStatus {
     };
   }, [supported, enabled]);
 
+  /**
+   * A refusal is retried on the next touch of the page - and the listener
+   * exists only WHILE refused, which is the part that matters.
+   *
+   * The reason for a refusal - battery saver, mostly - goes away without an
+   * event: the laptop is plugged in and nothing tells the tab. Re-asking on
+   * `visibilitychange` covers the user who switches away and back; this covers
+   * the one who stays. It is the chime's autoplay recovery, through the same
+   * `listenForGesture` and with the same lifecycle: attached when there is
+   * something to retry, gone the moment there is not. Attached for the life of
+   * the preference instead, every keystroke in the editor under a permanent
+   * denial would be a rejected wake-lock IPC for an answer already known - the
+   * review found exactly that.
+   */
+  useEffect(() => {
+    if (!enabled || outcome !== "refused") return;
+    return listenForGesture(() => acquireRef.current?.());
+  }, [enabled, outcome]);
+
   if (!supported) return "unsupported";
   if (!enabled) return "off";
 
   return outcome;
+}
+
+/**
+ * Whether the Now screen should point at the wake lock.
+ *
+ * `off` is the obvious case. `refused` is the one that matters more: the box is
+ * ticked, nothing is held, and the projector is the most likely of anyone's to
+ * go dark - so the signpost stays, and the panel it opens says why. `held` and
+ * `waiting` have nothing to point at; `unsupported` has nothing to point WITH.
+ * A predicate rather than an equality in the component, so a sixth status has
+ * to be given an answer here instead of silently hiding the sign.
+ */
+export function wantsSignpost(status: WakeLockStatus): boolean {
+  switch (status) {
+    case "off":
+    case "refused":
+      return true;
+    case "unsupported":
+    case "held":
+    case "waiting":
+      return false;
+  }
 }
 
 /**
@@ -191,6 +261,6 @@ export function describeWakeLock(status: WakeLockStatus): string {
     case "waiting":
       return "The screen will be kept awake when this tab is visible.";
     case "refused":
-      return "This device refused to keep the screen awake. Battery saver is the usual reason.";
+      return "This device refused to keep the screen awake. Battery saver is the usual reason; once that changes, a tap or a key press asks again.";
   }
 }

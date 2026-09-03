@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-import { openApp, openSettings, MID_PERIOD, STORAGE_KEY } from "./helpers";
+import { openApp, openSettings, stubClipboard, MID_PERIOD, STORAGE_KEY } from "./helpers";
 
 /**
  * Sharing, end to end: a link out, a link in, and a file both ways.
@@ -25,6 +25,27 @@ async function copyShareLink(page: Page): Promise<string> {
   expect(url).toContain("#");
   return url;
 }
+
+test.describe("when the clipboard is refused", () => {
+  test("says so, and still shows the link to copy by hand", async ({ page }) => {
+    // The branch that rendered on some engines and was asserted on none - the
+    // Clipboard API is refused by permissions policy, by a non-secure context,
+    // and by browsers that simply say no - so it is stubbed to refuse here, at
+    // the boundary, the way the wake lock and the bells are.
+    await stubClipboard(page, "refuse");
+    await openApp(page, MID_PERIOD);
+    await openSettings(page, "schedules");
+
+    await page.locator("#schedule-share").click();
+
+    await expect(page.locator("#share-link-status")).toHaveText(
+      "This browser would not let BellTab reach the clipboard. Copy the link by hand:",
+    );
+    // And the link is there to be copied - the read-only input is the one
+    // control that reliably supports select-all on every platform.
+    expect(await page.locator("#share-link-url").inputValue()).toContain("#1.");
+  });
+});
 
 test.describe("a link out and a link in", () => {
   test("a copied link opens on a schedule the other person can add", async ({ page, context }) => {
