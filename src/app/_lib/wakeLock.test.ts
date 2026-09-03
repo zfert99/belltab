@@ -52,6 +52,13 @@ describe("describeWakeLock", () => {
     expect(describeWakeLock("refused")).toContain("Battery saver");
   });
 
+  it("tells a refused user what will make it try again", () => {
+    // The refusal's cause clears without an event, and the retry is on the
+    // next touch - a sentence that named the cause without the remedy would
+    // leave the one user it exists for pressing a box that already looks on.
+    expect(describeWakeLock("refused")).toMatch(/tap|key/i);
+  });
+
   it("does not call an ordinary hidden tab a failure", () => {
     // `waiting` is the status a backgrounded tab sits in for hours at a time,
     // and it is entirely correct. Wording it as a problem would train users to

@@ -438,8 +438,37 @@ body {
 
 .viewswitch {
   display: flex;
-  justify-content: center;
+  flex-direction: column;
+  align-items: center;
   gap: var(--s-2);
+}
+
+/* The one-line pointer from Big mode to the wake lock. A sentence with a
+   button in it rather than a second pill: it is advice, not a control of
+   equal weight, and two pills side by side would read as a two-state switch -
+   which is exactly what Big mode was built not to be. */
+.viewswitch__hint {
+  margin: 0;
+  font-size: 0.875rem;
+  color: var(--fg-soft);
+  text-align: center;
+}
+
+.linkbutton {
+  min-height: 44px;
+  padding: 0 var(--s-1);
+  font: inherit;
+  font-weight: 600;
+  color: var(--grape);
+  background: none;
+  border: none;
+  text-decoration: underline;
+  text-underline-offset: 0.15em;
+  cursor: pointer;
+}
+
+.linkbutton:hover {
+  color: var(--grape-dark);
 }
 
 .viewswitch__btn {

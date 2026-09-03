@@ -150,12 +150,28 @@ export function useWakeLock(enabled: boolean): WakeLockStatus {
       if (document.visibilityState === "visible") acquire();
     };
 
+    /**
+     * A refusal is retried on the next touch of the page.
+     *
+     * The reason for a refusal - battery saver, mostly - goes away without an
+     * event: the laptop is plugged in and nothing tells the tab. Re-asking on
+     * `visibilitychange` covers the user who switches away and back, and this
+     * covers the one who stays: a tap or a keypress while refused asks again,
+     * which is the same recovery the chime uses for its autoplay lock. Cheap
+     * on a granted lock, because `acquire` returns early while one is held.
+     */
+    const onInteraction = () => acquire();
+
     acquire();
     document.addEventListener("visibilitychange", onVisibilityChange);
+    window.addEventListener("pointerdown", onInteraction);
+    window.addEventListener("keydown", onInteraction);
 
     return () => {
       live = false;
       document.removeEventListener("visibilitychange", onVisibilityChange);
+      window.removeEventListener("pointerdown", onInteraction);
+      window.removeEventListener("keydown", onInteraction);
 
       if (sentinel !== null) {
         sentinel.removeEventListener("release", onRelease);
@@ -191,6 +207,6 @@ export function describeWakeLock(status: WakeLockStatus): string {
     case "waiting":
       return "The screen will be kept awake when this tab is visible.";
     case "refused":
-      return "This device refused to keep the screen awake. Battery saver is the usual reason.";
+      return "This device refused to keep the screen awake. Battery saver is the usual reason; once that changes, a tap or a key press asks again.";
   }
 }

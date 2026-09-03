@@ -363,6 +363,28 @@ export function App() {
               >
                 Big mode
               </button>
+              {/*
+                The signpost between the two features built for the same room.
+                Big mode scales the countdown for a projector; the wake lock
+                keeps the projector from going dark mid-period; and until this
+                line nothing connected them - a user who found one was given no
+                hint the other was three taps away in Preferences. Shown only
+                while the lock is supported and OFF: once it is on, or where it
+                cannot work, there is nothing to point at.
+              */}
+              {wakeLockStatus === "off" && (
+                <p className="viewswitch__hint">
+                  On a projector?{" "}
+                  <button
+                    type="button"
+                    className="linkbutton"
+                    id="wake-lock-hint"
+                    onClick={() => openSettingsFrom("preferences")}
+                  >
+                    Keep the screen awake
+                  </button>
+                </p>
+              )}
             </div>
           )}
         </>

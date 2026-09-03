@@ -33,6 +33,8 @@ interface WakeLockProbe {
   drop(): void;
   /** Sets `document.visibilityState` and fires `visibilitychange`. */
   setVisibility(next: "visible" | "hidden"): void;
+  /** Flips what the next `request()` does - the battery saver switching off. */
+  setMode(next: "grant" | "refuse"): void;
 }
 
 const probe = (page: Page) =>
@@ -43,6 +45,11 @@ const probe = (page: Page) =>
     setVisibility: (next: "visible" | "hidden") =>
       page.evaluate(
         (value) => (window as never as { __wakeLock: WakeLockProbe }).__wakeLock.setVisibility(value),
+        next,
+      ),
+    setMode: (next: "grant" | "refuse") =>
+      page.evaluate(
+        (value) => (window as never as { __wakeLock: WakeLockProbe }).__wakeLock.setMode(value),
         next,
       ),
   });
@@ -65,8 +72,12 @@ async function stubWakeLock(page: Page, mode: "grant" | "refuse"): Promise<void>
       requests: [] as string[],
       releases: 0,
       last: null as { release(): Promise<void> } | null,
+      granting,
       drop() {
         void state.last?.release();
+      },
+      setMode(next: string) {
+        state.granting = next === "grant";
       },
       setVisibility(next: string) {
         visibility = next;
@@ -114,7 +125,7 @@ async function stubWakeLock(page: Page, mode: "grant" | "refuse"): Promise<void>
       value: {
         request(type: string) {
           state.requests.push(type);
-          return granting
+          return state.granting
             ? Promise.resolve(makeSentinel())
             : Promise.reject(new DOMException("denied", "NotAllowedError"));
         },
@@ -230,8 +241,26 @@ test.describe("the wake lock toggle", () => {
     // but nothing on screen claims the lock was granted.
     await expect(toggle(page)).toBeChecked();
     await expect(readout(page)).toHaveText(
-      "This device refused to keep the screen awake. Battery saver is the usual reason.",
+      "This device refused to keep the screen awake. Battery saver is the usual reason; once that changes, a tap or a key press asks again.",
     );
+  });
+
+  test("a refusal is retried on the next touch of the page", async ({ page }) => {
+    await stubWakeLock(page, "refuse");
+    await openApp(page, MID_PERIOD);
+    await openSettings(page, "preferences");
+
+    await toggle(page).check();
+    await expect(readout(page)).toHaveText(/refused/);
+    expect(await probe(page).requests()).toEqual(["screen"]);
+
+    // The battery saver goes off. Nothing tells the tab - there is no event
+    // for it - so the honest recovery is the next thing the user does.
+    await probe(page).setMode("grant");
+    await page.locator("h1").click();
+
+    await expect(readout(page)).toHaveText("The screen is being kept awake.");
+    expect(await probe(page).requests()).toEqual(["screen", "screen"]);
   });
 
   test("announces only the refusal, and not the ordinary hidden tab", async ({ page }) => {
@@ -273,6 +302,40 @@ test.describe("the wake lock toggle", () => {
     // the app's whole job, and an absent API must not take it down.
     await page.locator("#settings-toggle").click();
     await expect(page.locator("#countdown-minutes")).toHaveText("35");
+  });
+});
+
+test.describe("the signpost from Big mode", () => {
+  const hint = (page: Page) => page.locator("#wake-lock-hint");
+
+  test("points at the wake lock while it is off, and opens the panel", async ({ page }) => {
+    await stubWakeLock(page, "grant");
+    await openApp(page, MID_PERIOD, { preferences: null });
+
+    // Beside the Big mode button, because the two features exist for the
+    // same room: one makes the countdown readable from the back, the other
+    // stops the projector going dark mid-period.
+    await expect(hint(page)).toBeVisible();
+    await hint(page).click();
+
+    await expect(page.locator("#panel-preferences")).toBeVisible();
+    await expect(toggle(page)).not.toBeChecked();
+  });
+
+  test("goes away once the lock is on, and where it cannot work", async ({ page }) => {
+    await stubWakeLock(page, "grant");
+    await openApp(page, MID_PERIOD, { preferences: storedPreferences(true) });
+    await expect(hint(page)).toHaveCount(0);
+    await expect(page.locator("#view-big")).toBeVisible();
+  });
+
+  test("is absent on an engine without the API", async ({ page }) => {
+    await page.addInitScript(() => {
+      Reflect.deleteProperty(Navigator.prototype, "wakeLock");
+      Reflect.deleteProperty(navigator, "wakeLock");
+    });
+    await openApp(page, MID_PERIOD);
+    await expect(hint(page)).toHaveCount(0);
   });
 });
 
