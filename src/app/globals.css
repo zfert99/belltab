@@ -286,12 +286,37 @@ body {
   font-size: 1.5rem;
   font-weight: 600;
   line-height: 1.2;
-  /* The design system's one permitted motion at a bell: a single 150ms
-     crossfade of the period name. NowView keys the element on the boundary,
-     so a period change remounts it and the animation runs exactly then - and
-     never on the per-second repaint, which touches other elements. Both
-     reduced-motion paths above collapse it to nothing. */
+}
+
+/* The design system's one permitted motion at a bell: a single 150ms crossfade
+   of the period name. NowView keys the element on the boundary, so a period
+   change remounts it, and adds this modifier only once a boundary has been
+   SEEN - so the animation runs exactly at a bell, never on first paint and
+   never on the per-second repaint. Both reduced-motion paths above collapse it
+   to nothing. Starting at opacity 0 on first paint was a real defect: under a
+   paused test clock WebKit never advanced past frame one. */
+.countdown__period--swap {
   animation: period-swap 150ms ease-out;
+}
+
+/* Every element below renders a PERIOD NAME or the SCHEDULE's name, which is
+   untrusted user input and may be one unbroken 60-character word.
+
+   `overflow-wrap: break-word` on <body> is not enough, and the difference is
+   the whole bug: break-word lets a long word wrap, but it does NOT reduce the
+   element's min-content contribution. That intrinsic width keeps propagating
+   up through <main> and into the card, which scrolled the page sideways.
+   `anywhere` is the one value that shrinks min-content too, which is what an
+   intrinsically-sized ancestor actually reads.
+
+   Found by the reflow gate on its first CI run - and found AGAIN on 2026-09-03
+   when this rule, which had lived in the Day view's section, was deleted with
+   it. The schedule's name is in the header, a flex item whose min-content
+   width the row would otherwise grow to fit, pushing the wall clock off the
+   card. See Docs/build-log.md. */
+.countdown__period,
+#schedule-name {
+  overflow-wrap: anywhere;
 }
 
 @keyframes period-swap {
@@ -526,337 +551,8 @@ body {
   box-shadow: 0 0 0 0 var(--fg);
 }
 
-/* Grape marks navigation, per the design system. The label still says which
-   view is which - the color is not carrying the state on its own, and
-   aria-pressed carries it for assistive tech. */
-.viewswitch__btn[aria-pressed="true"] {
-  color: var(--bg);
-  background: var(--grape);
-}
-
 /* ============================================================
-   10. DAY VIEW - SUMMARY
-   ============================================================ */
-
-.day__summary {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: var(--s-2) var(--s-4);
-}
-
-.day__label {
-  font-family: var(--font-display);
-  font-size: 1.5rem;
-  font-weight: 600;
-  line-height: 1.2;
-  margin: 0;
-}
-
-.day__remaining {
-  display: flex;
-  align-items: baseline;
-  /* Wraps rather than forcing a horizontal scroll: value, units and label are
-     three strings on one line, and the reflow floor is 320 CSS px. */
-  flex-wrap: wrap;
-  gap: var(--s-2);
-}
-
-.day__remaining-value {
-  font-family: var(--font-display);
-  font-size: 1.5rem;
-  font-weight: 600;
-  line-height: 1;
-  font-variant-numeric: tabular-nums;
-}
-
-/* Names the units of the number beside it, matching .countdown__units in the
-   Now view so the same job looks the same in both places. */
-.day__remaining-units {
-  font-family: var(--font-mono);
-  font-size: 0.6875rem;
-  letter-spacing: 0.08em;
-  color: var(--fg-soft);
-  text-transform: lowercase;
-}
-
-.day__remaining-label {
-  font-family: var(--font-mono);
-  font-size: 0.875rem;
-  color: var(--fg-soft);
-}
-
-/* ============================================================
-   11. DAY VIEW - PERIOD ROWS
-   ============================================================ */
-
-.periods {
-  /* An <ol> for the semantics, but the numbers are the clock times, not 1..11. */
-  list-style: none;
-  margin: 0;
-  padding: 0;
-}
-
-.period {
-  padding: var(--s-3) 0;
-  border-top: var(--border-passive);
-}
-
-.period:last-child {
-  border-bottom: var(--border-passive);
-}
-
-.period__row {
-  display: grid;
-  grid-template-columns: 4.5rem 1fr auto;
-  align-items: baseline;
-  gap: var(--s-2) var(--s-4);
-}
-
-.period__time {
-  font-family: var(--font-mono);
-  font-size: 0.875rem;
-  color: var(--fg-soft);
-  font-variant-numeric: tabular-nums;
-}
-
-/* Every element below renders a PERIOD NAME, which is untrusted user input and
-   may be one unbroken 60-character word.
-
-   `overflow-wrap: break-word` on <body> is not enough, and the difference is
-   the whole bug: break-word lets a long word wrap, but it does NOT reduce the
-   element's min-content contribution. That intrinsic width keeps propagating up
-   - here through the 1fr column of .period__row, through <main>, and into the
-   body grid track, which sized itself to 811px inside a 768px viewport and
-   scrolled the page sideways. `anywhere` is the one value that shrinks
-   min-content too, which is what an intrinsically-sized ancestor actually reads.
-
-   Found by the reflow gate on its first CI run, in the before-school state.
-   See Docs/build-log.md. */
-.period__name,
-.countdown__period,
-/* Phase 3 added the third one. The schedule's own name is user input too, and
-   it lands in the header rather than in the countdown - where it is a flex item
-   whose min-content width the row happily grows to fit, pushing the wall clock
-   off the right edge and scrolling the page. Found by the reflow gate the first
-   time the gate was pointed at it; the gap predicting exactly this had been
-   open since 2026-08-26. */
-#schedule-name,
-/* Phase 4 adds three more surfaces that render a SCHEDULE name: the picker
-   chip, the schedule column of a dated exception, and the sentence saying what
-   today resolves to. Same input, same 60 characters, same rule. */
-.schedchip,
-.override__schedule,
-#calendar-today {
-  overflow-wrap: anywhere;
-}
-
-.period__name {
-  font-size: 1rem;
-}
-
-.period__aside {
-  font-family: var(--font-mono);
-  font-size: 0.875rem;
-  color: var(--fg-soft);
-  font-variant-numeric: tabular-nums;
-  text-align: right;
-}
-
-/* Already over. Dimmed, but never below the 4.5:1 contrast floor - past periods
-   are still information, not decoration, so opacity stays mild. */
-.period--past .period__time,
-.period--past .period__name,
-.period--past .period__aside {
-  opacity: 0.55;
-}
-
-/* Now. Marked four ways - weight, size, the butterscotch time, and a visible
-   progress track - because the design system forbids encoding state by color
-   alone. JS also sets aria-current on this row. */
-.period--current .period__time {
-  color: var(--accent);
-  font-weight: 700;
-}
-
-.period--current .period__name {
-  font-size: 1.125rem;
-  font-weight: 600;
-}
-
-.period--current .period__aside {
-  font-size: 1.125rem;
-  font-weight: 700;
-  color: var(--fg);
-}
-
-/* The per-row track exists in every cloned row but only the current one shows
-   it, so rows do not change height as the day moves through them. */
-.period__track {
-  display: none;
-  height: 6px;
-  margin-top: var(--s-2);
-  background: var(--bg);
-  border: var(--border-passive);
-  border-radius: 999px;
-  overflow: hidden;
-}
-
-.period--current .period__track {
-  display: block;
-}
-
-.period__fill {
-  height: 100%;
-  width: 0%;
-  background: var(--accent);
-  transition: width 300ms linear;
-}
-
-/* At 320px the fixed time column plus a long period name forces a horizontal
-   scrollbar, so the row stacks: time and duration share a line, name below. */
-@media (max-width: 30rem) {
-  .period__row {
-    grid-template-columns: auto 1fr;
-    grid-template-areas:
-      "time aside"
-      "name name";
-  }
-
-  .period__time {
-    grid-area: time;
-  }
-
-  .period__name {
-    grid-area: name;
-  }
-
-  .period__aside {
-    grid-area: aside;
-  }
-}
-
-/* ============================================================
-   12. THE PERIOD STRIP
-
-   Equal-width squares for the day's real blocks, thin connectors for passing
-   periods. Equal squares deliberately misrepresent duration: a 5-minute
-   passing and a 55-minute class are not the same size in reality, but the
-   strip is answering "how many left", not "how long left" - the big number
-   above it already answers that. Proportional cells would be an accurate
-   timeline in which every passing period is an unreadable sliver.
-   ============================================================ */
-
-.strip {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  /* A gap rather than letting connectors do the spacing: two blocks can sit
-     back to back with no passing between them (Period 3 into A Lunch), and
-     without this they would fuse into one long rectangle. */
-  gap: var(--s-1);
-}
-
-.strip__cell {
-  /* Every cell clips its own fill, so one border-radius covers both. */
-  overflow: hidden;
-  background: var(--bg);
-}
-
-.strip__fill {
-  display: block;
-  width: 0%;
-  height: 100%;
-  background: var(--fg-soft);
-  transition: width 300ms linear;
-}
-
-/* --- Squares: the day's countable units --- */
-
-.strip__cell--block {
-  /* Shrinks to fit on a narrow screen, caps out so it does not become a slab
-     on a projector. aspect-ratio keeps it square at every size in between. */
-  flex: 1 1 0;
-  min-width: 18px;
-  max-width: 56px;
-  aspect-ratio: 1;
-  border: var(--border-passive);
-  border-radius: var(--r-sm);
-}
-
-/* --- Connectors: the seams between them --- */
-
-.strip__cell--link {
-  flex: 0 1 28px;
-  min-width: 8px;
-  height: 4px;
-  border-radius: 999px;
-}
-
-/* --- State ---
-   Past cells fill muted; the current cell fills butterscotch, because
-   butterscotch marks *now*. The strip is aria-hidden, so it is not carrying
-   this state alone - the caption states it in words and the Day view lists it. */
-
-.strip__cell--past .strip__fill {
-  background: var(--fg-soft);
-}
-
-.strip__cell--current {
-  border-color: var(--fg);
-}
-
-.strip__cell--current .strip__fill {
-  background: var(--accent);
-}
-
-/* Hovering a cell swaps the caption below to that period's name and times.
-   Mouse-only by design: the cells are aria-hidden and not focusable, so this
-   is an extra for pointer users, and the Day view is where the same labels
-   live for everyone else. */
-.strip__cell--block:hover {
-  border-color: var(--fg);
-}
-
-/* ============================================================
-   13. DISCLOSURE (collapsed past periods)
-   ============================================================ */
-
-.disclosure {
-  display: flex;
-  align-items: center;
-  gap: var(--s-2);
-  min-height: 44px;
-  padding: 0;
-  font-family: var(--font-body);
-  font-size: 0.875rem;
-  font-weight: 500;
-  color: var(--fg-soft);
-  text-align: left;
-  background: none;
-  border: 0;
-  cursor: pointer;
-}
-
-.disclosure:hover {
-  color: var(--fg);
-}
-
-/* The marker span is empty in the HTML on purpose - it is decoration, and
-   decoration belongs in the stylesheet rather than the document. */
-.disclosure__marker::before {
-  content: "\25B8";
-  display: inline-block;
-  transition: transform 150ms ease-out;
-}
-
-.disclosure[aria-expanded="true"] .disclosure__marker::before {
-  transform: rotate(90deg);
-}
-
-/* ============================================================
-   14. BIG MODE (the projector)
+   10. BIG MODE (the projector)
 
    Not a separate view - a presentation mode laid over the Now view, so both
    paint from the same code and cannot drift apart. Everything here is either
@@ -901,8 +597,8 @@ body.is-big {
    never been rebuilt. Hiding the only line that says "Next: Passing at 10:05"
    in favour of an element that is not on the page is the kind of decision that
    survives a port because nobody re-reads the reason. Scaled up instead, two
-   rules down. The `.is-big .strip*` rules below were already inert for the
-   same reason and are left rather than swept up; see Open gaps. */
+   rules down. The strip's own rules, and this mode's scaling of them, were
+   deleted on 2026-09-03 with the rest of the retired Day view's residue. */
 .is-big .screen__schedule,
 .is-big .icon-button,
 .is-big .viewswitch {
@@ -946,20 +642,6 @@ body.is-big {
   font-size: clamp(0.875rem, 1.8vw, 1.5rem);
 }
 
-.is-big .strip {
-  gap: var(--s-2);
-}
-
-.is-big .strip__cell--block {
-  max-width: 96px;
-  border-width: 2px;
-}
-
-.is-big .strip__cell--link {
-  flex-basis: 48px;
-  height: 6px;
-}
-
 /* Quiet, not invisible. An opacity fade would have taken the label below the
    contrast floor while it was still the only way out of the mode, so this
    dims with a token that still passes and gains a surface on interaction. */
@@ -989,19 +671,13 @@ body.is-big {
 }
 
 /* ============================================================
-   15. SETTINGS
+   11. SETTINGS
    ============================================================ */
 
 .settings {
   display: flex;
   flex-direction: column;
   gap: var(--s-6);
-}
-
-/* The live views and the view switcher step aside while settings is open -
-   there is nothing to switch between when no clock is on screen. */
-body.is-settings .viewswitch {
-  display: none;
 }
 
 .settings__layout {
@@ -1177,7 +853,7 @@ body.is-settings .viewswitch {
 }
 
 /* ============================================================
-   16. THE SCHEDULE EDITOR
+   12. THE SCHEDULE EDITOR
    ============================================================ */
 
 /* Present to assistive tech, absent from the page. clip-path plus a 1px box is
@@ -1285,6 +961,17 @@ body.is-settings .viewswitch {
   border: var(--border-passive);
   border-radius: var(--r-md);
   cursor: pointer;
+}
+
+/* Three more surfaces render a SCHEDULE name: the picker chip, the schedule
+   column of a dated exception, and the sentence saying what today resolves
+   to. Same input, same 60 characters, same rule. (Lived in the Day view's
+   section until 2026-09-03, which is how the reflow gate found it missing the
+   moment that section was deleted - the gate doing exactly its job.) */
+.schedchip,
+.override__schedule,
+#calendar-today {
+  overflow-wrap: anywhere;
 }
 
 .schedchip:hover {
@@ -1619,7 +1306,7 @@ body.is-settings .viewswitch {
 }
 
 /* ============================================================
-   17. THE CALENDAR
+   13. THE CALENDAR
    ============================================================ */
 
 .calsection {
@@ -1802,7 +1489,7 @@ body.is-settings .viewswitch {
 }
 
 /* ============================================================
-   18. ICONS AND THE CONFIRM DIALOG
+   14. ICONS AND THE CONFIRM DIALOG
    ============================================================ */
 
 /* Inline SVG rather than glyphs: ⚙ and × render at wildly different weights
@@ -1859,7 +1546,7 @@ body.is-settings .viewswitch {
 }
 
 /* ============================================================
-   19. SHARING
+   15. SHARING
    ============================================================ */
 
 /* The banner offering a schedule somebody sent. Above everything, on whichever
@@ -1939,7 +1626,7 @@ body.is-settings .viewswitch {
 }
 
 /* ============================================================
-   20. PREFERENCES
+   16. PREFERENCES
    The device's own settings. `.field`, `.field__legend`, `.field__hint`,
    `.field__options` and `.option` live with the other form styles above - they
    came over from the retired build for this panel and were inert until Phase 6
@@ -1996,7 +1683,7 @@ body.is-settings .viewswitch {
 }
 
 /* ============================================================
-   21. INVALID FIELDS - last in the file, deliberately
+   17. INVALID FIELDS - last in the file, deliberately
    ============================================================ */
 
 /* This rule has to come after EVERY rule that sets a `border` shorthand on a

@@ -4,14 +4,13 @@ import {
   formatDuration,
   formatRemaining,
   splitCountdown,
-  formatDayCaption,
   formatPeriodLabel,
   formatTabTitle,
   announcementFor,
   boundaryKey,
   type ClockOptions,
 } from "./format";
-import type { DayState, DaySummary } from "./engine";
+import type { DayState } from "./engine";
 import { DEFAULT_SCHEDULES, type Period } from "./schedule";
 
 const regular = DEFAULT_SCHEDULES[0];
@@ -131,47 +130,6 @@ describe("splitCountdown", () => {
 
   it("floors fractional seconds", () => {
     expect(splitCountdown(59.9)).toEqual({ major: "0", minor: "59", unit: "min : sec" });
-  });
-});
-
-describe("formatDayCaption", () => {
-  const position = { index: 3, total: 7 };
-  const day = (phase: DaySummary["phase"], remainingSec: number, progress: number): DaySummary => ({
-    phase,
-    remainingSec,
-    progress,
-  });
-
-  it("counts toward the first bell before school", () => {
-    expect(formatDayCaption(day("before", 3600, 0), position)).toBe(
-      "3 of 7 · 1h 00m until first bell",
-    );
-  });
-
-  it("counts toward dismissal during the day", () => {
-    expect(formatDayCaption(day("during", 3 * 3600 + 38 * 60, 0.4), position)).toBe(
-      "3 of 7 · 3h 38m until dismissal",
-    );
-  });
-
-  // The regression this caption was written to prevent: one minute and one hour
-  // both rendered as "1:00" while the caption carried no unit, which is the
-  // whole reason splitCountdown returns one. They have to differ here.
-  it("distinguishes an hour from a minute", () => {
-    expect(formatDayCaption(day("before", 60, 0), position)).toBe(
-      "3 of 7 · 1m 00s until first bell",
-    );
-    expect(formatDayCaption(day("before", 3600, 0), position)).not.toBe(
-      formatDayCaption(day("before", 60, 0), position),
-    );
-  });
-
-  it("stops counting once the day is done", () => {
-    expect(formatDayCaption(day("after", 0, 1), position)).toBe("7 of 7 · done for today");
-  });
-
-  it("says so when there is no schedule", () => {
-    expect(formatDayCaption(day("empty", 0, 0), { index: 0, total: 0 })).toBe("No schedule");
   });
 });
 

@@ -213,25 +213,29 @@ test.describe("the period-change crossfade", () => {
     await openApp(page, MID_PERIOD);
 
     // The design system permits one motion at a bell: a 150ms fade of the
-    // period name. It is declared on the element and keyed to the boundary,
-    // so a tick - which repaints the digits - does not touch it.
+    // period name. NOT on first paint - a user opening the tab mid-period gets
+    // the name plain, and the announcer's "silent on first paint" rule applies
+    // to motion too. (Also measured: starting at opacity 0 on first mount left
+    // WebKit's period name at no contrast under a paused clock.)
     const animation = () =>
       page.locator("#period-name").evaluate((element) => {
         const style = getComputedStyle(element);
         return `${style.animationName} ${style.animationDuration}`;
       });
+    expect(await animation()).toBe("none 0s");
+
+    // Across a bell the element is remounted with the fade, which is what
+    // restarts it; the digits, repainted every tick, never animate.
+    const before = await page.locator("#period-name").evaluate((element) => element.dataset.t ??= String(Math.random()));
+    await returnToTab(page, "2026-09-02T10:06:00-04:00", "visibilitychange");
+    await expect(page.locator("#period-name")).toHaveText("Passing");
+    const after = await page.locator("#period-name").evaluate((element) => element.dataset.t ?? "fresh");
+    expect(after).not.toBe(before);
     expect(await animation()).toBe("period-swap 0.15s");
     expect(
       await page
         .locator("#countdown-minutes")
         .evaluate((element) => getComputedStyle(element).animationName),
     ).toBe("none");
-
-    // Across a bell the element is remounted, which is what restarts the fade.
-    const before = await page.locator("#period-name").evaluate((element) => element.dataset.t ??= String(Math.random()));
-    await returnToTab(page, "2026-09-02T10:06:00-04:00", "visibilitychange");
-    await expect(page.locator("#period-name")).toHaveText("Passing");
-    const after = await page.locator("#period-name").evaluate((element) => element.dataset.t ?? "fresh");
-    expect(after).not.toBe(before);
   });
 });

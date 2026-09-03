@@ -21,15 +21,17 @@ const hm = (hours: number, minutes: number): number => hours * 60 + minutes;
 /**
  * What a period *is*, as opposed to what it is called.
  *
- * The block counter needs to know which blocks are the day's real units and
- * which are the seams between them, and it cannot learn that from the label -
- * a school might call passing "Transition", or name a class "Passing Period
- * Prep". `kind` is the schedule's own answer, set by whoever authored it.
+ * Descriptive, and nothing more: a category the schedule's author gives each
+ * block, shown in the editor and carried in share links and backups. The
+ * engine no longer reads it. It once did - the retired Day view's "3 of 7"
+ * counter skipped Passing periods as the seams between blocks - and that
+ * counter was deleted on 2026-09-03 along with the rest of that view's
+ * residue, so "is this Passing?" is a question nothing asks any more. If a
+ * strip or a counter is ever rebuilt, this is where the semantic would return.
  *
  * **Free text since 2026-09-03**, with these as suggestions rather than the
  * whole menu. A closed list of three could not say "Planning", "Advisory" or
- * whatever a building calls its own blocks, and the only thing the engine ever
- * asks of a kind is "is this Passing?" - so the list is a datalist, the
+ * whatever a building calls its own blocks - so the list is a datalist, the
  * canonical spelling of each built-in is what the parser normalises legacy
  * lowercase values to, and anything else a user types is kept as typed.
  */

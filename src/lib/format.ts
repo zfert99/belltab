@@ -1,4 +1,4 @@
-import type { BlockPosition, DayState, DaySummary } from "./engine";
+import type { DayState } from "./engine";
 import type { MinuteOfDay, Period } from "./schedule";
 
 /**
@@ -94,25 +94,6 @@ export function splitCountdown(totalSeconds: number): CountdownParts {
   };
 }
 
-/**
- * The line under the strip: "3 of 7 - 3h 38m until dismissal".
- *
- * Built from formatRemaining, not from splitCountdown's bare numbers, because
- * this caption has nothing beside it to say which scale it is on. The retired
- * plain build carried the unit in a separate `#day-remaining-units` element
- * next to the number; that markup is gone, and a bare "1:00" here is one minute
- * and one hour at once - see Docs/code-review-2026-08-27.md, finding 1.
- *
- * Declared after formatRemaining in this file but hoisted, so the ordering is
- * reading order rather than a dependency.
- */
-export function formatDayCaption(day: DaySummary, position: BlockPosition): string {
-  if (day.phase === "empty") return "No schedule";
-  if (day.phase === "after") return `${position.total} of ${position.total} · done for today`;
-
-  const target = day.phase === "before" ? "until first bell" : "until dismissal";
-  return `${position.index} of ${position.total} · ${formatRemaining(day.remainingSec)} ${target}`;
-}
 
 /** One period, spelled out: "Period 3 - 10:10 to 11:05". */
 export function formatPeriodLabel(period: Period, options?: ClockOptions): string {

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { stateAt, daySummaryAt, periodStatusAt, blockPositionAt } from "./engine";
+import { stateAt, periodStatusAt } from "./engine";
 import { parseSchedule } from "./parse";
 import { DEFAULT_SCHEDULES, type ValidSchedule } from "./schedule";
 
@@ -129,29 +129,6 @@ describe("stateAt", () => {
   });
 });
 
-describe("daySummaryAt", () => {
-  it("spans first bell to last bell", () => {
-    expect(daySummaryAt(regular, at(8, 0)).remainingSec).toBe(390 * 60);
-    expect(daySummaryAt(regular, at(11, 15)).progress).toBeCloseTo(0.5);
-  });
-
-  it("counts the whole day, holes included", () => {
-    const day = daySummaryAt(GAPPY, at(9, 30));
-    expect(day.phase).toBe("during");
-    expect(day.remainingSec).toBe(5400);
-    expect(day.progress).toBeCloseTo(0.5);
-  });
-
-  it("is before school at midnight and after it at the last bell", () => {
-    expect(daySummaryAt(regular, at(0, 0)).phase).toBe("before");
-    expect(daySummaryAt(regular, at(14, 30)).phase).toBe("after");
-  });
-
-  it("handles an empty schedule", () => {
-    expect(daySummaryAt(EMPTY, at(10, 0)).phase).toBe("empty");
-  });
-});
-
 describe("periodStatusAt", () => {
   const period2 = regular.periods[2]; // 9:05 - 10:05
 
@@ -179,28 +156,3 @@ describe("periodStatusAt", () => {
   });
 });
 
-describe("blockPositionAt", () => {
-  it("excludes passing periods from the count", () => {
-    expect(blockPositionAt(regular, at(10, 0)).total).toBe(7);
-  });
-
-  it("counts blocks that have started, not blocks finished", () => {
-    expect(blockPositionAt(regular, at(7, 0)).index).toBe(0);
-    expect(blockPositionAt(regular, at(8, 0)).index).toBe(1);
-    expect(blockPositionAt(regular, at(9, 5)).index).toBe(2);
-  });
-
-  // Mid-passing the number holds at the block just finished rather than
-  // jumping ahead to one that has not begun.
-  it("holds steady while in a passing period", () => {
-    expect(blockPositionAt(regular, at(8, 57)).index).toBe(1);
-  });
-
-  it("counts lunch as a block", () => {
-    expect(blockPositionAt(regular, at(11, 5)).index).toBe(4);
-  });
-
-  it("reaches the total after the last bell", () => {
-    expect(blockPositionAt(regular, at(14, 30))).toEqual({ index: 7, total: 7 });
-  });
-});
