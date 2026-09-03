@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { describeWakeLock, type WakeLockStatus } from "./wakeLock";
+import { describeWakeLock, wantsSignpost, type WakeLockStatus } from "./wakeLock";
 
 /**
  * The wake lock's wording.
@@ -56,7 +56,7 @@ describe("describeWakeLock", () => {
     // The refusal's cause clears without an event, and the retry is on the
     // next touch - a sentence that named the cause without the remedy would
     // leave the one user it exists for pressing a box that already looks on.
-    expect(describeWakeLock("refused")).toMatch(/tap|key/i);
+    expect(describeWakeLock("refused")).toContain("asks again");
   });
 
   it("does not call an ordinary hidden tab a failure", () => {
@@ -67,5 +67,24 @@ describe("describeWakeLock", () => {
 
     expect(waiting).not.toMatch(/refus|cannot|fail|error/i);
     expect(waiting).toContain("visible");
+  });
+});
+
+describe("wantsSignpost", () => {
+  it("points at the lock when it is off, and when it was refused", () => {
+    // Refused is the case that matters: the box is ticked, nothing is held,
+    // and that projector is the likeliest of anyone's to go dark.
+    expect(wantsSignpost("off")).toBe(true);
+    expect(wantsSignpost("refused")).toBe(true);
+  });
+
+  it("has nothing to point at once held or waiting, and nothing to point with unsupported", () => {
+    expect(wantsSignpost("held")).toBe(false);
+    expect(wantsSignpost("waiting")).toBe(false);
+    expect(wantsSignpost("unsupported")).toBe(false);
+  });
+
+  it("answers for every status there is", () => {
+    for (const status of ALL_STATUSES) expect(typeof wantsSignpost(status)).toBe("boolean");
   });
 });

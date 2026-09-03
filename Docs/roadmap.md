@@ -116,6 +116,7 @@ An older note, kept for the same reason:
 the clock reader, the day resolver, the editor's draft model, the storage
 boundary, the library mutators, the share codec, the preferences boundary and
 the wake lock's and the bells' wording, plus **615 Playwright tests across
+the wake lock's and the bells' wording, plus **633 Playwright tests across
 three engines** —
 Chrome, WebKit and Firefox — **none of them parked**, which is true for the first
 time in the project. The last parked block was Big mode's, and Phase 6 built it.
@@ -419,8 +420,9 @@ What is still owed is the literal gate: a real messaging app, which may wrap,
 truncate or link-ify a 284-character URL in ways no unit test can see. Carried
 forward as an open gap.
 
-Carried forward as open gaps rather than done: the clipboard-refused branch
-renders but is never asserted, and an import cannot be undone.
+Carried forward as open gaps rather than done: an import cannot be undone. (The
+clipboard-refused branch, carried here until 2026-09-03, is now asserted —
+`stubClipboard` in `e2e/helpers.ts`.)
 
 ## Phase 6 — Comfort 🎨
 

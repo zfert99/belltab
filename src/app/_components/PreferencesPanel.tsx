@@ -195,9 +195,13 @@ function WakeLockField({
         miss.
       */}
       <p className="visually-hidden" id="wake-lock-alert" aria-live="polite">
-        {status === "refused"
-          ? "This device refused to keep the screen awake. Battery saver is the usual reason."
-          : ""}
+        {/*
+          The SAME sentence the readout shows, from the same function - not a
+          copy. The first version carried a copy, the sentence gained a remedy,
+          and the copy did not: sighted users were told a tap would retry while
+          screen-reader users were not. One owner, or they drift.
+        */}
+        {status === "refused" ? describeWakeLock(status) : ""}
       </p>
     </fieldset>
   );

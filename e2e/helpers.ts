@@ -235,3 +235,27 @@ export async function openSettings(page: Page, panel = "schedules"): Promise<voi
   await page.locator(`#tab-${panel}`).click();
   await expect(page.locator(`#panel-${panel}`)).toBeVisible();
 }
+
+/**
+ * Replaces the Clipboard API before the page loads, so the refused branch can
+ * be reached on demand on every engine.
+ *
+ * The same shape as `stubWakeLock` in wake-lock.spec.ts and the stubs in
+ * bells.spec.ts: a browser API mocked at the boundary and nowhere else. It
+ * lives here rather than in share.spec.ts because a second clipboard test
+ * (Big mode's share, a different DOMException) should find one recipe, not
+ * copy an eleven-line block.
+ */
+export async function stubClipboard(page: Page, mode: "grant" | "refuse"): Promise<void> {
+  await page.addInitScript((granting: boolean) => {
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: {
+        writeText: () =>
+          granting
+            ? Promise.resolve()
+            : Promise.reject(new DOMException("denied", "NotAllowedError")),
+      },
+    });
+  }, mode === "grant");
+}

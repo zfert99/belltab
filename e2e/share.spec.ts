@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-import { openApp, openSettings, MID_PERIOD, STORAGE_KEY } from "./helpers";
+import { openApp, openSettings, stubClipboard, MID_PERIOD, STORAGE_KEY } from "./helpers";
 
 /**
  * Sharing, end to end: a link out, a link in, and a file both ways.
@@ -32,14 +32,7 @@ test.describe("when the clipboard is refused", () => {
     // Clipboard API is refused by permissions policy, by a non-secure context,
     // and by browsers that simply say no - so it is stubbed to refuse here, at
     // the boundary, the way the wake lock and the bells are.
-    await page.addInitScript(() => {
-      Object.defineProperty(navigator, "clipboard", {
-        configurable: true,
-        value: {
-          writeText: () => Promise.reject(new DOMException("denied", "NotAllowedError")),
-        },
-      });
-    });
+    await stubClipboard(page, "refuse");
     await openApp(page, MID_PERIOD);
     await openSettings(page, "schedules");
 

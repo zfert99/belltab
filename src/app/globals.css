@@ -83,6 +83,12 @@
     --ink-soft: #c9b8a0;
     --butterscotch: #f2b65a;
     --grape: #9b7fd4;
+    /* "Dark" is the design system's name for the pressed-state shade; on a dark
+       ground the emphasised state has to go LIGHTER, or a hovered link drops to
+       ~1.4:1 and vanishes under the cursor - which the first consumer of this
+       token did, in review. Same rule as --cherry-deep below: both themes define
+       it so nothing has to branch. */
+    --grape-dark: #b9a3e6;
     --mint: #4fcba0;
     --cherry: #f06b65;
   /* Already 5.58:1 on --paper-2, so dark mode needs no darker variant - the
@@ -116,6 +122,7 @@
   --ink-soft: #c9b8a0;
   --butterscotch: #f2b65a;
   --grape: #9b7fd4;
+  --grape-dark: #b9a3e6;
   --mint: #4fcba0;
   --cherry: #f06b65;
   /* Already 5.58:1 on --paper-2, so dark mode needs no darker variant - the

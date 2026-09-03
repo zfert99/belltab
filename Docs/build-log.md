@@ -337,6 +337,8 @@ development too, so the bare origin is a 404 exactly as it is in production.
 | 2026-09-03 | Built-in kinds are normalised to a canonical spelling at the parse boundary — and that IS the migration | Every schedule stored or shared before 2026-09-03 says `"class"`; the parser now maps a built-in's lowercase form to `"Class"`, so old data, old links and freshly typed `"CLASS"` all land on one spelling the engine and the editor agree on. No storage key bump and no share version bump: the change is strictly widening — everything the old parser accepted, the new one accepts and means the same by — which is the same precedent Phase 4 set when it added schedule ids leniently. What it costs is a pre-2026-09-03 build refusing a new link that carries a custom kind, with the wrong error; no such build is deployed. The fixture file's expectations were edited for the first time, and its header says exactly what changed and why the payloads' meaning did not. |
 | 2026-09-03 | The end box is a view of `start + length` that can also be typed into; length stays what the draft believes | Three boxes, two degrees of freedom, and the rule for which one gives way is "the box you did not touch that is furthest from what you meant": a length moves the end, an end moves the length, a start moves the end and keeps the length. Length stays the truth because it is what makes `start >= end` unreachable by typing a duration, and because `movePeriod` trades slots by length. An end typed before the start reaches the parser as a negative length and comes back as "has to end after it starts", bound to BOTH boxes — the one schedule a length box could never express, and the reason the end box was worth adding: "until 10:05" is how a schedule is read off a wall, and the subtraction is the app's job. |
 | 2026-09-03 | The editor stacks at 56rem, up from 45rem | Seven columns instead of six: the fixed columns now sum to 39.25rem plus gaps, and at 45rem the name field was left under 3rem. Stacking is always safe, so the threshold errs wide; the settings layout's two-column arrangement now holds a stacked editor between 45 and 56rem, which is fine — it was sized for the editor's width, not its shape. |
+| 2026-09-03 | A refused wake lock is retried on the next user gesture, not on a power/online event or the next period boundary | There is no event for "battery saver went off"; `online` is about the network and a period boundary is minutes away. The next thing the user does is the honest moment to ask again, and it is the same recovery the chime already uses for its autoplay lock — now through one shared `listenForGesture`, so "a gesture" is defined once. The listener exists only WHILE refused: attached for the life of the preference, every keystroke under a permanent denial would be a rejected wake-lock IPC for an answer already known. |
+| 2026-09-03 | The Big mode → wake lock signpost is a sentence with a link-styled button, not a second pill | Two pills side by side read as a two-state switch, which is exactly what Big mode was built not to be. Advice is not a control of equal weight. Shown for `off` AND `refused` — the ticked box whose projector is likeliest to go dark — through a predicate (`wantsSignpost`) rather than an equality, so a sixth status has to be given an answer instead of silently hiding the sign. |
 
 ## Deviations from the plan docs
 
@@ -607,19 +609,19 @@ before the origin ever served.
 | 2026-09-02 | The chime's `locked` sentence is all but unobservable | Reaching the panel takes a click or a keypress, and either one is the gesture that unlocks the chime — so by the time the readout is visible it says "ready". The sentence still earns its place (a refused `resume()` under an OS-level block would land there and stay), but no E2E can show it through the UI, and the suite says so where it asserts the behaviour instead. |
 | 2026-09-02 | A dark-mode install gets a light splash | The manifest takes one `background_color` and one `theme_color`, and they are the light paper. A user whose device is dark sees a cream splash for the moment before the page paints and re-themes. The spec has no per-scheme colours; what would close this is the `user_preferences` manifest member if it ever ships beyond proposals, and until then the honest statement is that the splash is single-theme by web-platform limitation. |
 | 2026-09-02 | The origin host is publicly reachable, and cannot not be | `origin-bell.biscuitlab.net/bell` serves 200 to anyone, as `origin-puzzles` always has: custom production domains are EXEMPT from Deployment Protection, and that exemption is precisely why the hub's proxy can reach the origin at all. What IS locked is every per-deployment `*.vercel.app` URL (302). The roadmap's gate line "origin host still locked to direct traffic" was written before the recipe was understood and asked for something the recipe forbids; corrected 2026-09-02, and the canonical (`biscuitlab.net/bell`) is the mitigation for the duplicate address — which is the reason it shipped in the same phase. `belltab.vercel.app/bell` is public too, exactly as `puzzle-generator.vercel.app` is; same mitigation. |
+| 2026-09-02 | The hub's headers overwrite BellTab's on the public URL — fix shipped, live check owed | Biscuit-Website PR #52 keeps the hub's `headers()` off `/bell` and `/puzzles` with a negative lookahead so each zone's own set passes through, proven with the built hub proxying to the real origin: `/bell` carried BellTab's full Permissions-Policy, `screen-wake-lock=(self)` included. It stays HERE rather than in Closed until one curl on the live `biscuitlab.net/bell` shows the same, because a review pointed out — correctly, per `AGENTS.md` — that "owed still" belongs in the open table, not in a closed row's tail. Also owed: the roadmap's test count, updated once #36 and #37 both land. |
 
 ## Closed
 
 | Opened | Closed | Item |
 | --- | --- | --- |
-| 2026-09-02 | 2026-09-03 | The hub's headers overwrote BellTab's on the public URL — Biscuit-Website PR #52 keeps the hub's `headers()` off `/bell` and `/puzzles` with a negative lookahead, so each zone's own set passes through. Proven with the built hub proxying to the real origin before it shipped: `/bell` carried BellTab's full Permissions-Policy, `screen-wake-lock=(self)` included. Owed still: one curl on the live site after the hub deploys. |
 | 2026-09-02 | 2026-09-03 | A refused wake lock is now retried on the next tap or key press — the same recovery the chime uses for its autoplay lock, because the cause (battery saver) clears without any event the tab could hear. The refusal sentence says so. E2E: refuse, flip the stub to grant, click the heading, held. |
 | 2026-09-02 | 2026-09-03 | Big mode and the wake lock are connected in the UI — a one-line signpost under the Big mode button, "On a projector? Keep the screen awake", opening the preferences panel. Shown only while the lock is supported and off; gone once it is on or where it cannot work. |
 | 2026-09-01 | 2026-09-03 | The clipboard-refused path is asserted — `navigator.clipboard.writeText` stubbed to reject at the boundary, the panel's "copy the link by hand" sentence and the link in the read-only input both checked. The wake lock's stub argument, applied backwards to the gap it was first written against. |
 | 2026-09-01 | 2026-09-03 | The share pipeline has now been round-tripped through a real messaging app. A link copied from the live site and pasted back through a chat client decoded with the real pipeline to the full eleven-period Regular day — version 1, 265 characters, every boundary exact. One data point, one client; the alphabet argument (base64url, nothing to escape) held. |
 | 2026-09-02 | 2026-09-03 | The chime has been heard — the user pressed Test on a real device and reported it fine. Provenance: a report, not a measurement in this repo; the stub tests remain the only automated evidence. |
 | 2026-09-02 | 2026-09-03 | BellTab has been installed, on a real device, by the user; icon and standalone window reported good. Same provenance note. |
-| 2026-09-02 | 2026-09-03 | The wake lock has held a real screen open — reported by the user from a real device. Same provenance note; the refusal-retry row stays open. |
+| 2026-09-02 | 2026-09-03 | The wake lock has held a real screen open — reported by the user from a real device. Same provenance note; the refusal-retry row stays open. *(Superseded 2026-09-03: the retry is now built — see the row for it above.)* |
 | 2026-08-27 | 2026-09-03 | The Phase 2 gate is verified in real Safari — the user backgrounded a real tab and reported the countdown correct on return. The throttling-threshold caveat in the research is now backed by one real observation rather than none. |
 | 2026-09-02 | 2026-09-03 | The signed bell-offset field is typeable on real iOS — reported by the user. The `inputMode="text"` reasoning held. |
 | 2026-08-26 | 2026-09-02 | The headers had never been verified on Vercel — now they have been, on the real deploy AND through the hub's rewrite, and the second hop does exactly what the gap feared: the hub's `headers()` wins. The measurement and its consequences are their own gap row above; the original question ("do the headers survive the deploy") is answered. |
@@ -723,6 +725,41 @@ that this change repeated anyway: **when a component lives inside a capped
 container, the viewport is the wrong thing to measure.** The old note said the
 settings layout "was sized for the editor's width"; it was, and then the editor
 grew, and only a query on the actual width could have followed it.
+### 2026-09-03 — the retry made a double-request race reachable, and the stub could not see it
+
+Found by a `high`-effort code review of the gaps branch before it merged;
+nothing shipped. Six of eight review angles converged on it independently,
+which is what a real defect looks like from the outside.
+
+Adding "retry on the next tap or key press" to the wake lock put a second
+caller on `acquire()`, whose only guard was a SETTLED sentinel. A real
+`navigator.wakeLock.request()` takes tens of milliseconds over IPC, and in that
+window `sentinel` is still `null` — so the most ordinary gesture there is,
+clicking the tab to bring it forward, fires `visibilitychange` (request A) and
+`pointerdown` (request B) inside it. Both grant. B overwrites `sentinel`; A is
+orphaned with its release listener attached. Unticking the box then releases B,
+the readout says the screen will dim, and A keeps the projector awake until the
+tab hides — the exact failure the E2E's own comment calls the worst version of
+this bug.
+
+**Why the suite was green:** the stub's `request()` resolved in a microtask.
+There was never an in-flight window to land a gesture in, so the guard's
+absence was unobservable. The fix is an `inFlight` flag, plus releasing any
+grant that arrives while a live one is already held; the stub gained `hold()`
+and `settle()` so a request can be kept open while gestures and a
+visibilitychange are fired into the gap, and the test asserts exactly one
+request and, after unticking, exactly one release.
+
+The same review found the listener was attached for the life of the
+preference rather than only while refused (fixed: its own effect, keyed on the
+outcome, mirroring the chime), and that the `aria-live` alert carried a
+hardcoded COPY of the refused sentence which the new remedy had not reached —
+screen-reader users would have been told the old one. Also fixed: one owner.
+
+**The lessons:** a stub that resolves synchronously proves nothing about
+concurrency, and the moment a second caller reaches an async function its guard
+has to model "in flight" as a state; and a sentence that lives in two places is
+already wrong in one of them, it just has not diverged yet.
 
 ### 2026-09-02 — the test could not see the locked chime, because looking is a gesture
 
@@ -4535,3 +4572,19 @@ across three engines - a refusal-retry test, three signpost tests and the
 clipboard test, one each per engine - on top of whichever total the
 kinds-and-end-time branch lands first; the roadmap's number is updated after
 both merge.
+
+**Addendum, 2026-09-03 12:30 — after review.** A `high`-effort code review of
+this branch found twelve things, five of them real: the double-request race,
+the listener lifecycle, the copied alert sentence, `--grape-dark` never
+defined for dark mode (a hovered signpost fell to ~1.4:1), and a duplicate
+`id="wake-lock-hint"` that collided with the checkbox's `aria-describedby`
+target. All five are fixed; the race has its own Bugs found entry. Also taken:
+the signpost now shows for `refused` as well as `off` (through a predicate, so
+a sixth status has to answer for itself), settings opened from the signpost
+return focus to it on close — remembered by id, since the signpost is
+unmounted while settings is up and re-mounted on close — the keydown half of
+the retry is exercised, both hint-absent tests now wait for a client-rendered
+status before asserting, the gesture listener is one shared `listenForGesture`
+for the chime and the lock, `stubClipboard` lives in helpers.ts, and the
+hub-headers row moved back to Open gaps until the live curl is done — as
+`AGENTS.md` says it should.

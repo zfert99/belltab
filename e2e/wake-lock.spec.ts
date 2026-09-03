@@ -16,8 +16,8 @@ import { openApp, openSettings, MID_PERIOD, PREFERENCES_STORAGE_KEY } from "./he
  * code. `AGENTS.md`: mock only at boundaries. What that buys is the three
  * branches a real browser will not reliably produce on demand - an engine
  * without the API, a device that refuses, and the tab going away and coming
- * back - which are exactly the branches whose absence is carried as an open gap
- * for the clipboard.
+ * back - the same argument `stubClipboard` in helpers.ts applies to the
+ * clipboard's refused branch.
  *
  * What it does NOT prove is that a real projector stays lit. That needs a real
  * machine and is carried as an open gap in Docs/build-log.md.
@@ -35,6 +35,13 @@ interface WakeLockProbe {
   setVisibility(next: "visible" | "hidden"): void;
   /** Flips what the next `request()` does - the battery saver switching off. */
   setMode(next: "grant" | "refuse"): void;
+  /**
+   * Makes `request()` stay in flight until `settle()` - the tens of
+   * milliseconds a real request spends over IPC, which a stub that resolves in
+   * a microtask never has. The in-flight guard only exists in that window.
+   */
+  hold(): void;
+  settle(): void;
 }
 
 const probe = (page: Page) =>
@@ -52,6 +59,9 @@ const probe = (page: Page) =>
         (value) => (window as never as { __wakeLock: WakeLockProbe }).__wakeLock.setMode(value),
         next,
       ),
+    hold: () => page.evaluate(() => (window as never as { __wakeLock: WakeLockProbe }).__wakeLock.hold()),
+    settle: () =>
+      page.evaluate(() => (window as never as { __wakeLock: WakeLockProbe }).__wakeLock.settle()),
   });
 
 const toggle = (page: Page) => page.locator("#wake-lock");
@@ -67,17 +77,26 @@ const alert = (page: Page) => page.locator("#wake-lock-alert");
  * arrive after the only call worth watching.
  */
 async function stubWakeLock(page: Page, mode: "grant" | "refuse"): Promise<void> {
-  await page.addInitScript((granting: boolean) => {
+  await page.addInitScript((initialMode: string) => {
     const state = {
       requests: [] as string[],
       releases: 0,
       last: null as { release(): Promise<void> } | null,
-      granting,
+      mode: initialMode,
+      held: false,
+      pending: [] as (() => void)[],
       drop() {
         void state.last?.release();
       },
       setMode(next: string) {
-        state.granting = next === "grant";
+        state.mode = next;
+      },
+      hold() {
+        state.held = true;
+      },
+      settle() {
+        state.held = false;
+        for (const resolve of state.pending.splice(0)) resolve();
       },
       setVisibility(next: string) {
         visibility = next;
@@ -125,15 +144,30 @@ async function stubWakeLock(page: Page, mode: "grant" | "refuse"): Promise<void>
       value: {
         request(type: string) {
           state.requests.push(type);
-          return state.granting
-            ? Promise.resolve(makeSentinel())
-            : Promise.reject(new DOMException("denied", "NotAllowedError"));
+          const outcome = () =>
+            state.mode === "grant"
+              ? Promise.resolve(makeSentinel())
+              : Promise.reject(new DOMException("denied", "NotAllowedError"));
+          // Held requests settle only when the test says so, in order.
+          return state.held
+            ? new Promise<void>((resolve) => state.pending.push(resolve)).then(outcome)
+            : outcome();
         },
       },
     });
 
     Object.defineProperty(window, "__wakeLock", { configurable: true, value: state });
-  }, mode === "grant");
+  }, mode);
+}
+
+/** Removes the API entirely - the engine-without-wake-lock case. */
+async function removeWakeLock(page: Page): Promise<void> {
+  // Deleting the prototype accessor is what actually removes it - the
+  // property is not the instance's own.
+  await page.addInitScript(() => {
+    Reflect.deleteProperty(Navigator.prototype, "wakeLock");
+    Reflect.deleteProperty(navigator, "wakeLock");
+  });
 }
 
 /** The preferences blob, with the wake lock in whichever position a test wants. */
@@ -255,12 +289,42 @@ test.describe("the wake lock toggle", () => {
     expect(await probe(page).requests()).toEqual(["screen"]);
 
     // The battery saver goes off. Nothing tells the tab - there is no event
-    // for it - so the honest recovery is the next thing the user does.
+    // for it - so the honest recovery is the next thing the user does. A KEY
+    // press here, because the sentence promises "a tap or a key press" and the
+    // tap half is exercised by every other click in this file.
     await probe(page).setMode("grant");
-    await page.locator("h1").click();
+    await page.keyboard.press("Shift");
 
     await expect(readout(page)).toHaveText("The screen is being kept awake.");
     expect(await probe(page).requests()).toEqual(["screen", "screen"]);
+  });
+
+  test("does not ask again while a request is still in flight", async ({ page }) => {
+    await stubWakeLock(page, "grant");
+    await openApp(page, MID_PERIOD);
+    await openSettings(page, "preferences");
+
+    // Real requests take tens of milliseconds over IPC. The stub holds this
+    // one open so a gesture can land inside that window - the ordinary case
+    // of clicking the tab to bring it forward, which fires visibilitychange
+    // AND pointerdown. Without an in-flight guard, two grants land, one is
+    // stored, and the other keeps the screen awake after the toggle is off.
+    await probe(page).hold();
+    await toggle(page).check();
+    await expect.poll(() => probe(page).requests()).toEqual(["screen"]);
+
+    await page.keyboard.press("Shift");
+    await page.locator("h1").click();
+    await probe(page).setVisibility("hidden");
+    await probe(page).setVisibility("visible");
+    expect(await probe(page).requests()).toEqual(["screen"]);
+
+    await probe(page).settle();
+    await expect(readout(page)).toHaveText("The screen is being kept awake.");
+
+    // And the one sentinel is the one released on the way out.
+    await toggle(page).uncheck();
+    expect(await probe(page).releases()).toBe(1);
   });
 
   test("announces only the refusal, and not the ordinary hidden tab", async ({ page }) => {
@@ -284,12 +348,8 @@ test.describe("the wake lock toggle", () => {
 
   test("is disabled, and honest, on an engine without the API", async ({ page }) => {
     // The branch no real browser in this matrix can produce, and the reason the
-    // stub exists at all. Deleting the prototype accessor is what actually
-    // removes it - the property is not the instance's own.
-    await page.addInitScript(() => {
-      Reflect.deleteProperty(Navigator.prototype, "wakeLock");
-      Reflect.deleteProperty(navigator, "wakeLock");
-    });
+    // stub exists at all.
+    await removeWakeLock(page);
 
     await openApp(page, MID_PERIOD, { preferences: storedPreferences(true) });
     await openSettings(page, "preferences");
@@ -302,11 +362,16 @@ test.describe("the wake lock toggle", () => {
     // the app's whole job, and an absent API must not take it down.
     await page.locator("#settings-toggle").click();
     await expect(page.locator("#countdown-minutes")).toHaveText("35");
+
+    // Nor is there a signpost to a lock that cannot exist - asserted HERE,
+    // after the panel has rendered the client status, so the absence is the
+    // app's answer and not the pre-hydration blank.
+    await expect(page.locator("#wake-lock-signpost")).toHaveCount(0);
   });
 });
 
 test.describe("the signpost from Big mode", () => {
-  const hint = (page: Page) => page.locator("#wake-lock-hint");
+  const signpost = (page: Page) => page.locator("#wake-lock-signpost");
 
   test("points at the wake lock while it is off, and opens the panel", async ({ page }) => {
     await stubWakeLock(page, "grant");
@@ -315,27 +380,44 @@ test.describe("the signpost from Big mode", () => {
     // Beside the Big mode button, because the two features exist for the
     // same room: one makes the countdown readable from the back, the other
     // stops the projector going dark mid-period.
-    await expect(hint(page)).toBeVisible();
-    await hint(page).click();
+    await expect(signpost(page)).toBeVisible();
+    await signpost(page).click();
 
     await expect(page.locator("#panel-preferences")).toBeVisible();
     await expect(toggle(page)).not.toBeChecked();
+
+    // Escape returns focus to the control that opened settings - the signpost,
+    // not the header's gear several stops above it.
+    await page.keyboard.press("Escape");
+    await expect(signpost(page)).toBeFocused();
   });
 
-  test("goes away once the lock is on, and where it cannot work", async ({ page }) => {
+  test("stays for a refused lock, whose projector is the likeliest to go dark", async ({
+    page,
+  }) => {
+    await stubWakeLock(page, "refuse");
+    await openApp(page, MID_PERIOD, { preferences: storedPreferences(true) });
+    await openSettings(page, "preferences");
+    await expect(readout(page)).toHaveText(/refused/);
+
+    await page.locator("#settings-toggle").click();
+    await expect(signpost(page)).toBeVisible();
+  });
+
+  test("goes away once the lock is held", async ({ page }) => {
     await stubWakeLock(page, "grant");
     await openApp(page, MID_PERIOD, { preferences: storedPreferences(true) });
-    await expect(hint(page)).toHaveCount(0);
-    await expect(page.locator("#view-big")).toBeVisible();
-  });
 
-  test("is absent on an engine without the API", async ({ page }) => {
-    await page.addInitScript(() => {
-      Reflect.deleteProperty(Navigator.prototype, "wakeLock");
-      Reflect.deleteProperty(navigator, "wakeLock");
-    });
-    await openApp(page, MID_PERIOD);
-    await expect(hint(page)).toHaveCount(0);
+    // The client status is read through the panel FIRST, so the absence below
+    // is the app's decision rather than the server-rendered blank the hint
+    // never appears in - an assertion straight after openApp would pass
+    // before hydration no matter what the condition said.
+    await openSettings(page, "preferences");
+    await expect(readout(page)).toHaveText("The screen is being kept awake.");
+    await page.locator("#settings-toggle").click();
+
+    await expect(page.locator("#view-big")).toBeVisible();
+    await expect(signpost(page)).toHaveCount(0);
   });
 });
 

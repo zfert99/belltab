@@ -4,6 +4,7 @@ import { useEffect, useRef, useSyncExternalStore } from "react";
 import { announcementFor, boundaryKey } from "@/lib/format";
 import type { DayState } from "@/lib/engine";
 import type { Preferences } from "@/app/_lib/preferences";
+import { listenForGesture } from "@/app/_lib/gesture";
 
 /**
  * The audible bell and the notification - the two ways a period change reaches
@@ -261,15 +262,7 @@ export function useBells(state: DayState | null, preferences: Preferences): Bell
   useEffect(() => {
     if (!preferences.chimeOnBell || audioState !== "suspended") return;
 
-    const unlock = () => unlockChime();
-
-    window.addEventListener("pointerdown", unlock);
-    window.addEventListener("keydown", unlock);
-
-    return () => {
-      window.removeEventListener("pointerdown", unlock);
-      window.removeEventListener("keydown", unlock);
-    };
+    return listenForGesture(unlockChime);
   }, [preferences.chimeOnBell, audioState]);
 
   const key = state === null ? null : boundaryKey(state);

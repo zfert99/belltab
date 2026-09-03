@@ -5,7 +5,7 @@ import { useNow } from "@/app/_lib/useNow";
 import { saveLibrary, useLibrary } from "@/app/_lib/libraryStore";
 import { savePreferences, usePreferences } from "@/app/_lib/preferencesStore";
 import { applyTheme } from "@/app/_lib/theme";
-import { useWakeLock } from "@/app/_lib/wakeLock";
+import { useWakeLock, wantsSignpost } from "@/app/_lib/wakeLock";
 import { useBells } from "@/app/_lib/bells";
 import { addSchedule } from "@/app/_lib/library";
 import { clearShareFragment, incomingSchedule } from "@/app/_lib/shareLink";
@@ -216,14 +216,31 @@ export function App() {
     }
   }, [big]);
 
-  // Focus follows the view swap in both directions. Opening moves it to the
-  // settings heading; closing returns it to the button that was pressed, which
-  // is where a keyboard user expects to be left. Without this, opening the
-  // editor strands focus on a control that is no longer rendered and the next
-  // Tab starts from the top of the document.
+  /**
+   * Focus follows the view swap in both directions. Opening moves it to the
+   * settings heading; closing returns it to the control that OPENED settings,
+   * which is where a keyboard user expects to be left. Without this, opening
+   * the editor strands focus on a control that is no longer rendered and the
+   * next Tab starts from the top of the document.
+   *
+   * There is more than one opener now - the gear, the empty states' links and
+   * the wake-lock signpost - so the one that was used is remembered BY ID, not
+   * as an element: the Now view is unmounted while settings is up and mounted
+   * again on close, so the element that was pressed is gone by the time focus
+   * has to return and its replacement has to be looked up fresh. The gear is
+   * the fallback for an opener that does not come back (the signpost goes away
+   * once the lock is on, which is the likely outcome of using it).
+   */
+  const openerIdRef = useRef<string | null>(null);
+
   useEffect(() => {
-    if (settingsOpen) headingRef.current?.focus();
-    else toggleRef.current?.focus();
+    if (settingsOpen) {
+      headingRef.current?.focus();
+      return;
+    }
+
+    const opener = openerIdRef.current === null ? null : document.getElementById(openerIdRef.current);
+    (opener ?? toggleRef.current)?.focus();
   }, [settingsOpen]);
 
   // Escape leaves settings, matching every other panel on the web - UNLESS a
@@ -265,7 +282,8 @@ export function App() {
    * settings panel would render inside the full-bleed projector layout, which
    * is a screen nobody designed.
    */
-  const openSettingsFrom = (panel: PanelId) => {
+  const openSettingsFrom = (panel: PanelId, openerId: string | null = null) => {
+    openerIdRef.current = openerId;
     setBig(false);
     setOpenPanel(panel);
   };
@@ -310,7 +328,10 @@ export function App() {
             aria-expanded={settingsOpen}
             aria-controls="settings-view"
             aria-label={settingsOpen ? "Back to the countdown" : "Edit the schedule"}
-            onClick={() => setOpenPanel((panel) => (panel === null ? "schedules" : null))}
+            onClick={() => {
+              openerIdRef.current = null;
+              setOpenPanel((panel) => (panel === null ? "schedules" : null));
+            }}
           >
             {settingsOpen ? <BackIcon /> : <GearIcon />}
           </button>
@@ -368,18 +389,19 @@ export function App() {
                 Big mode scales the countdown for a projector; the wake lock
                 keeps the projector from going dark mid-period; and until this
                 line nothing connected them - a user who found one was given no
-                hint the other was three taps away in Preferences. Shown only
-                while the lock is supported and OFF: once it is on, or where it
-                cannot work, there is nothing to point at.
+                hint the other was three taps away in Preferences. Which
+                statuses want the sign is `wantsSignpost`'s call: off, and
+                refused - the ticked box whose projector is likeliest to go
+                dark. Held and waiting have nothing to point at.
               */}
-              {wakeLockStatus === "off" && (
+              {wantsSignpost(wakeLockStatus) && (
                 <p className="viewswitch__hint">
                   On a projector?{" "}
                   <button
                     type="button"
                     className="linkbutton"
-                    id="wake-lock-hint"
-                    onClick={() => openSettingsFrom("preferences")}
+                    id="wake-lock-signpost"
+                    onClick={() => openSettingsFrom("preferences", "wake-lock-signpost")}
                   >
                     Keep the screen awake
                   </button>
