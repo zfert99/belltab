@@ -609,12 +609,12 @@ before the origin ever served.
 | 2026-09-02 | The chime's `locked` sentence is all but unobservable | Reaching the panel takes a click or a keypress, and either one is the gesture that unlocks the chime — so by the time the readout is visible it says "ready". The sentence still earns its place (a refused `resume()` under an OS-level block would land there and stay), but no E2E can show it through the UI, and the suite says so where it asserts the behaviour instead. |
 | 2026-09-02 | A dark-mode install gets a light splash | The manifest takes one `background_color` and one `theme_color`, and they are the light paper. A user whose device is dark sees a cream splash for the moment before the page paints and re-themes. The spec has no per-scheme colours; what would close this is the `user_preferences` manifest member if it ever ships beyond proposals, and until then the honest statement is that the splash is single-theme by web-platform limitation. |
 | 2026-09-02 | The origin host is publicly reachable, and cannot not be | `origin-bell.biscuitlab.net/bell` serves 200 to anyone, as `origin-puzzles` always has: custom production domains are EXEMPT from Deployment Protection, and that exemption is precisely why the hub's proxy can reach the origin at all. What IS locked is every per-deployment `*.vercel.app` URL (302). The roadmap's gate line "origin host still locked to direct traffic" was written before the recipe was understood and asked for something the recipe forbids; corrected 2026-09-02, and the canonical (`biscuitlab.net/bell`) is the mitigation for the duplicate address — which is the reason it shipped in the same phase. `belltab.vercel.app/bell` is public too, exactly as `puzzle-generator.vercel.app` is; same mitigation. |
-| 2026-09-02 | The hub's headers overwrite BellTab's on the public URL — fix shipped, live check owed | Biscuit-Website PR #52 keeps the hub's `headers()` off `/bell` and `/puzzles` with a negative lookahead so each zone's own set passes through, proven with the built hub proxying to the real origin: `/bell` carried BellTab's full Permissions-Policy, `screen-wake-lock=(self)` included. It stays HERE rather than in Closed until one curl on the live `biscuitlab.net/bell` shows the same, because a review pointed out — correctly, per `AGENTS.md` — that "owed still" belongs in the open table, not in a closed row's tail. Also owed: the roadmap's test count, updated once #36 and #37 both land. |
 
 ## Closed
 
 | Opened | Closed | Item |
 | --- | --- | --- |
+| 2026-09-02 | 2026-09-03 | The hub's headers overwrote BellTab's on the public URL — Biscuit-Website #52 keeps the hub's `headers()` off `/bell` and `/puzzles`, and the live curl that was owed is done: `biscuitlab.net/bell` now serves BellTab's full set — `screen-wake-lock=(self)`, `autoplay=(self)`, `no-referrer`, `nosniff`, `DENY` — while `/` keeps the hub's own and `/puzzles` carries Puzzle Lab's. Measured on the deployed site, 2026-09-03 18:35. |
 | 2026-09-02 | 2026-09-03 | A refused wake lock is now retried on the next tap or key press — the same recovery the chime uses for its autoplay lock, because the cause (battery saver) clears without any event the tab could hear. The refusal sentence says so. E2E: refuse, flip the stub to grant, click the heading, held. |
 | 2026-09-02 | 2026-09-03 | Big mode and the wake lock are connected in the UI — a one-line signpost under the Big mode button, "On a projector? Keep the screen awake", opening the preferences panel. Shown only while the lock is supported and off; gone once it is on or where it cannot work. |
 | 2026-09-01 | 2026-09-03 | The clipboard-refused path is asserted — `navigator.clipboard.writeText` stubbed to reject at the boundary, the panel's "copy the link by hand" sentence and the link in the read-only input both checked. The wake lock's stub argument, applied backwards to the gap it was first written against. |
@@ -725,6 +725,7 @@ that this change repeated anyway: **when a component lives inside a capped
 container, the viewport is the wrong thing to measure.** The old note said the
 settings layout "was sized for the editor's width"; it was, and then the editor
 grew, and only a query on the actual width could have followed it.
+
 ### 2026-09-03 — the retry made a double-request race reachable, and the stub could not see it
 
 Found by a `high`-effort code review of the gaps branch before it merged;
@@ -4536,6 +4537,7 @@ now seventy-seven, not seventy-two.
 `npm run lint`, `npm run typecheck`, `npm run build`, `npx vitest run`,
 `npx markdownlint-cli "**/*.md"` and `npx playwright test` all pass, with the
 known macOS-WebKit exception in `editor.spec.ts`.
+
 ### 2026-09-03 11:40 — four gaps closed, one of them in the other repo
 
 The first pass at the open-gaps table after the cutover, taking the four that
