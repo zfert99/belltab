@@ -56,6 +56,10 @@ test.describe("editing periods", () => {
 
   test("opens on the schedule running today, in start order", async ({ page }) => {
     await expect(page.locator("#schedule-name-input")).toHaveValue("Regular");
+    // With a label a sighted user can see - it was visually hidden until
+    // 2026-09-03, and a big box holding "Regular" did not say what it was.
+    await expect(page.locator(".editor__namelabel")).toBeVisible();
+    await expect(page.locator(".editor__namelabel")).toHaveText("Schedule name");
     await expect(rows(page)).toHaveCount(11);
 
     const first = rows(page).first();
@@ -570,5 +574,39 @@ test.describe("the keyboard alone", () => {
     await expect(page.locator("#settings-view")).toHaveCount(0);
     await expect(page.locator("#settings-toggle")).toBeFocused();
     await expect(page.locator(".bounds__next")).toHaveText("Next: Passing at 10:05");
+  });
+});
+
+test.describe("the schedule picker", () => {
+  const chips = (page: Page) => page.locator("#schedule-list .schedchip");
+
+  test("is one tab stop, and the arrows walk it", async ({ page }) => {
+    await openApp(page, MID_PERIOD);
+    await openSettings(page);
+
+    // Roving tabindex: only the selected chip is in the tab order, so the
+    // group costs one Tab rather than one per schedule.
+    await expect(chips(page).first()).toHaveAttribute("tabindex", "0");
+    await expect(chips(page).nth(1)).toHaveAttribute("tabindex", "-1");
+
+    await chips(page).first().focus();
+    await page.keyboard.press("ArrowRight");
+
+    // Selection follows focus - the editor repoints to the second schedule.
+    await expect(chips(page).nth(1)).toBeFocused();
+    await expect(chips(page).nth(1)).toHaveAttribute("aria-pressed", "true");
+    await expect(page.locator("#schedule-name-input")).toHaveValue("Delayed start");
+
+    await page.keyboard.press("End");
+    await expect(chips(page).last()).toBeFocused();
+    await expect(chips(page).last()).toHaveAttribute("aria-pressed", "true");
+
+    // The arrows stop at the ends rather than wrapping.
+    await page.keyboard.press("ArrowRight");
+    await expect(chips(page).last()).toBeFocused();
+
+    await page.keyboard.press("Home");
+    await expect(chips(page).first()).toBeFocused();
+    await expect(page.locator("#schedule-name-input")).toHaveValue("Regular");
   });
 });

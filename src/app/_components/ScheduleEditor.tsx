@@ -83,7 +83,13 @@ export function ScheduleEditor({ schedule, library, save }: ScheduleEditorProps)
     <div className="editor">
       <div className="editor__toolbar">
         <label className="editor__name">
-          <span className="visually-hidden">Schedule name</span>
+          {/*
+            VISIBLE since 2026-09-03. It was `.visually-hidden`, which served
+            assistive tech and nobody else: sighted users saw a large box
+            holding "Regular" and had to infer what it was. A label costs one
+            line of small type and answers the question before it is asked.
+          */}
+          <span className="editor__namelabel">Schedule name</span>
           <input
             type="text"
             id="schedule-name-input"

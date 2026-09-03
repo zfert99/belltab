@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type RefObject } from "react";
+import { useState, type KeyboardEvent, type RefObject } from "react";
 import { SCHEDULE_LIMITS } from "@/lib/parse";
 import { copyText, shareUrlFor } from "@/app/_lib/shareLink";
 import {
@@ -9,6 +9,8 @@ import {
   duplicateSchedule,
   type Library,
 } from "@/app/_lib/library";
+import { scheduleIndexToEdit, scheduleNameOn } from "@/app/_lib/today";
+import type { LocalNow } from "@/lib/clock";
 import { ScheduleEditor } from "@/app/_components/ScheduleEditor";
 import { ConfirmDialog, supportsModalDialog } from "@/app/_components/ConfirmDialog";
 
@@ -29,6 +31,8 @@ export interface SchedulesPanelProps {
   save: (next: Library) => void;
   selected: number;
   onSelect: (index: number) => void;
+  /** For one sentence: whether the schedule being deleted is today's. */
+  now: LocalNow | null;
   headingRef: RefObject<HTMLHeadingElement | null>;
 }
 
@@ -37,6 +41,7 @@ export function SchedulesPanel({
   save,
   selected,
   onSelect,
+  now,
   headingRef,
 }: SchedulesPanelProps) {
   const [confirming, setConfirming] = useState(false);
@@ -54,6 +59,37 @@ export function SchedulesPanel({
   const count = library.schedules.length;
   const index = count === 0 ? null : Math.min(Math.max(selected, 0), count - 1);
   const schedule = index === null ? null : library.schedules[index];
+
+  // Whether the selected schedule is the one the countdown is running RIGHT
+  // NOW. `scheduleIndexToEdit` falls back to index 0 when today resolves to
+  // nothing, so it is only "today's" when today actually resolves to it.
+  const runningToday =
+    index !== null &&
+    now !== null &&
+    scheduleNameOn(library, now.isoDate, now.weekday) !== null &&
+    scheduleIndexToEdit(library, now) === index;
+
+  /**
+   * Arrow keys walk the chips, and selection follows focus.
+   *
+   * The chips were a `role="group"` of ordinary buttons - correct, and five
+   * Tabs to reach the fifth schedule, above an editor that is already
+   * seventy-seven stops deep. Roving `tabIndex` makes the group one stop and
+   * the arrows do the rest, which is what an ARIA tablist would have brought
+   * without the rest of that contract. Home and End go to the ends; the arrows
+   * stop at them rather than wrapping, so "where am I" stays answerable.
+   */
+  const onChipKeyDown = (event: KeyboardEvent<HTMLButtonElement>, at: number) => {
+    const step = { ArrowRight: 1, ArrowLeft: -1, Home: -Infinity, End: Infinity }[event.key];
+    if (step === undefined) return;
+
+    event.preventDefault();
+    const next = Math.min(Math.max(at + step, 0), count - 1);
+    if (next === at) return;
+
+    onSelect(next);
+    (event.currentTarget.parentElement?.children[next] as HTMLElement | undefined)?.focus();
+  };
   const atScheduleLimit = count >= SCHEDULE_LIMITS.schedules;
 
   const applyDelete = () => {
@@ -104,7 +140,9 @@ export function SchedulesPanel({
               type="button"
               className="schedchip"
               aria-pressed={at === index}
+              tabIndex={at === index ? 0 : -1}
               onClick={() => onSelect(at)}
+              onKeyDown={(event) => onChipKeyDown(event, at)}
             >
               {entry.name}
             </button>
@@ -207,7 +245,14 @@ export function SchedulesPanel({
       <ConfirmDialog
         open={confirming}
         title="Delete this schedule?"
-        body={`"${schedule?.name ?? ""}" and its periods will be removed from this browser, and any day pointing at it falls back to no school. This cannot be undone.`}
+        body={
+          `"${schedule?.name ?? ""}" and its periods will be removed from this browser, and any day pointing at it falls back to no school.` +
+          // The case the generic sentence hid: this is the schedule the
+          // countdown is showing RIGHT NOW, and it goes blank the moment the
+          // dialog closes. That information sat one panel away.
+          (runningToday ? " This is the schedule running today - the countdown will go blank." : "") +
+          " This cannot be undone."
+        }
         confirmLabel="Delete"
         onCancel={() => setConfirming(false)}
         onConfirm={applyDelete}
