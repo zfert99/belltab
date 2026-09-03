@@ -1,6 +1,5 @@
 "use client";
 
-import { PERIOD_KINDS, type PeriodKind } from "@/lib/schedule";
 import type { ParseError } from "@/lib/parse";
 import { SCHEDULE_LIMITS } from "@/lib/parse";
 import type { DraftPeriod } from "@/app/_lib/draft";
@@ -14,34 +13,38 @@ import { CloseIcon, DownIcon, UpIcon } from "@/app/_components/icons";
  * supplies the keyboard behaviour, the mobile pickers and the focus ring for
  * free. There is no custom time picker and no drag handle.
  *
- * **Length, not end time.** The fourth field is a duration, because "Period 2
- * is 55 minutes" is how a schedule is actually described - and because it makes
- * `start >= end` unreachable by typing. The engine still stores `endMin`;
- * `draft.ts` does the arithmetic.
+ * **End time AND length, filling each other in.** Length was the only fourth
+ * field until 2026-09-03, because "Period 2 is 55 minutes" is how a schedule
+ * is described and it makes `start >= end` unreachable by typing. The end box
+ * joined it because a schedule is READ the other way - "until 10:05" - and
+ * the subtraction in between is exactly what a clock app should do for you.
+ * `draft.ts` keeps the two in step; length is still what the draft believes.
+ *
+ * **Kind is a text box with suggestions, not a select.** A closed list of
+ * three could not say "Planning" or whatever a building calls its own blocks.
+ * The `<datalist>` (rendered once, in `ScheduleEditor`) offers the built-ins;
+ * anything else typed is kept as typed, and the parser caps its length.
  *
  * **Reorder is two buttons, not a drag.** `AGENTS.md` requires keyboard-
  * operable reordering, and a pair of buttons is keyboard-operable by
  * construction rather than by adding a keyboard fallback to a pointer gesture.
  */
 
-const KIND_LABELS: Record<PeriodKind, string> = {
-  [PERIOD_KINDS.CLASS]: "Class",
-  [PERIOD_KINDS.LUNCH]: "Lunch",
-  [PERIOD_KINDS.PASSING]: "Passing",
-};
+/** The id of the datalist `ScheduleEditor` renders for every row to share. */
+export const KIND_LIST_ID = "period-kinds";
 
 /**
  * The parser names its fields after the SCHEDULE, the form after its inputs.
  *
- * `endMin` is reported against the length box because that is the control a
- * user would change to fix it - the parser has no idea the form took the end
- * time apart into a start and a duration.
+ * `endMin` lands on BOTH the end box and the length box: the parser has no
+ * idea the form took the end time apart into a start, a duration and a view of
+ * their sum, and either box is one a user would change to fix it.
  */
-const FIELD_TO_INPUT: Record<string, "name" | "kind" | "start" | "length"> = {
-  name: "name",
-  kind: "kind",
-  startMin: "start",
-  endMin: "length",
+const FIELD_TO_INPUTS: Record<string, readonly ("name" | "kind" | "start" | "end" | "length")[]> = {
+  name: ["name"],
+  kind: ["kind"],
+  startMin: ["start"],
+  endMin: ["end", "length"],
 };
 
 export interface PeriodRowProps {
@@ -56,7 +59,7 @@ export interface PeriodRowProps {
 
 export function PeriodRow({ row, position, total, errors, onChange, onMove, onDelete }: PeriodRowProps) {
   const errorId = `period-${row.rowId}-error`;
-  const invalid = new Set(errors.map((error) => FIELD_TO_INPUT[error.field]).filter(Boolean));
+  const invalid = new Set(errors.flatMap((error) => FIELD_TO_INPUTS[error.field] ?? []));
 
   // Bound to every field the parser complained about, not to the row. A red
   // border says nothing to a screen reader; this is what says it, and it is
@@ -86,19 +89,17 @@ export function PeriodRow({ row, position, total, errors, onChange, onMove, onDe
 
         <label className="editrow__field">
           <span className="editrow__labeltext visually-hidden">Kind</span>
-          <select
+          <input
+            type="text"
             data-field="kind"
+            list={KIND_LIST_ID}
             value={row.kind}
+            maxLength={SCHEDULE_LIMITS.kindChars}
+            autoComplete="off"
             aria-invalid={invalid.has("kind") || undefined}
             aria-describedby={describedBy}
-            onChange={(event) => onChange(row.rowId, { kind: event.target.value as PeriodKind })}
-          >
-            {Object.values(PERIOD_KINDS).map((kind) => (
-              <option key={kind} value={kind}>
-                {KIND_LABELS[kind]}
-              </option>
-            ))}
-          </select>
+            onChange={(event) => onChange(row.rowId, { kind: event.target.value })}
+          />
         </label>
 
         <label className="editrow__field">
@@ -124,6 +125,19 @@ export function PeriodRow({ row, position, total, errors, onChange, onMove, onDe
             aria-invalid={invalid.has("start") || undefined}
             aria-describedby={describedBy}
             onChange={(event) => onChange(row.rowId, { start: event.target.value })}
+          />
+        </label>
+
+        <label className="editrow__field">
+          <span className="editrow__labeltext visually-hidden">End</span>
+          <input
+            type="time"
+            placeholder="HH:MM"
+            data-field="end"
+            value={row.end}
+            aria-invalid={invalid.has("end") || undefined}
+            aria-describedby={describedBy}
+            onChange={(event) => onChange(row.rowId, { end: event.target.value })}
           />
         </label>
 

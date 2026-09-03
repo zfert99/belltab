@@ -33,13 +33,17 @@ import { openApp, openSettings, MID_PERIOD, STORAGE_KEY } from "./helpers";
 const rows = (page: Page) => page.locator("#period-editor .editrow");
 const field = (row: Locator, name: string) => row.locator(`[data-field="${name}"]`);
 
-/** Every row as `name start length`, which is the whole schedule in one read. */
+/**
+ * Every row as `name start-end length`, which is the whole schedule in one
+ * read - and, since the end box arrived, a check that the three time fields
+ * agree on every row every time this is called.
+ */
 async function readRows(page: Page): Promise<string[]> {
   return rows(page).evaluateAll((items) =>
     items.map((item) => {
       const value = (selector: string) =>
         (item.querySelector(`[data-field="${selector}"]`) as HTMLInputElement | null)?.value ?? "";
-      return `${value("name")} ${value("start")} ${value("length")}`;
+      return `${value("name")} ${value("start")}-${value("end")} ${value("length")}`;
     }),
   );
 }
@@ -58,9 +62,110 @@ test.describe("editing periods", () => {
     await expect(field(first, "name")).toHaveValue("Period 1");
     await expect(field(first, "start")).toHaveValue("08:00");
 
-    // A LENGTH, not an end time. "Period 1 is 55 minutes" is how a schedule is
-    // described, and it makes start >= end unreachable by typing.
+    // A LENGTH and an end time, and they agree. "Period 1 is 55 minutes" is
+    // how a schedule is described; "until 08:55" is how it is read off a wall.
     await expect(field(first, "length")).toHaveValue("55");
+    await expect(field(first, "end")).toHaveValue("08:55");
+    // The kind is a text box with suggestions, not a menu - built-ins arrive
+    // in their canonical spelling.
+    await expect(field(first, "kind")).toHaveValue("Class");
+    await expect(field(first, "kind")).toHaveAttribute("list", "period-kinds");
+  });
+
+  test("the end box and the length box fill each other in", async ({ page }) => {
+    const first = rows(page).first();
+
+    // Typing an end moves the length: "until 09:00" is 60 minutes from 08:00,
+    // and the subtraction is the app's job.
+    await field(first, "end").fill("09:00");
+    await expect(field(first, "length")).toHaveValue("60");
+
+    // Typing a length moves the end.
+    await field(first, "length").fill("45");
+    await expect(field(first, "end")).toHaveValue("08:45");
+
+    // Moving the start keeps the length and carries the end along - a period
+    // dragged to a new slot is the same period.
+    await field(first, "start").fill("08:10");
+    await expect(field(first, "length")).toHaveValue("45");
+    await expect(field(first, "end")).toHaveValue("08:55");
+
+    // Every one of those was a commit: the whole row reads consistently and the
+    // schedule still parses, which readRows proves for all eleven at once.
+    expect((await readRows(page))[0]).toBe("Period 1 08:10-08:55 45");
+  });
+
+  test("an end before the start is refused on both boxes", async ({ page }) => {
+    const row = rows(page).nth(2);
+
+    await field(row, "end").fill("09:00");
+
+    // Period 2 starts 09:05, so 09:00 is the one schedule a length box could
+    // never express - it reaches the parser as a negative length and comes
+    // back bound to BOTH boxes, since either is one you would change to fix it.
+    await expect(field(row, "end")).toHaveAttribute("aria-invalid", "true");
+    await expect(field(row, "length")).toHaveAttribute("aria-invalid", "true");
+    await expect(row.locator(".editrow__error")).toContainText("end after it starts");
+
+    // The countdown behind the editor kept running on the last version that
+    // made sense - the overlap test below proves that path; here the length
+    // box shows the negative number the parser refused, rather than hiding it.
+    await expect(field(row, "length")).toHaveValue("-5");
+  });
+
+  test("a kind of the user's own is kept, and survives a reload", async ({ page }) => {
+    const third = rows(page).nth(4);
+    await expect(field(third, "name")).toHaveValue("Period 3");
+
+    await field(third, "kind").fill("Study hall");
+    await expect(field(third, "kind")).toHaveValue("Study hall");
+
+    // The datalist offers the built-ins, but the box is not limited to them.
+    const options = await page.locator("#period-kinds option").evaluateAll((items) =>
+      items.map((item) => (item as HTMLOptionElement).value),
+    );
+    expect(options).toContain("Planning");
+    expect(options).toContain("Passing");
+
+    await page.reload();
+    await openSettings(page);
+    await expect(field(rows(page).nth(4), "kind")).toHaveValue("Study hall");
+  });
+
+  test("a legacy lowercase kind in storage is shown in its canonical spelling", async ({
+    page,
+  }) => {
+    // Every schedule stored before 2026-09-03 says "class"; the parser is the
+    // migration, and the box shows what it decided. Planted by hand rather
+    // than read back and edited, because a fresh install writes no library
+    // key until something is saved.
+    const legacy = {
+      schedules: [
+        {
+          id: "regular",
+          name: "Regular",
+          periods: [
+            { name: "Period 1", kind: "class", startMin: 480, endMin: 535 },
+            { name: "Passing", kind: "passing", startMin: 535, endMin: 545 },
+            { name: "Lunch", kind: "lunch", startMin: 545, endMin: 575 },
+          ],
+        },
+      ],
+      calendar: {
+        weekdays: [null, "regular", "regular", "regular", "regular", "regular", null],
+        overrides: [],
+      },
+    };
+    await page.evaluate(
+      ([key, value]) => window.localStorage.setItem(key, value),
+      [STORAGE_KEY, JSON.stringify(legacy)] as const,
+    );
+
+    await page.reload();
+    await openSettings(page);
+    expect(await rows(page).evaluateAll((items) =>
+      items.map((item) => (item.querySelector('[data-field="kind"]') as HTMLInputElement).value),
+    )).toEqual(["Class", "Passing", "Lunch"]);
   });
 
   test("renaming a period reaches the countdown", async ({ page }) => {
@@ -147,11 +252,12 @@ test.describe("reordering", () => {
     await rows(page).nth(5).locator('[data-field="up"]').click();
 
     const moved = await readRows(page);
-    expect(moved[4]).toBe("A Lunch 10:10 30");
-    expect(moved[5]).toBe("Period 3 10:40 55");
+    expect(moved[4]).toBe("A Lunch 10:10-10:40 30");
+    expect(moved[5]).toBe("Period 3 10:40-11:35 55");
 
-    // The pair still ends where it did, so nothing after it moved.
-    expect(moved[6]).toBe("Period 4 11:35 55");
+    // The pair still ends where it did, so nothing after it moved - and the
+    // end boxes moved with the starts, so all three fields agree on every row.
+    expect(moved[6]).toBe("Period 4 11:35-12:30 55");
   });
 
   test("is its own inverse", async ({ page }) => {
@@ -357,10 +463,12 @@ test.describe("persistence", () => {
 test.describe("the keyboard alone", () => {
   /** Tab until the named element has focus, or give up loudly. */
   // The limit is generous because the editor genuinely is a long tab chain:
-  // eleven rows of six controls is sixty-six stops before the twelfth row.
-  // That is a real observation about the form, recorded in the build log, not
-  // a number picked to make the test pass.
-  async function tabTo(page: Page, selector: string, limit = 120) {
+  // eleven rows of seven controls is seventy-seven stops before the twelfth
+  // row, plus the picker and its buttons above. It rose from 120 when the end
+  // box added a stop per row. That is a real observation about the form,
+  // recorded in the build log's open gaps, not a number picked to make the
+  // test pass.
+  async function tabTo(page: Page, selector: string, limit = 160) {
     for (let press = 0; press < limit; press++) {
       if (await page.locator(selector).evaluate((element) => element === document.activeElement)) {
         return;
@@ -455,7 +563,7 @@ test.describe("the keyboard alone", () => {
     // Move it earlier, then back, with the keyboard.
     await tabTo(page, '#period-editor .editrow:last-child [data-field="up"]');
     await page.keyboard.press("Enter");
-    expect((await readRows(page))[10]).toBe("Study hall 13:35 40");
+    expect((await readRows(page))[10]).toBe("Study hall 13:35-14:15 40");
 
     // Escape leaves settings, and the schedule that was typed is running.
     await page.keyboard.press("Escape");

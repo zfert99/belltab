@@ -333,6 +333,10 @@ development too, so the bare origin is a 404 exactly as it is in production.
 | 2026-09-02 | The PWA ships a manifest and no service worker | Chrome stopped requiring a SW for installation when it dropped the offline-capability check, so the manifest alone buys the whole ask — an icon, a window, a home-screen entry. What a SW would add is offline caching, which the research doc explicitly says not to over-invest in (there is no server to be offline FROM), plus an update lifecycle that is a famous way to serve stale HTML after a deploy. The one real thing it would buy — Android notifications — keeps its open-gap row, now with the price written on it. |
 | 2026-09-02 | One SVG glyph is the source of every icon, rasterised by a committed script | `src/app/icon.svg` is the design; `scripts/render-icons.mjs` screenshots it at five sizes through the Playwright already in devDependencies, so no image library joins the repo for a file that changes roughly never. The PNGs are committed rather than built: a build step needing a browser binary would slow every CI run to regenerate identical bytes. Maskable variants keep the bell inside the central safe zone at 56%; the plain set sits at 72%. |
 | 2026-09-02 | The manifest's colours are pinned to the live `--paper` token by a test | `background_color` and `theme_color` paint the splash and the installed window's chrome before any CSS loads, and nothing else would notice them drifting from the palette. `e2e/pwa.spec.ts` reads the computed `--paper` off the real page and asserts the manifest matches, so a palette change cannot leave the splash behind. One colour, the light paper: the manifest predates dark mode and takes a single value, and the page re-themes the moment it paints. |
+| 2026-09-03 | A period's kind is free text with built-in suggestions, not a closed list | The user's ask was "planning and other custom fields", and a `<select>` of three cannot say what a building calls its own blocks. The only thing the engine ever asks of a kind is "is this Passing?" (the seam that "3 of 7" does not count), so nothing downstream needs an enum. The editor's box is a text input with a `<datalist>` of eight built-ins; anything else is kept as typed, trimmed, capped at 24 characters — a category word, not a sentence. |
+| 2026-09-03 | Built-in kinds are normalised to a canonical spelling at the parse boundary — and that IS the migration | Every schedule stored or shared before 2026-09-03 says `"class"`; the parser now maps a built-in's lowercase form to `"Class"`, so old data, old links and freshly typed `"CLASS"` all land on one spelling the engine and the editor agree on. No storage key bump and no share version bump: the change is strictly widening — everything the old parser accepted, the new one accepts and means the same by — which is the same precedent Phase 4 set when it added schedule ids leniently. What it costs is a pre-2026-09-03 build refusing a new link that carries a custom kind, with the wrong error; no such build is deployed. The fixture file's expectations were edited for the first time, and its header says exactly what changed and why the payloads' meaning did not. |
+| 2026-09-03 | The end box is a view of `start + length` that can also be typed into; length stays what the draft believes | Three boxes, two degrees of freedom, and the rule for which one gives way is "the box you did not touch that is furthest from what you meant": a length moves the end, an end moves the length, a start moves the end and keeps the length. Length stays the truth because it is what makes `start >= end` unreachable by typing a duration, and because `movePeriod` trades slots by length. An end typed before the start reaches the parser as a negative length and comes back as "has to end after it starts", bound to BOTH boxes — the one schedule a length box could never express, and the reason the end box was worth adding: "until 10:05" is how a schedule is read off a wall, and the subtraction is the app's job. |
+| 2026-09-03 | The editor stacks at 56rem, up from 45rem | Seven columns instead of six: the fixed columns now sum to 39.25rem plus gaps, and at 45rem the name field was left under 3rem. Stacking is always safe, so the threshold errs wide; the settings layout's two-column arrangement now holds a stacked editor between 45 and 56rem, which is fine — it was sized for the editor's width, not its shape. |
 
 ## Deviations from the plan docs
 
@@ -686,6 +690,39 @@ before the origin ever served.
 ---
 
 ## Bugs found
+
+### 2026-09-03 — the name column was 8px wide on every engine, and Chrome's axe missed it by two pixels
+
+Caught by the a11y sweep on the first full run after the end-time column
+landed — on Firefox and WebKit. Chrome passed the same sweep, which is the
+part worth writing down.
+
+The end box made the editor a seven-column grid, and the stacking breakpoint
+was raised from 45rem to 56rem to match. That breakpoint was a VIEWPORT query,
+and the viewport was never the constraint: the settings panel sits beside a
+13rem nav inside a card capped at 60rem, so it is **684px wide at every
+viewport from 60rem up**, no matter how wide the window. The six fixed columns
+plus gaps want 676px of that. The name column - `minmax(0, 1fr)` - got the
+remaining 8px, on every engine, at every desktop size. Measured with a
+Playwright script rather than assumed: Firefox and Chromium reported identical
+column widths to the pixel.
+
+Chrome's sweep passed because the name input overflowed its 8px track to 26px,
+and axe's `target-size` rule wants 24. Firefox and WebKit reported the same
+overflow and failed - a two-pixel difference in how an overflowing `<input>`
+is measured, on either side of a threshold. **A green a11y run on one engine
+is not evidence the layout is fine; it can be evidence the engine measures
+overflow generously.**
+
+The fix is a container query - `.editrows { container: editrows /
+inline-size }` - with three tiers chosen by the editor's OWN width: the table
+at 52rem and up, a two-line row with visible labels below that (which is what
+the 684px panel gets), and the four-line stack below 34rem. The lesson is the
+same one the 60rem settings breakpoint already recorded in this stylesheet and
+that this change repeated anyway: **when a component lives inside a capped
+container, the viewport is the wrong thing to measure.** The old note said the
+settings layout "was sized for the editor's width"; it was, and then the editor
+grew, and only a query on the actual width could have followed it.
 
 ### 2026-09-02 — the test could not see the locked chime, because looking is a gesture
 
@@ -4415,3 +4452,50 @@ What stays open is what a single pass cannot close: the hub's headers winning
 the proxied hop (hub-owned fix), the un-retried wake-lock refusal, the Android
 notification gap, and the "WebKit is not one browser" family — a green day on
 one Safari is a data point, not a matrix.
+
+### 2026-09-03 10:40 — custom kinds, and an end box that fills the length in
+
+The first post-roadmap feature, from a direct ask: kinds beyond the three
+built-ins, and an end-time column because "doing the math is difficult".
+
+**Kinds are free text now.** The only consumer the enum ever had was the block
+counter's "is this Passing?", so nothing downstream needed a closed list. The
+editor's `<select>` became a text box with a `<datalist>` of eight built-ins -
+Class, Lunch, Passing, Planning, Advisory, Homeroom, Break, Assembly - and
+anything else typed is kept as typed, trimmed, capped at 24 characters. The
+parser normalises a built-in's lowercase form to its canonical spelling, and
+that one line is the migration for every schedule stored or shared before
+today: no storage key bump, no share version bump, on the widening argument
+recorded in Decisions. The fixture file's expectations were edited for the
+first time in its life, and its header now says exactly what changed and why
+the payloads' meaning did not. A new fixture carries "Study hall".
+
+**The end box is a view that can be typed into.** Start and length remain the
+draft's truth - length is what makes `start >= end` unreachable by typing, and
+what `movePeriod` trades slots by - and `updatePeriod` keeps the three in step
+with one rule: a length moves the end, an end moves the length, a start moves
+the end and keeps the length. An end typed before the start reaches the parser
+as a negative length and comes back on `endMin`, which the row now binds to
+BOTH boxes. The one case the length box could never express is the reason the
+end box was worth adding.
+
+**The layout bug, under Bugs found.** Seven columns did not fit a 684px panel
+and the name column collapsed to 8px on every engine; Chrome's axe missed it
+by two pixels. The fix is a container query with three tiers, and the lesson
+is one this stylesheet had already written down once.
+
+**Tests:** unit 377 → 397. The parser gains a `kinds` block (normalisation,
+custom text kept, the cap); the draft model gains an `updatePeriod` block
+(seven cases for the three-box rule) and an end-aware `movePeriod` case; the
+"unknown kind" rejection became three rejections that still exist - blank, not
+a string, too long. Playwright 603 → 615: four new editor tests per engine
+(the boxes filling each other in, an end before the start on both boxes, a
+custom kind surviving a reload, a legacy lowercase kind shown canonical), and
+`readRows` now reads `start-end length` so every existing assertion also
+checks the three fields agree on every row. The keyboard test's Tab budget rose
+from 120 to 160 for the extra stop per row - the tab-chain gap row's number is
+now seventy-seven, not seventy-two.
+
+`npm run lint`, `npm run typecheck`, `npm run build`, `npx vitest run`,
+`npx markdownlint-cli "**/*.md"` and `npx playwright test` all pass, with the
+known macOS-WebKit exception in `editor.spec.ts`.

@@ -17,7 +17,9 @@ schedule lives in your browser and in a shareable link.
 - **Countdown in the tab title** — minutes remaining and the current period
   name, with the number first so it survives tab truncation.
 - **Fully custom schedules** — as many periods as you want, each with its own
-  name and start/end time. Twenty periods is fine.
+  name, start and end time (or a length — type either and the other fills in),
+  and a kind of your own: Class, Passing, Lunch, Planning, or whatever your
+  building calls it. Twenty periods is fine.
 - **Named day types** — "Regular", "Late Start", "Assembly", "Half Day" — with a
   default weekday mapping and a manual override for today.
 - **Honest empty states** — before first bell, after last bell, and days with no

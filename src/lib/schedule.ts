@@ -21,18 +21,41 @@ const hm = (hours: number, minutes: number): number => hours * 60 + minutes;
 /**
  * What a period *is*, as opposed to what it is called.
  *
- * The period strip needs to know which blocks are the day's real units and
+ * The block counter needs to know which blocks are the day's real units and
  * which are the seams between them, and it cannot learn that from the label -
  * a school might call passing "Transition", or name a class "Passing Period
  * Prep". `kind` is the schedule's own answer, set by whoever authored it.
+ *
+ * **Free text since 2026-09-03**, with these as suggestions rather than the
+ * whole menu. A closed list of three could not say "Planning", "Advisory" or
+ * whatever a building calls its own blocks, and the only thing the engine ever
+ * asks of a kind is "is this Passing?" - so the list is a datalist, the
+ * canonical spelling of each built-in is what the parser normalises legacy
+ * lowercase values to, and anything else a user types is kept as typed.
  */
 export const PERIOD_KINDS = {
-  CLASS: "class",
-  LUNCH: "lunch",
-  PASSING: "passing",
+  CLASS: "Class",
+  LUNCH: "Lunch",
+  PASSING: "Passing",
+  PLANNING: "Planning",
+  ADVISORY: "Advisory",
+  HOMEROOM: "Homeroom",
+  BREAK: "Break",
+  ASSEMBLY: "Assembly",
 } as const;
 
-export type PeriodKind = (typeof PERIOD_KINDS)[keyof typeof PERIOD_KINDS];
+/** One of the built-ins, for the places that want to enumerate them. */
+export type BuiltInKind = (typeof PERIOD_KINDS)[keyof typeof PERIOD_KINDS];
+
+/**
+ * Any kind at all, built-in or the user's own. `string` rather than the union,
+ * on purpose: the parser is the only thing that constrains it, and a schedule
+ * with a kind called "Study hall" is a valid schedule.
+ */
+export type PeriodKind = string;
+
+/** The built-ins in the order the editor offers them. */
+export const BUILT_IN_KINDS: readonly BuiltInKind[] = Object.values(PERIOD_KINDS);
 
 /**
  * A minute of the day, 0 to 1440.
@@ -119,17 +142,17 @@ export const DEFAULT_SCHEDULES: readonly Schedule[] = [
     id: "regular",
     name: "Regular",
     periods: [
-      { name: "Period 1", kind: "class", startMin: hm(8, 0), endMin: hm(8, 55) },
-      { name: "Passing", kind: "passing", startMin: hm(8, 55), endMin: hm(9, 5) },
-      { name: "Period 2", kind: "class", startMin: hm(9, 5), endMin: hm(10, 5) },
-      { name: "Passing", kind: "passing", startMin: hm(10, 5), endMin: hm(10, 10) },
-      { name: "Period 3", kind: "class", startMin: hm(10, 10), endMin: hm(11, 5) },
-      { name: "A Lunch", kind: "lunch", startMin: hm(11, 5), endMin: hm(11, 35) },
-      { name: "Period 4", kind: "class", startMin: hm(11, 35), endMin: hm(12, 30) },
-      { name: "Passing", kind: "passing", startMin: hm(12, 30), endMin: hm(12, 35) },
-      { name: "Period 5", kind: "class", startMin: hm(12, 35), endMin: hm(13, 30) },
-      { name: "Passing", kind: "passing", startMin: hm(13, 30), endMin: hm(13, 35) },
-      { name: "Period 6", kind: "class", startMin: hm(13, 35), endMin: hm(14, 30) },
+      { name: "Period 1", kind: "Class", startMin: hm(8, 0), endMin: hm(8, 55) },
+      { name: "Passing", kind: "Passing", startMin: hm(8, 55), endMin: hm(9, 5) },
+      { name: "Period 2", kind: "Class", startMin: hm(9, 5), endMin: hm(10, 5) },
+      { name: "Passing", kind: "Passing", startMin: hm(10, 5), endMin: hm(10, 10) },
+      { name: "Period 3", kind: "Class", startMin: hm(10, 10), endMin: hm(11, 5) },
+      { name: "A Lunch", kind: "Lunch", startMin: hm(11, 5), endMin: hm(11, 35) },
+      { name: "Period 4", kind: "Class", startMin: hm(11, 35), endMin: hm(12, 30) },
+      { name: "Passing", kind: "Passing", startMin: hm(12, 30), endMin: hm(12, 35) },
+      { name: "Period 5", kind: "Class", startMin: hm(12, 35), endMin: hm(13, 30) },
+      { name: "Passing", kind: "Passing", startMin: hm(13, 30), endMin: hm(13, 35) },
+      { name: "Period 6", kind: "Class", startMin: hm(13, 35), endMin: hm(14, 30) },
     ],
   },
   {
@@ -139,15 +162,15 @@ export const DEFAULT_SCHEDULES: readonly Schedule[] = [
     id: "delayed",
     name: "Delayed start",
     periods: [
-      { name: "Period 1", kind: "class", startMin: hm(10, 0), endMin: hm(10, 45) },
-      { name: "Passing", kind: "passing", startMin: hm(10, 45), endMin: hm(10, 50) },
-      { name: "Period 2", kind: "class", startMin: hm(10, 50), endMin: hm(11, 35) },
-      { name: "A Lunch", kind: "lunch", startMin: hm(11, 35), endMin: hm(12, 5) },
-      { name: "Period 3", kind: "class", startMin: hm(12, 5), endMin: hm(12, 50) },
-      { name: "Passing", kind: "passing", startMin: hm(12, 50), endMin: hm(12, 55) },
-      { name: "Period 4", kind: "class", startMin: hm(12, 55), endMin: hm(13, 40) },
-      { name: "Passing", kind: "passing", startMin: hm(13, 40), endMin: hm(13, 45) },
-      { name: "Period 5", kind: "class", startMin: hm(13, 45), endMin: hm(14, 30) },
+      { name: "Period 1", kind: "Class", startMin: hm(10, 0), endMin: hm(10, 45) },
+      { name: "Passing", kind: "Passing", startMin: hm(10, 45), endMin: hm(10, 50) },
+      { name: "Period 2", kind: "Class", startMin: hm(10, 50), endMin: hm(11, 35) },
+      { name: "A Lunch", kind: "Lunch", startMin: hm(11, 35), endMin: hm(12, 5) },
+      { name: "Period 3", kind: "Class", startMin: hm(12, 5), endMin: hm(12, 50) },
+      { name: "Passing", kind: "Passing", startMin: hm(12, 50), endMin: hm(12, 55) },
+      { name: "Period 4", kind: "Class", startMin: hm(12, 55), endMin: hm(13, 40) },
+      { name: "Passing", kind: "Passing", startMin: hm(13, 40), endMin: hm(13, 45) },
+      { name: "Period 5", kind: "Class", startMin: hm(13, 45), endMin: hm(14, 30) },
     ],
   },
   {
@@ -156,32 +179,32 @@ export const DEFAULT_SCHEDULES: readonly Schedule[] = [
     id: "half",
     name: "Half day",
     periods: [
-      { name: "Period 1", kind: "class", startMin: hm(8, 0), endMin: hm(8, 40) },
-      { name: "Passing", kind: "passing", startMin: hm(8, 40), endMin: hm(8, 45) },
-      { name: "Period 2", kind: "class", startMin: hm(8, 45), endMin: hm(9, 25) },
-      { name: "Passing", kind: "passing", startMin: hm(9, 25), endMin: hm(9, 30) },
-      { name: "Period 3", kind: "class", startMin: hm(9, 30), endMin: hm(10, 10) },
-      { name: "Passing", kind: "passing", startMin: hm(10, 10), endMin: hm(10, 15) },
-      { name: "Period 4", kind: "class", startMin: hm(10, 15), endMin: hm(10, 55) },
-      { name: "Passing", kind: "passing", startMin: hm(10, 55), endMin: hm(11, 0) },
-      { name: "Period 5", kind: "class", startMin: hm(11, 0), endMin: hm(11, 40) },
+      { name: "Period 1", kind: "Class", startMin: hm(8, 0), endMin: hm(8, 40) },
+      { name: "Passing", kind: "Passing", startMin: hm(8, 40), endMin: hm(8, 45) },
+      { name: "Period 2", kind: "Class", startMin: hm(8, 45), endMin: hm(9, 25) },
+      { name: "Passing", kind: "Passing", startMin: hm(9, 25), endMin: hm(9, 30) },
+      { name: "Period 3", kind: "Class", startMin: hm(9, 30), endMin: hm(10, 10) },
+      { name: "Passing", kind: "Passing", startMin: hm(10, 10), endMin: hm(10, 15) },
+      { name: "Period 4", kind: "Class", startMin: hm(10, 15), endMin: hm(10, 55) },
+      { name: "Passing", kind: "Passing", startMin: hm(10, 55), endMin: hm(11, 0) },
+      { name: "Period 5", kind: "Class", startMin: hm(11, 0), endMin: hm(11, 40) },
     ],
   },
   {
     id: "assembly",
     name: "Assembly",
     periods: [
-      { name: "Period 1", kind: "class", startMin: hm(8, 0), endMin: hm(8, 55) },
-      { name: "Passing", kind: "passing", startMin: hm(8, 55), endMin: hm(9, 5) },
-      { name: "Assembly", kind: "class", startMin: hm(9, 5), endMin: hm(10, 5) },
-      { name: "Passing", kind: "passing", startMin: hm(10, 5), endMin: hm(10, 10) },
-      { name: "Period 2", kind: "class", startMin: hm(10, 10), endMin: hm(11, 5) },
-      { name: "A Lunch", kind: "lunch", startMin: hm(11, 5), endMin: hm(11, 35) },
-      { name: "Period 3", kind: "class", startMin: hm(11, 35), endMin: hm(12, 30) },
-      { name: "Passing", kind: "passing", startMin: hm(12, 30), endMin: hm(12, 35) },
-      { name: "Period 4", kind: "class", startMin: hm(12, 35), endMin: hm(13, 30) },
-      { name: "Passing", kind: "passing", startMin: hm(13, 30), endMin: hm(13, 35) },
-      { name: "Period 5", kind: "class", startMin: hm(13, 35), endMin: hm(14, 30) },
+      { name: "Period 1", kind: "Class", startMin: hm(8, 0), endMin: hm(8, 55) },
+      { name: "Passing", kind: "Passing", startMin: hm(8, 55), endMin: hm(9, 5) },
+      { name: "Assembly", kind: "Class", startMin: hm(9, 5), endMin: hm(10, 5) },
+      { name: "Passing", kind: "Passing", startMin: hm(10, 5), endMin: hm(10, 10) },
+      { name: "Period 2", kind: "Class", startMin: hm(10, 10), endMin: hm(11, 5) },
+      { name: "A Lunch", kind: "Lunch", startMin: hm(11, 5), endMin: hm(11, 35) },
+      { name: "Period 3", kind: "Class", startMin: hm(11, 35), endMin: hm(12, 30) },
+      { name: "Passing", kind: "Passing", startMin: hm(12, 30), endMin: hm(12, 35) },
+      { name: "Period 4", kind: "Class", startMin: hm(12, 35), endMin: hm(13, 30) },
+      { name: "Passing", kind: "Passing", startMin: hm(13, 30), endMin: hm(13, 35) },
+      { name: "Period 5", kind: "Class", startMin: hm(13, 35), endMin: hm(14, 30) },
     ],
   },
 ];

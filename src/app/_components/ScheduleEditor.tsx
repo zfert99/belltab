@@ -14,7 +14,8 @@ import {
   type Draft,
   type DraftPeriod,
 } from "@/app/_lib/draft";
-import { PeriodRow } from "@/app/_components/PeriodRow";
+import { BUILT_IN_KINDS } from "@/lib/schedule";
+import { KIND_LIST_ID, PeriodRow } from "@/app/_components/PeriodRow";
 
 /**
  * The editor, and the argument for why it cannot produce an invalid schedule.
@@ -132,14 +133,35 @@ export function ScheduleEditor({ schedule, library, save }: ScheduleEditorProps)
         {scheduleErrors.map((error) => error.message).join(" ")}
       </p>
 
+      {/*
+        The container the row layout is measured against. The editor has three
+        shapes - a seven-column table, a two-line row, a stack - and which one
+        fits depends on THIS element's width, not the viewport's: the settings
+        panel is at most 684px wide beside its nav no matter how wide the
+        window, which is less than the table needs. A viewport query got that
+        wrong on 2026-09-03 and collapsed the name column to 8px on every
+        engine; see Bugs found in Docs/build-log.md.
+      */}
+      <div className="editrows">
       <div className="editrow__head" aria-hidden="true">
         <span>Name</span>
         <span>Kind</span>
         <span>Start</span>
+        <span>End</span>
         <span>Minutes</span>
         <span>Move</span>
         <span />
       </div>
+
+      {/*
+        One datalist for every row's kind box. Suggestions, not a menu: the
+        built-ins are what most schools mean, and anything else typed is kept.
+      */}
+      <datalist id={KIND_LIST_ID}>
+        {BUILT_IN_KINDS.map((kind) => (
+          <option key={kind} value={kind} />
+        ))}
+      </datalist>
 
       <ul className="editlist" id="period-editor">
         {draft.periods.map((row, index) => (
@@ -157,6 +179,7 @@ export function ScheduleEditor({ schedule, library, save }: ScheduleEditorProps)
           />
         ))}
       </ul>
+      </div>
     </div>
   );
 }

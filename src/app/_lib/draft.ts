@@ -34,6 +34,12 @@ export interface DraftPeriod {
   kind: PeriodKind;
   /** "HH:MM", exactly as `<input type="time">` reports it. */
   start: string;
+  /**
+   * "HH:MM", the same shape as `start`. A VIEW of `start + length` that the
+   * user can also type into: `updatePeriod` keeps the three in step, and
+   * `draftToInput` reads only `start` and `length`. See the note there.
+   */
+  end: string;
   /** Minutes, as typed. A string, because `<input type="number">` can be empty. */
   length: string;
 }
@@ -74,13 +80,31 @@ export function minutesToClock(totalMinutes: number): string {
 }
 
 /**
+ * `start + length` as "HH:MM", or "" when either half is not a number yet.
+ *
+ * Blank rather than a guess: an end box showing yesterday's value beside a
+ * half-typed start would be a number the user did not enter and might commit.
+ */
+export function endOf(start: string, length: string): string {
+  const startMin = clockToMinutes(start);
+  const minutes = length.trim() === "" ? null : Number(length);
+  if (startMin === null || minutes === null || !Number.isFinite(minutes)) return "";
+
+  const endMin = startMin + minutes;
+  return endMin < 0 || endMin > 24 * 60 ? "" : minutesToClock(endMin);
+}
+
+/**
  * A stored schedule to something typeable.
  *
- * Length rather than end time, and that is a deliberate product decision.
- * "Period 2 is 55 minutes" is how a schedule is actually described, and it
- * means retiming a period cannot silently invert it - `start >= end` is
- * unreachable when the second field is a duration. The engine still stores
- * `startMin`/`endMin`; the conversion happens here.
+ * Length AND end time, since 2026-09-03 - and `length` is still the one the
+ * draft believes. "Period 2 is 55 minutes" is how a schedule is described, it
+ * keeps `start >= end` unreachable by typing a duration, and it is what lets a
+ * moved period keep its length (`movePeriod` trades slots by length). The end
+ * box exists because the other way round is how a schedule is READ off a wall
+ * - "until 10:05" - and doing the subtraction in your head is exactly the kind
+ * of arithmetic a clock app should be doing for you. The two fill each other in
+ * via `updatePeriod`; the engine still stores `startMin`/`endMin`.
  */
 export function toDraft(schedule: Schedule): Draft {
   return {
@@ -92,6 +116,7 @@ export function toDraft(schedule: Schedule): Draft {
       name: period.name,
       kind: period.kind,
       start: minutesToClock(period.startMin),
+      end: minutesToClock(period.endMin),
       length: String(period.endMin - period.startMin),
     })),
   };
@@ -161,16 +186,54 @@ export function addPeriod(draft: Draft): Draft {
         // Past the end of the day the row is unplaceable, so it is left blank
         // rather than wrapped round to the small hours.
         start: startMin + NEW_PERIOD_MINUTES > 24 * 60 ? "" : minutesToClock(startMin),
+        end:
+          startMin + NEW_PERIOD_MINUTES > 24 * 60
+            ? ""
+            : minutesToClock(startMin + NEW_PERIOD_MINUTES),
         length: String(NEW_PERIOD_MINUTES),
       },
     ],
   };
 }
 
+/**
+ * Applies a patch, and keeps start, end and length in step.
+ *
+ * Three boxes, two degrees of freedom. Which one gives way depends on which
+ * one was just typed into, and the rule is "the box you did not touch that is
+ * furthest from what you meant":
+ *
+ * - Typing a LENGTH moves the end. (You said how long it is.)
+ * - Typing an END moves the length. (You said when it finishes.)
+ * - Typing a START moves the end and keeps the length. A period dragged to a
+ *   new slot is the same period, and `movePeriod` depends on this too.
+ *
+ * A half-typed end - "10:" or one before the start - is kept as typed and the
+ * length is left alone, so the parser gets the old length, complains about
+ * nothing or about the right thing, and the user's keystrokes stay on screen.
+ * An end before the start is the one case a length box could never express;
+ * it reaches the parser as a negative length and comes back as "has to end
+ * after it starts", bound to both boxes.
+ */
 export function updatePeriod(draft: Draft, rowId: string, patch: Partial<DraftPeriod>): Draft {
   return {
     ...draft,
-    periods: draft.periods.map((row) => (row.rowId === rowId ? { ...row, ...patch } : row)),
+    periods: draft.periods.map((row) => {
+      if (row.rowId !== rowId) return row;
+
+      const next = { ...row, ...patch };
+
+      if ("end" in patch && !("length" in patch)) {
+        const startMin = clockToMinutes(next.start);
+        const endMin = clockToMinutes(next.end);
+        if (startMin !== null && endMin !== null) next.length = String(endMin - startMin);
+        return next;
+      }
+
+      if ("start" in patch || "length" in patch) next.end = endOf(next.start, next.length);
+
+      return next;
+    }),
   };
 }
 
@@ -213,10 +276,17 @@ export function movePeriod(draft: Draft, rowId: string, direction: -1 | 1): Draf
   }
 
   const swapped = [...draft.periods];
-  swapped[Math.min(index, target)] = { ...second, start: minutesToClock(firstStart) };
+  const secondStart = minutesToClock(firstStart);
+  const firstNewStart = minutesToClock(firstStart + secondLength);
+  swapped[Math.min(index, target)] = {
+    ...second,
+    start: secondStart,
+    end: endOf(secondStart, second.length),
+  };
   swapped[Math.max(index, target)] = {
     ...first,
-    start: minutesToClock(firstStart + secondLength),
+    start: firstNewStart,
+    end: endOf(firstNewStart, first.length),
   };
 
   return { ...draft, periods: swapped };

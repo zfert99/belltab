@@ -1322,14 +1322,14 @@ body.is-settings .viewswitch {
 .editrow__head,
 .editrow__grid {
   display: grid;
-  /* Name, kind, start, minutes, move, delete. The move column arrived in
+  /* Name, kind, start, end, minutes, move, delete. The move column arrived in
      Phase 3: periods are stored sorted by start time, so "reorder" has to be a
      control that changes the times rather than a drag that the next parse would
-     undo. */
-  /* The start column is 9.5rem because Chrome's `input[type=time]` renders
-     "08:00 AM" plus a picker icon and clips silently at 8rem - the value is
-     still there, it just cannot be read. */
-  grid-template-columns: minmax(0, 1fr) 7rem 9.5rem 5.5rem 5rem 2.75rem;
+     undo. The end column arrived 2026-09-03, beside the length it mirrors. */
+  /* The two time columns are 9.5rem because Chrome's `input[type=time]`
+     renders "08:00 AM" plus a picker icon and clips silently at 8rem - the
+     value is still there, it just cannot be read. */
+  grid-template-columns: minmax(0, 1fr) 7rem 9.5rem 9.5rem 5.5rem 5rem 2.75rem;
   gap: var(--s-2);
   align-items: center;
 }
@@ -1422,25 +1422,40 @@ body.is-settings .viewswitch {
   color: var(--danger-text);
 }
 
-/* Below this the five-column row cannot hold its shape, so it stacks - and the
-   per-field labels stop being visually hidden, because the column headers that
-   were naming these controls are gone. */
-@media (max-width: 45rem) {
+/* The rows measure themselves against this, not the viewport.
+
+   Three shapes, chosen by the width the editor actually has:
+   - the seven-column table with its header, at 52rem and up;
+   - a two-line row with visible labels below that - name, kind and delete on
+     the first line, the four time controls on the second;
+   - the one-control-per-line stack below 34rem.
+
+   A CONTAINER query, and the reason is a measurement: the settings panel is
+   684px wide beside its nav at every viewport from 60rem up, because the card
+   caps at 60rem. The seven fixed columns want 676px of that, and a viewport
+   query that stacked at 56rem left the name column 8px wide at 1280px on
+   every engine - axe's target-size caught it on Firefox and WebKit and missed
+   it on Chrome by two pixels. The panel's width is the fact that matters, and
+   only a container query can ask for it. */
+.editrows {
+  container: editrows / inline-size;
+}
+
+@container editrows (max-width: 52rem) {
   .editrow__head {
     display: none;
   }
 
   .editrow__grid {
-    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr) auto;
     grid-template-areas:
-      "name del"
-      "kind kind"
-      "start length"
-      "move move";
+      "name name kind del"
+      "start end length move";
   }
 
   .editrow__move {
     grid-area: move;
+    justify-self: end;
   }
 
   .editrow__field:nth-of-type(1) {
@@ -1456,14 +1471,22 @@ body.is-settings .viewswitch {
   }
 
   .editrow__field:nth-of-type(4) {
+    grid-area: end;
+  }
+
+  .editrow__field:nth-of-type(5) {
     grid-area: length;
   }
 
   .editrow__delete {
     grid-area: del;
     width: 2.75rem;
+    justify-self: end;
+    align-self: end;
   }
 
+  /* The per-field labels stop being visually hidden, because the column
+     headers that were naming these controls are gone. */
   .editrow__field {
     flex-direction: column;
     align-items: flex-start;
@@ -1489,6 +1512,19 @@ body.is-settings .viewswitch {
   }
 }
 
+/* Narrower still, the two-line row's time controls cannot share a line with
+   the minutes and the move buttons, so it stacks to two-up. */
+@container editrows (max-width: 34rem) {
+  .editrow__grid {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-areas:
+      "name name"
+      "kind del"
+      "start end"
+      "length move";
+  }
+}
+
 /* At the reflow floor the two-up row cannot hold a time input either: Chrome
    needs roughly 130px for "08:00 AM" and its picker icon, and 320px minus the
    body, card and row padding leaves about 140px for a column that also has to
@@ -1500,6 +1536,7 @@ body.is-settings .viewswitch {
       "name del"
       "kind kind"
       "start start"
+      "end end"
       "length length"
       "move move";
   }
