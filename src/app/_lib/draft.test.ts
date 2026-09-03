@@ -30,9 +30,9 @@ const sample: Draft = {
   name: "Test",
   nextRowId: 3,
   periods: [
-    { rowId: "0", name: "First", kind: "class", start: "08:00", length: "50" },
-    { rowId: "1", name: "Second", kind: "class", start: "09:00", length: "30" },
-    { rowId: "2", name: "Third", kind: "class", start: "09:30", length: "40" },
+    { rowId: "0", name: "First", kind: "Class", start: "08:00", end: "08:50", length: "50" },
+    { rowId: "1", name: "Second", kind: "Class", start: "09:00", end: "09:30", length: "30" },
+    { rowId: "2", name: "Third", kind: "Class", start: "09:30", end: "10:10", length: "40" },
   ],
 };
 
@@ -73,6 +73,12 @@ describe("minutesToClock", () => {
 });
 
 describe("toDraft", () => {
+  it("fills the end box from the stored end, and the length from the difference", () => {
+    const draft = toDraft(regular);
+
+    expect(draft.periods[0]).toMatchObject({ start: "08:00", end: "08:55", length: "55" });
+  });
+
   it("turns an end time into a length", () => {
     const draft = toDraft(regular);
 
@@ -201,6 +207,13 @@ describe("movePeriod", () => {
     expect(moved.periods[2]).toMatchObject({ name: "Second", start: "09:40", length: "30" });
   });
 
+  it("moves the end box with the start, so the three never disagree", () => {
+    const moved = movePeriod(sample, "2", -1);
+
+    expect(moved.periods[1]).toMatchObject({ start: "09:00", end: "09:40", length: "40" });
+    expect(moved.periods[2]).toMatchObject({ start: "09:40", end: "10:10", length: "30" });
+  });
+
   it("cannot produce an overlap, in either direction", () => {
     for (const rowId of ["0", "1", "2"]) {
       for (const direction of [-1, 1] as const) {
@@ -239,6 +252,72 @@ describe("movePeriod", () => {
 
   it("does nothing for a row that is not there", () => {
     expect(movePeriod(sample, "nope", -1)).toEqual(sample);
+  });
+});
+
+describe("updatePeriod", () => {
+  // Three boxes, two degrees of freedom. Each case names the box that was
+  // typed into and asserts which of the other two gave way.
+  it("typing a length moves the end", () => {
+    const next = updatePeriod(sample, "0", { length: "60" });
+
+    expect(next.periods[0]).toMatchObject({ start: "08:00", end: "09:00", length: "60" });
+  });
+
+  it("typing an end moves the length", () => {
+    // "Until 10:05" is how a schedule is read off a wall; the subtraction is
+    // the app's job, and this is the assertion that it does it.
+    const next = updatePeriod(sample, "0", { end: "09:05" });
+
+    expect(next.periods[0]).toMatchObject({ start: "08:00", end: "09:05", length: "65" });
+  });
+
+  it("typing a start keeps the length and carries the end along", () => {
+    // A period moved to a new slot is the same period. This is also what
+    // movePeriod relies on: it trades slots by length.
+    const next = updatePeriod(sample, "0", { start: "08:15" });
+
+    expect(next.periods[0]).toMatchObject({ start: "08:15", end: "09:05", length: "50" });
+  });
+
+  it("keeps a half-typed end on screen without touching the length", () => {
+    const next = updatePeriod(sample, "0", { end: "09:" });
+
+    expect(next.periods[0]).toMatchObject({ end: "09:", length: "50" });
+    // And the draft still parses on the length it kept - the keystrokes are
+    // the user's business until they finish them.
+    expect(parseDraft(next).ok).toBe(true);
+  });
+
+  it("turns an end before the start into the error the parser owns", () => {
+    // The one schedule a length box could never express. It reaches the
+    // parser as a negative length and comes back on endMin, which the row
+    // binds to both boxes.
+    const next = updatePeriod(sample, "1", { end: "08:30" });
+    const result = parseDraft(next);
+
+    expect(next.periods[1].length).toBe("-30");
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.errors[0]).toMatchObject({ index: 1, field: "endMin" });
+  });
+
+  it("blanks the end while the start is half-typed, rather than guessing", () => {
+    const next = updatePeriod(sample, "0", { start: "08:" });
+
+    expect(next.periods[0].end).toBe("");
+  });
+
+  it("blanks the end past midnight rather than wrapping", () => {
+    const next = updatePeriod(sample, "2", { start: "23:50" });
+
+    expect(next.periods[2]).toMatchObject({ start: "23:50", end: "", length: "40" });
+  });
+
+  it("keeps a custom kind exactly as typed", () => {
+    const next = updatePeriod(sample, "0", { kind: "Study hall" });
+
+    expect(next.periods[0].kind).toBe("Study hall");
+    expect(parseDraft(next).ok).toBe(true);
   });
 });
 

@@ -34,6 +34,8 @@ export const SCHEDULE_LIMITS = {
   schedules: 50,
   periods: 60,
   nameChars: 60,
+  /** A kind is a category word, not a sentence; it shares a column with one. */
+  kindChars: 24,
   overrides: 400,
 } as const;
 
@@ -60,10 +62,30 @@ export interface ParseError {
  */
 export type ParseResult<T> = { ok: true; value: T } | { ok: false; errors: ParseError[] };
 
-const KIND_VALUES: readonly PeriodKind[] = Object.values(PERIOD_KINDS);
+/**
+ * Built-in kinds by their lowercase form, so "class", "Class" and " CLASS "
+ * all land on the one canonical spelling the engine and the editor agree on.
+ *
+ * The lowercase keys are also the MIGRATION: every schedule stored or shared
+ * before 2026-09-03 carries `"class"` / `"lunch"` / `"passing"`, and this is
+ * the one place they become `"Class"` / `"Lunch"` / `"Passing"`. No storage
+ * key bump and no share version bump, because the change is strictly widening
+ * - everything the old parser accepted, this one accepts and means the same
+ * by. See Decisions in Docs/build-log.md.
+ */
+const CANONICAL_KIND = new Map<string, PeriodKind>(
+  Object.values(PERIOD_KINDS).map((kind) => [kind.toLowerCase(), kind]),
+);
 
-const isPeriodKind = (value: unknown): value is PeriodKind =>
-  (KIND_VALUES as readonly unknown[]).includes(value);
+/** An untrusted value to a kind, or `null`. Built-ins normalise; the rest is kept as typed. */
+const toPeriodKind = (value: unknown): PeriodKind | null => {
+  if (typeof value !== "string") return null;
+
+  const trimmed = value.trim();
+  if (trimmed === "" || trimmed.length > SCHEDULE_LIMITS.kindChars) return null;
+
+  return CANONICAL_KIND.get(trimmed.toLowerCase()) ?? trimmed;
+};
 
 /**
  * Narrows unknown input to something with readable properties.
@@ -171,8 +193,10 @@ export function parseSchedule(input: unknown): ParseResult<ValidSchedule> {
       fail(index, "name", `Keep the name under ${SCHEDULE_LIMITS.nameChars} characters.`);
     }
 
-    const kind = isPeriodKind(row.kind) ? row.kind : null;
-    if (!kind) fail(index, "kind", "Pick what this period is.");
+    const kind = toPeriodKind(row.kind);
+    if (!kind) {
+      fail(index, "kind", `Say what this period is, in up to ${SCHEDULE_LIMITS.kindChars} characters.`);
+    }
 
     const startMin = toMinuteOfDay(row.startMin);
     const endMin = toMinuteOfDay(row.endMin);

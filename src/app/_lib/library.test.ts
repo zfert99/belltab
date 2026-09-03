@@ -41,10 +41,10 @@ describe("loadLibrary", () => {
     ["an array", "[]"],
     ["the right shape with the wrong contents", '{"schedules":"regular"}'],
     ["a schedule that is not an object", '{"schedules":[7]}'],
-    ["a period with no name", '{"schedules":[{"name":"X","periods":[{"kind":"class","startMin":0,"endMin":5}]}]}'],
+    ["a period with no name", '{"schedules":[{"name":"X","periods":[{"kind":"Class","startMin":0,"endMin":5}]}]}'],
     [
       "two periods that overlap",
-      '{"schedules":[{"name":"X","periods":[{"name":"A","kind":"class","startMin":0,"endMin":60},{"name":"B","kind":"class","startMin":30,"endMin":90}]}]}',
+      '{"schedules":[{"name":"X","periods":[{"name":"A","kind":"Class","startMin":0,"endMin":60},{"name":"B","kind":"Class","startMin":30,"endMin":90}]}]}',
     ],
   ])("degrades to the defaults for %s", (_label, raw) => {
     expect(loadLibrary(raw)).toEqual(DEFAULT_LIBRARY);
@@ -94,7 +94,7 @@ describe("serializeLibrary", () => {
     expect(Object.keys(written).sort()).toEqual(["calendar", "schedules"]);
     expect(written.schedules[0].periods[0]).toEqual({
       name: "Period 1",
-      kind: "class",
+      kind: "Class",
       startMin: 480,
       endMin: 535,
     });
@@ -399,7 +399,7 @@ describe("parseLibrary", () => {
   it("quotes the parser's own reason when a schedule is unreadable", () => {
     // The user picked this file. "Something was wrong" is not a useful answer,
     // and the boundary already produced a better one.
-    const raw = '{"schedules":[{"name":"X","periods":[{"kind":"class","startMin":0,"endMin":5}]}]}';
+    const raw = '{"schedules":[{"name":"X","periods":[{"kind":"Class","startMin":0,"endMin":5}]}]}';
 
     expect(message(raw)).toContain("cannot read");
     expect(message(raw)).toContain("Give the period a name.");

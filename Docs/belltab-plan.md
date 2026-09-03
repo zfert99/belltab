@@ -56,7 +56,9 @@ A **period** is a labelled half-open interval of wall-clock minutes:
 
 ```text
 Period  = { id, label, startMin, endMin, kind }
-kind    = "class" | "passing" | "lunch" | "break" | "other"
+kind    = free text, e.g. "Class" | "Passing" | "Lunch" | "Planning" | anything
+          (built-ins are suggestions; "Passing" is the one the engine treats
+          as a seam rather than a block — see Docs/build-log.md, 2026-09-03)
 ```
 
 `startMin` and `endMin` are integers in `[0, 1440]`, and `startMin < endMin`.

@@ -114,10 +114,39 @@ describe("parseSchedule", () => {
     });
   });
 
+  describe("kinds", () => {
+    // Free text since 2026-09-03. What the parser still owns is the canonical
+    // spelling of the built-ins - which is also the migration for every
+    // schedule stored or shared before then, all of which say "class".
+    it.each([
+      ["class", "Class"],
+      ["Class", "Class"],
+      [" PASSING ", "Passing"],
+      ["lunch", "Lunch"],
+      ["planning", "Planning"],
+    ])("normalises %j to the built-in %j", (typed, canonical) => {
+      const result = parseSchedule(schedule([period("X", typed, 480, 540)]));
+      expect(result.ok).toBe(true);
+      if (result.ok) expect(result.value.periods[0].kind).toBe(canonical);
+    });
+
+    it("keeps a kind of its own as typed, trimmed", () => {
+      const result = parseSchedule(schedule([period("X", "  Study hall ", 480, 540)]));
+      expect(result.ok).toBe(true);
+      if (result.ok) expect(result.value.periods[0].kind).toBe("Study hall");
+    });
+
+    it("accepts a kind of exactly the cap", () => {
+      expect(parseSchedule(schedule([period("X", "k".repeat(24), 480, 540)])).ok).toBe(true);
+    });
+  });
+
   describe("field errors", () => {
     const cases: Array<[string, unknown[], ErrorSite]> = [
       ["a blank period name", [period("  ", "class", 480, 540)], { index: 0, field: "name" }],
-      ["an unknown kind", [period("X", "recess", 480, 540)], { index: 0, field: "kind" }],
+      ["a blank kind", [period("X", "   ", 480, 540)], { index: 0, field: "kind" }],
+      ["a kind that is not a string", [period("X", 7, 480, 540)], { index: 0, field: "kind" }],
+      ["a kind longer than a category word", [period("X", "x".repeat(25), 480, 540)], { index: 0, field: "kind" }],
       ["end before start", [period("X", "class", 540, 480)], { index: 0, field: "endMin" }],
       ["zero length", [period("X", "class", 540, 540)], { index: 0, field: "endMin" }],
       ["a fractional start", [period("X", "class", 480.5, 540)], { index: 0, field: "startMin" }],
