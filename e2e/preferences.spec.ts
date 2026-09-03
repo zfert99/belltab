@@ -89,6 +89,7 @@ test.describe("the bell offset", () => {
         keepScreenAwake: false,
         chimeOnBell: false,
         notifyOnBell: false,
+        reduceMotion: false,
       }),
     );
   });
@@ -314,6 +315,7 @@ test.describe("preferences and the library", () => {
         keepScreenAwake: true,
         chimeOnBell: false,
         notifyOnBell: false,
+        reduceMotion: false,
       }),
     });
 
@@ -346,6 +348,7 @@ test.describe("preferences and the library", () => {
         keepScreenAwake: true,
         chimeOnBell: false,
         notifyOnBell: false,
+        reduceMotion: false,
       }),
     );
   });
@@ -396,5 +399,56 @@ test.describe("preferences and the library", () => {
     expect(
       await page.evaluate((key) => window.localStorage.getItem(key), PREFERENCES_STORAGE_KEY),
     ).toContain('"keepScreenAwake":true');
+  });
+});
+
+test.describe("motion", () => {
+  const motionAttribute = (page: Page) =>
+    page.evaluate(() => document.documentElement.getAttribute("data-motion"));
+
+  test("is absent by default, so the OS setting decides", async ({ page }) => {
+    await openApp(page, MID_PERIOD);
+    expect(await motionAttribute(page)).toBeNull();
+  });
+
+  test("the toggle puts the override on <html>, and it survives a reload", async ({ page }) => {
+    await openApp(page, MID_PERIOD);
+    await openSettings(page, "preferences");
+
+    await page.locator("#reduce-motion").check();
+    // Polled: the attribute is written by an effect after the commit, and one
+    // engine reads the DOM before React gets there.
+    await expect.poll(() => motionAttribute(page)).toBe("reduce");
+
+    // And the one animation the design system permits - the period name's
+    // 150ms crossfade - is collapsed by the attribute, not merely by the OS.
+    // The countdown is behind the panel, so it is read after going back.
+    await page.locator("#settings-toggle").click();
+    const collapsed = await page
+      .locator("#period-name")
+      .evaluate((element) => getComputedStyle(element).animationDuration);
+    // Engines format 0.01ms differently ("0.00001s", "1e-05s"); the number is
+    // what matters: effectively zero, against the 0.15s it is otherwise.
+    expect(parseFloat(collapsed)).toBeLessThan(0.001);
+
+    await page.reload();
+    await expect.poll(() => motionAttribute(page)).toBe("reduce");
+  });
+});
+
+test.describe("a large offset", () => {
+  test("is told apart from a schedule edit, beside the number", async ({ page }) => {
+    await openApp(page, MID_PERIOD, {
+      preferences: JSON.stringify({ theme: "system", bellOffsetSec: 90 }),
+    });
+    await openSettings(page, "preferences");
+
+    // Ninety seconds is a correction that has become an edit made in the one
+    // place that does not travel. The cap is not lowered - a building whose
+    // bells really are that far out is still real - it is said out loud.
+    await expect(page.locator("#bell-offset-warning")).toContainText("edit the schedule instead");
+
+    await page.locator("#bell-offset").fill("12");
+    await expect(page.locator("#bell-offset-warning")).toHaveCount(0);
   });
 });

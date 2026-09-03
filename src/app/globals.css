@@ -286,6 +286,22 @@ body {
   font-size: 1.5rem;
   font-weight: 600;
   line-height: 1.2;
+  /* The design system's one permitted motion at a bell: a single 150ms
+     crossfade of the period name. NowView keys the element on the boundary,
+     so a period change remounts it and the animation runs exactly then - and
+     never on the per-second repaint, which touches other elements. Both
+     reduced-motion paths above collapse it to nothing. */
+  animation: period-swap 150ms ease-out;
+}
+
+@keyframes period-swap {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
 }
 
 /* The empty states are first-class screens, not blanks: with no number under
@@ -422,6 +438,18 @@ body {
     transition-duration: 0.01ms !important;
     animation-duration: 0.01ms !important;
   }
+}
+
+/* The same cut, when the user asked for it HERE rather than in the OS. The
+   attribute is put on <html> by `applyMotion` from the Preferences panel; it is
+   absent when the preference is off, so the media query above keeps deciding.
+   Repeated rather than shared through a selector list because a media query
+   and an attribute selector cannot sit in one rule. */
+:root[data-motion="reduce"] *,
+:root[data-motion="reduce"] *::before,
+:root[data-motion="reduce"] *::after {
+  transition-duration: 0.01ms !important;
+  animation-duration: 0.01ms !important;
 }
 
 /* ============================================================

@@ -13,6 +13,7 @@ import {
   type IsoDate,
   type Schedule,
   type ScheduleId,
+  type CalendarOverride,
 } from "@/lib/schedule";
 
 /**
@@ -327,6 +328,31 @@ export function setOverride(
   return withCalendar(library, {
     ...library.calendar,
     overrides: [...others, { date: validDate, scheduleId }],
+  });
+}
+
+/**
+ * The dated exceptions that can never resolve again: strictly before today.
+ *
+ * ISO dates compare correctly as strings, which is the one nice property of
+ * the format and the reason the resolver never needed a `Date` either.
+ */
+export function pastOverrides(library: Library, today: IsoDate): readonly CalendarOverride[] {
+  return library.calendar.overrides.filter((entry) => entry.date < today);
+}
+
+/**
+ * Every exception before today, removed at once.
+ *
+ * The cap is 400 and nothing pruned automatically - a user two years in has a
+ * list of dates that will never resolve and one Remove button per row. This is
+ * the same operation as `removeOverride`, applied to the set `pastOverrides`
+ * names; today's own exception is kept, because it is still running.
+ */
+export function removePastOverrides(library: Library, today: IsoDate): Library {
+  return withCalendar(library, {
+    ...library.calendar,
+    overrides: library.calendar.overrides.filter((entry) => entry.date >= today),
   });
 }
 

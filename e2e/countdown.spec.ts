@@ -207,3 +207,31 @@ test.describe("the empty states", () => {
     await expect(periodName(page)).toHaveText("No school today");
   });
 });
+
+test.describe("the period-change crossfade", () => {
+  test("runs on the period name at a bell, and nowhere on a tick", async ({ page }) => {
+    await openApp(page, MID_PERIOD);
+
+    // The design system permits one motion at a bell: a 150ms fade of the
+    // period name. It is declared on the element and keyed to the boundary,
+    // so a tick - which repaints the digits - does not touch it.
+    const animation = () =>
+      page.locator("#period-name").evaluate((element) => {
+        const style = getComputedStyle(element);
+        return `${style.animationName} ${style.animationDuration}`;
+      });
+    expect(await animation()).toBe("period-swap 0.15s");
+    expect(
+      await page
+        .locator("#countdown-minutes")
+        .evaluate((element) => getComputedStyle(element).animationName),
+    ).toBe("none");
+
+    // Across a bell the element is remounted, which is what restarts the fade.
+    const before = await page.locator("#period-name").evaluate((element) => element.dataset.t ??= String(Math.random()));
+    await returnToTab(page, "2026-09-02T10:06:00-04:00", "visibilitychange");
+    await expect(page.locator("#period-name")).toHaveText("Passing");
+    const after = await page.locator("#period-name").evaluate((element) => element.dataset.t ?? "fresh");
+    expect(after).not.toBe(before);
+  });
+});

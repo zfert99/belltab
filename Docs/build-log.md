@@ -341,6 +341,9 @@ development too, so the bare origin is a 404 exactly as it is in production.
 | 2026-09-03 | The Big mode → wake lock signpost is a sentence with a link-styled button, not a second pill | Two pills side by side read as a two-state switch, which is exactly what Big mode was built not to be. Advice is not a control of equal weight. Shown for `off` AND `refused` — the ticked box whose projector is likeliest to go dark — through a predicate (`wantsSignpost`) rather than an equality, so a sixth status has to be given an answer instead of silently hiding the sign. |
 | 2026-09-03 | In the schedule picker, selection follows focus, and the arrows stop at the ends | Selection is cheap — it repoints the editor, nothing is saved — so making the arrows select as they move costs the user nothing and saves a Space press per chip, which is the ARIA tabs convention for exactly this shape. Clamping rather than wrapping keeps "where am I" answerable from the keyboard: an arrow that does nothing at the end tells you where the end is. |
 | 2026-09-03 | The weekday of an ISO date is arithmetic on the string, never a `Date` | `new Date("2026-09-14")` parses as UTC midnight, and `getDay()` answers in the device's zone, so west of Greenwich the evening before comes back — one day off for every user this app is likeliest to have. Sakamoto's method on three integers cannot see a timezone at all, and the test pins the fixtures' known weekdays plus a leap day. The same reason the app stores wall-clock minutes and never a `Date`. |
+| 2026-09-03 | The crossfade is keyed to the boundary, not triggered by the tick | `NowView` puts `key={boundaryKey(state)}` on the period name, so a period change REMOUNTS the element and its CSS animation runs exactly then; the per-second repaint touches other elements and never restarts it. No JavaScript animation, no timer, and both reduced-motion paths (the OS media query and the in-app attribute) collapse it to 0.01ms with the same rule that covers everything else. |
+| 2026-09-03 | The large-offset warning is a sentence, not a lower cap | A building whose bells really are ninety seconds out is still real, so ±300 stands. What was missing was the distinction, said where the number is: at a minute or more the offset has stopped being a correction and started being a schedule edit made in the one place that does not travel in a link. |
+| 2026-09-03 | Past exceptions are pruned by a button, not automatically | Automatic pruning would delete data on a schedule the user never chose — a load, a midnight — and a calendar exported yesterday would differ from the one on screen today for no visible reason. A button that names the count and does one thing keeps the deletion a decision. |
 
 ## Deviations from the plan docs
 
@@ -586,18 +589,14 @@ before the origin ever served.
 | 2026-08-27 | Next ships a live region we did not write | `div#__next-route-announcer__` is `aria-live="assertive"` `role="alert"`, injected by the App Router after hydration and not removable. It should stay silent — one route, no client navigation — but `AGENTS.md`'s "never wrap the countdown in a live region" now has a framework-owned region on the page to coexist with. The announcer spec enumerates it so a second one cannot arrive unnoticed. |
 | 2026-09-02 | Three CSS rules are inert, and all three are the retired build's | `.viewswitch__btn[aria-pressed="true"]` styled a two-state switcher that Big mode deliberately did not become; `body.is-settings .viewswitch` hid it while settings was open, which conditional rendering does instead; and `.is-big .strip*` styles a period strip that has never been rebuilt. All three were already inert before Phase 6 and none was introduced by it. Left rather than swept up, on the same reasoning as the row below: deleting styles is a different decision from deleting the code that stopped using them, and it should be made on purpose. |
 | 2026-09-01 | The Day view's dead code outlived its tests | The parked assertions are gone (see Closed), but the view left residue behind: `formatDayCaption` in `src/lib/format.ts` is exported, fully tested and imported by nothing, and `globals.css` still carries `.day__summary`, `.day__remaining` and their siblings. Deliberately left rather than swept up in the same change — deleting a tested pure function is a different decision from deleting a test that named no phase, and it should be made on purpose. |
-| 2026-08-27 | The design system's period-change crossfade is not implemented | `Docs/design/design-system.md` section 4 asks for a single 150ms crossfade of the period name at a boundary. The name swaps instantly. The global `prefers-reduced-motion` block already covers the reduced path, so adding it is additive; not doing it is the honest state today. |
 | 2026-08-27 | The editor is a long tab chain | Twelve rows of six controls is seventy-two stops between the schedule name and the bottom of the form, and the keyboard test needs a 120-press budget to cross it. Nothing is unreachable and nothing is trapped, so this is not a failure — but a skip link, or grouping each row so a screen reader can jump by row, would make it usable rather than merely operable. |
 | 2026-08-27 | There is no undo | Deleting a *period* is still immediate and unconfirmed, and the only way back is to retype it. Deliberate for a four-field row whose result is visible behind the editor. Deleting a whole *schedule* now goes through a modal confirmation, which is the half of this gap Phase 4 closed; a real undo is still owed and would remove the need for the dialog. |
 | 2026-09-01 | An import cannot be undone | It replaces every schedule and the whole calendar, behind a confirmation that says so. Exporting first is the answer the panel gives, and it puts the export above the import for that reason. A real undo would be better and is the same gap as the one open for deleting a period. |
 | 2026-09-01 | The axe scan is critical/serious only, at one viewport | `e2e/a11y.spec.ts` fails on `critical` and `serious` and only reports `moderate` and `minor`, which is the release bar `Docs/research/accessibility-responsive-qa.md` names — and a deliberate line, since a gate that fails on `minor` is a gate people start skipping. It also runs at the default viewport only, because small-screen layout is the reflow gate's job. Neither limit is a claim that the app is clean below them. |
 | 2026-09-01 | "WebKit" is not one browser, and none of them is Safari | Measured, not assumed: the development machine's WebKit build reports `type === "text"` for both `<input type="time">` and `type="date"` and renders bare text boxes; the Linux CI runner's build implements them. Real Safari has shipped `type="time"` since 14.1 and is a third thing again. The app handles all of it — the parser was always doing the work — but any sentence of the form "X works in WebKit" now has to say which WebKit, and none of them is evidence about a Mac. |
-| 2026-09-01 | Nothing warns before an exception in the past | `SCHEDULE_LIMITS.overrides` is 400 and nothing prunes. A user who has run BellTab for two years accumulates a list of dates that can never resolve again, and the only way to clear them is one Remove button at a time. |
 | 2026-09-01 | The weekday map is not reachable from the countdown's "no school today" screen in one step | The empty state links to the calendar panel, which is right for the common case — a one-off. Somebody whose *Saturday* genuinely runs school has to notice that the Today control writes an override and that the weekday defaults are the section below. |
 | 2026-09-02 | The page ships an unhashed inline script, and the CSP still carries no `script-src` | Half of the 2026-08-27 gap this replaces. The toggle and the pre-paint application both exist now; what does not is the hardening they were supposed to arrive with. The reason is measured and is in the Decisions table: Next's own two inline scripts cannot be hashed from `next.config.ts`, and the nonce that would fix it needs middleware this repo bans. What would change the call is Next shipping a nonce path that is not middleware, or `output: "export"` growing one. Until then the CSP is `frame-ancestors 'none'` and the honest statement is that this app has no script policy at all. |
 | 2026-09-02 | The bell offset has never been measured against a real bell | It is a correction with no calibration aid: the user is asked for a number of seconds and given no way to discover which number. The panel states which way the number goes and the wall clock beside the countdown is deliberately left unshifted so there is something to check against, but the actual workflow — stand in a corridor, hear the bell, read the phone, subtract — is unassisted. A "tap when the bell rings" button that measured it would be the fix, and is not built. |
-| 2026-09-02 | Nothing warns that a large offset is not a schedule edit | The cap is ±300 seconds, which is generous on purpose, and at the top of that range the app is five minutes out of step with its own schedule editor with only the readout to say so. Somebody who typed 300 because their timetable is wrong has fixed the symptom in the place that does not persist to a share link. |
-| 2026-09-02 | The theme radios have no `prefers-reduced-motion` sibling | `Docs/research/accessibility-responsive-qa.md` suggests an in-app "reduce animations" toggle alongside the OS one. The global media query is honoured everywhere in `globals.css`, so nothing is inaccessible; what is missing is the in-app override for someone whose OS setting does not match what they want here. Preferences is now the panel it would live in. |
 | 2026-09-02 | The macOS WebKit build does not Tab to buttons, so one editor test fails locally | `e2e/editor.spec.ts`'s keyboard walk cannot reach `#add-period` within its 120-press budget on the development machine's WebKit, because macOS omits buttons from the Tab order unless full keyboard access is on. It passes on the Linux CI runner's build and on Chrome and Firefox everywhere. Verified pre-existing on `main` by stashing this session's work and re-running. A third entry for the row above: "WebKit" is not one browser. |
 | 2026-09-02 | Big mode does not survive a reload | It is component state, deliberately: a mode you cannot see the way out of is worse than one you have to re-enter, and a projector is set up once per session by somebody standing at the machine. If a room ever wants a permanent display, that is a preference rather than a change to this state — and it would need the wake lock first to be worth anything. |
 | 2026-09-02 | Big mode does not request fullscreen | It fills the viewport (`100dvh`), which leaves the browser chrome and the OS bar on screen. The Fullscreen API would take those too and needs a user gesture, which the button already is. Not done because it adds an exit path the app does not control — the browser's own Escape-to-leave races the mode's — and that interaction deserves being designed rather than added. |
@@ -611,6 +610,10 @@ before the origin ever served.
 
 | Opened | Closed | Item |
 | --- | --- | --- |
+| 2026-08-27 | 2026-09-03 | The design system's period-change crossfade is implemented — a 150ms fade on the period name, keyed to `boundaryKey` so it runs at a bell and never on a tick, collapsed by both reduced-motion paths. |
+| 2026-09-01 | 2026-09-03 | Past exceptions can be removed at once — a "Remove past exceptions" button appears above the list when any date is strictly before today; today's own exception is kept because it is still running. |
+| 2026-09-02 | 2026-09-03 | A large offset is told apart from a schedule edit — at sixty seconds or more the readout says so beside the number: edit the schedule instead; the offset stays on this device and never travels. The cap is not lowered. |
+| 2026-09-02 | 2026-09-03 | The theme radios have a reduce-motion sibling — a "Reduce animation" checkbox that puts `data-motion="reduce"` on `<html>`; the OS media query keeps deciding when it is off. |
 | 2026-08-27 | 2026-09-03 | The schedule name field has a visible label — "Schedule name", in the same small-caps voice as the stacked editor's row labels, above the box. |
 | 2026-09-01 | 2026-09-03 | Dated exceptions carry their weekday — "Sat 2026-09-05" — computed by arithmetic on the string (`weekdayOf`, Sakamoto's method), because `new Date("2026-09-14")` is UTC midnight and still Sunday in New York. The month grid half of the row is still not built and would be its own row if wanted. |
 | 2026-09-01 | 2026-09-03 | The schedule picker is one tab stop: roving `tabIndex`, arrows walk the chips with selection following focus, Home/End go to the ends, the arrows stop there rather than wrapping. |
@@ -4629,3 +4632,35 @@ exception assertion now expects the weekday in front.
 `npm run lint`, `npm run typecheck`, `npm run build`, `npx vitest run`,
 `npx markdownlint-cli "**/*.md"` and `npx playwright test` all pass, with the
 known macOS-WebKit exception in `editor.spec.ts`.
+
+### 2026-09-03 15:10 — the comfort-gap batch
+
+Four more rows, all in the preferences panel's and the calendar's
+neighbourhood, none large.
+
+**The crossfade the design system asked for on 2026-08-26.** A 150ms fade on
+the period name, and the mechanism is one attribute: `key={boundaryKey(state)}`
+on the element, so a bell remounts it and the CSS animation runs then and only
+then. No JavaScript, no timer, and it collapses under both reduced-motion
+paths. The E2E asserts the animation on the name and its absence on the
+digits, and that crossing a bell remounts the element.
+
+**An in-app reduce-motion toggle.** The fourth boolean preference, and the
+boolean quartet's parse rule covers it for free. `applyMotion` puts
+`data-motion="reduce"` on `<html>` beside the theme; globals.css repeats the
+reduced-motion cut under that attribute, because a media query and an
+attribute selector cannot share a rule. Absent means the OS decides, which is
+why it is the default.
+
+**"Remove past exceptions."** `pastOverrides` and `removePastOverrides` in the
+library — string comparison on ISO dates, which is the format's one nice
+property — and a button above the list that names the count and keeps today's
+own exception, because it is still running. A decision rather than an
+automatic sweep; the Decisions table says why.
+
+**The large-offset sentence.** At sixty seconds or more the readout adds: edit
+the schedule instead, this stays on this device. The cap is not lowered.
+
+**Tests:** unit 418 → 423 (the pruning helpers). Playwright 639 → 654 — five
+per engine: two for motion, one each for the warning, the pruning and the
+crossfade. The preferences byte-pins gained their fifth field.

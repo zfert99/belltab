@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useNow } from "@/app/_lib/useNow";
 import { saveLibrary, useLibrary } from "@/app/_lib/libraryStore";
 import { savePreferences, usePreferences } from "@/app/_lib/preferencesStore";
-import { applyTheme } from "@/app/_lib/theme";
+import { applyMotion, applyTheme } from "@/app/_lib/theme";
 import { useWakeLock, wantsSignpost } from "@/app/_lib/wakeLock";
 import { useBells } from "@/app/_lib/bells";
 import { addSchedule } from "@/app/_lib/library";
@@ -53,6 +53,12 @@ export function App() {
   useEffect(() => {
     applyTheme(document.documentElement, preferences.theme);
   }, [preferences.theme]);
+
+  // The in-app motion override, the same way: an attribute on <html> that
+  // globals.css branches on, kept in step with the preference.
+  useEffect(() => {
+    applyMotion(document.documentElement, preferences.reduceMotion);
+  }, [preferences.reduceMotion]);
 
   /**
    * The screen wake lock, held from HERE and nowhere else.

@@ -87,6 +87,16 @@ export interface Preferences {
    * can still be revoked behind it, and the panel's readout reports that.
    */
   notifyOnBell: boolean;
+  /**
+   * Whether to cut animation regardless of what the OS says.
+   *
+   * The global `prefers-reduced-motion` rule in globals.css already honours the
+   * OS setting everywhere. This is the in-app override the accessibility
+   * research asks for, for the person whose OS setting does not match what
+   * they want HERE - a shared classroom machine, or a projector that judders.
+   * `false` means "follow the OS", which is why it is the default.
+   */
+  reduceMotion: boolean;
 }
 
 export const DEFAULT_PREFERENCES: Preferences = {
@@ -95,6 +105,7 @@ export const DEFAULT_PREFERENCES: Preferences = {
   keepScreenAwake: false,
   chimeOnBell: false,
   notifyOnBell: false,
+  reduceMotion: false,
 };
 
 export { THEMES };
@@ -134,6 +145,7 @@ export function loadPreferences(raw: string | null): Preferences {
     keepScreenAwake?: unknown;
     chimeOnBell?: unknown;
     notifyOnBell?: unknown;
+    reduceMotion?: unknown;
   };
 
   return {
@@ -154,6 +166,10 @@ export function loadPreferences(raw: string | null): Preferences {
       typeof source.notifyOnBell === "boolean"
         ? source.notifyOnBell
         : DEFAULT_PREFERENCES.notifyOnBell,
+    reduceMotion:
+      typeof source.reduceMotion === "boolean"
+        ? source.reduceMotion
+        : DEFAULT_PREFERENCES.reduceMotion,
   };
 }
 
@@ -187,5 +203,6 @@ export function serializePreferences(preferences: Preferences): string {
     keepScreenAwake: preferences.keepScreenAwake,
     chimeOnBell: preferences.chimeOnBell,
     notifyOnBell: preferences.notifyOnBell,
+    reduceMotion: preferences.reduceMotion,
   });
 }

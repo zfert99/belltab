@@ -71,3 +71,20 @@ export function applyTheme(root: HTMLElement, theme: Theme): void {
  * theme script that throws takes the page's first script with it.
  */
 export const THEME_SCRIPT = `try{var t=JSON.parse(localStorage.getItem("belltab.prefs.v1")).theme;if(t==="light"||t==="dark")document.documentElement.setAttribute("data-theme",t)}catch(e){}`;
+
+/** The attribute globals.css branches on for the in-app motion override. */
+export const MOTION_ATTRIBUTE = "data-motion";
+
+/**
+ * Puts the motion choice on `<html>`, beside the theme.
+ *
+ * The attribute is present only when the user has asked for less; absent means
+ * "follow the OS", and the `prefers-reduced-motion` media query keeps deciding.
+ * No pre-paint script for this one: a frame of animation before React mounts
+ * is not the flash a wrong palette is, and nothing animates on first paint
+ * except the period name's 150ms fade.
+ */
+export function applyMotion(root: HTMLElement, reduce: boolean): void {
+  if (reduce) root.setAttribute(MOTION_ATTRIBUTE, "reduce");
+  else root.removeAttribute(MOTION_ATTRIBUTE);
+}
