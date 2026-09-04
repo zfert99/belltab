@@ -6,6 +6,8 @@ import type { DayState } from "@/lib/engine";
 import { boundaryKey, formatClock, splitCountdown } from "@/lib/format";
 import type { TodayView } from "@/app/_lib/today";
 import type { PanelId } from "@/app/_components/SettingsView";
+import { DayStrip } from "@/app/_components/DayStrip";
+import type { ValidSchedule } from "@/lib/schedule";
 
 /**
  * The countdown screen.
@@ -29,20 +31,26 @@ import type { PanelId } from "@/app/_components/SettingsView";
 const PENDING = "--";
 
 export interface NowViewProps {
+  /**
+   * The day as blocks under the countdown, when the preference asks for it.
+   * The schedule comes along because the strip needs every period, not just
+   * the running one the state carries.
+   */
+  strip?: { schedule: ValidSchedule; nowSec: number } | null;
   view: TodayView | null;
   /** The way out of the two empty states that are otherwise dead ends. */
   onOpenSettings: (panel: PanelId, focusId?: string) => void;
 }
 
-export function NowView({ view, onOpenSettings }: NowViewProps) {
+export function NowView({ view, onOpenSettings, strip = null }: NowViewProps) {
   return (
     <section className="focus">
-      <Focus view={view} onOpenSettings={onOpenSettings} />
+      <Focus view={view} onOpenSettings={onOpenSettings} strip={strip} />
     </section>
   );
 }
 
-function Focus({ view, onOpenSettings }: NowViewProps) {
+function Focus({ view, onOpenSettings, strip }: NowViewProps) {
   if (view === null) return <PendingFocus />;
 
   /*
@@ -79,7 +87,7 @@ function Focus({ view, onOpenSettings }: NowViewProps) {
     );
   }
 
-  return <ScheduleFocus state={view.state} />;
+  return <ScheduleFocus state={view.state} strip={strip ?? null} />;
 }
 
 /**
@@ -114,7 +122,13 @@ function PendingFocus() {
   );
 }
 
-function ScheduleFocus({ state }: { state: DayState }) {
+function ScheduleFocus({
+  state,
+  strip,
+}: {
+  state: DayState;
+  strip: { schedule: ValidSchedule; nowSec: number } | null;
+}) {
   /**
    * The crossfade runs at a BELL, not on first paint - the announcer's rule 2,
    * applied to motion. `key` remounts the element on every boundary; this
@@ -189,6 +203,8 @@ function ScheduleFocus({ state }: { state: DayState }) {
         )}
         <p className="bounds__next">{nextLineFor(state)}</p>
       </div>
+
+      {strip !== null && <DayStrip schedule={strip.schedule} nowSec={strip.nowSec} />}
     </>
   );
 }

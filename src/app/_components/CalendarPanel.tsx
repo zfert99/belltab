@@ -108,8 +108,8 @@ export function CalendarPanel({ library, save, now, headingRef }: CalendarPanelP
         Calendar
       </h2>
       <p className="panel__note">
-        A dated exception comes first. Otherwise the weekday default applies. If neither says
-        anything, there&rsquo;s no school that day.
+        Each weekday uses its default schedule unless a dated exception says otherwise. If neither
+        is set, there&rsquo;s no school that day.
       </p>
 
       <section className="calsection">

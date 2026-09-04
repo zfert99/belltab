@@ -112,10 +112,10 @@ An older note, kept for the same reason:
 > yet. The UI is rebuilt on the engine phase by phase from here, starting with
 > the countdown.
 
-**Testing:** 436 Vitest tests over the pure engine, the parser, the formatters,
+**Testing:** 441 Vitest tests over the pure engine, the parser, the formatters,
 the clock reader, the day resolver, the editor's draft model, the storage
 boundary, the library mutators, the share codec, the preferences boundary and
-the wake lock's and the bells' wording, plus **702 Playwright tests across
+the wake lock's and the bells' wording, plus **726 Playwright tests across
 three engines** —
 Chrome, WebKit and Firefox — **none of them parked**, which is true for the first
 time in the project. The last parked block was Big mode's, and Phase 6 built it.
@@ -602,9 +602,17 @@ where it went. See **Deviations** in `Docs/build-log.md`.
 - ✅ Recompute, never decrement: a bell moves the running row, the caption and
   the disclosure count on the next paint after a `visibilitychange`.
 
-**Gate: met.** `e2e/day-view.spec.ts` on three engines; the reflow gate runs
-the Day view (past rows shown) at all five widths; the axe sweep scans it with
-the disclosure open; and the live-region enumeration proves it adds none.
+- ✅ **The blocks strip, as a preference** (2026-09-04, later the same day):
+  the plain build's horizontal strip - a square per block, a link per
+  Passing, filling as the day goes - under the countdown behind "Show the day
+  as blocks" in Preferences. `aria-hidden`, captioned in words, scaled by Big
+  mode, hover borrows the caption. Off by default; the countdown is the
+  product.
+
+**Gate: met.** `e2e/day-view.spec.ts` and `e2e/strip.spec.ts` on three
+engines; the reflow gate runs the Day view (past rows shown) and the Now view
+with the strip at all five widths; the axe sweep scans both; and the
+live-region enumeration proves the Day view adds none.
 
 ## Phase 7 — Cutover 🔀
 

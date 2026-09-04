@@ -257,8 +257,12 @@ for (const width of WIDTHS) {
      * nothing had agreed to. See Docs/build-log.md.
      */
     test("Now, Day and Big all reflow to one column", async ({ page }) => {
-      await openApp(page, MID_PERIOD);
-      await expectNoHorizontalScroll(page, `${width}px Now view`);
+      // With the blocks strip on: fifteen cells that must shrink, not scroll.
+      await openApp(page, MID_PERIOD, {
+        preferences: JSON.stringify({ theme: "system", bellOffsetSec: 0, showStrip: true }),
+      });
+      await expect(page.locator("#strip")).toBeVisible();
+      await expectNoHorizontalScroll(page, `${width}px Now view with the strip`);
 
       // The Day view's rows stack their time column under 30rem; eleven of
       // them, with the running row's track, must not widen the page either.

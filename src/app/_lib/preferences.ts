@@ -97,6 +97,16 @@ export interface Preferences {
    * `false` means "follow the OS", which is why it is the default.
    */
   reduceMotion: boolean;
+  /**
+   * Whether the countdown shows the day as a row of blocks beneath it.
+   *
+   * The plain build's period strip, back as an option: one square per block
+   * and a thin link per passing period, filling as the day goes. Off by
+   * default because the countdown is the product and the strip is a second
+   * reading of the same clock; on for the people who liked it - it was asked
+   * for by name on 2026-09-04.
+   */
+  showStrip: boolean;
 }
 
 export const DEFAULT_PREFERENCES: Preferences = {
@@ -106,6 +116,7 @@ export const DEFAULT_PREFERENCES: Preferences = {
   chimeOnBell: false,
   notifyOnBell: false,
   reduceMotion: false,
+  showStrip: false,
 };
 
 export { THEMES };
@@ -146,6 +157,7 @@ export function loadPreferences(raw: string | null): Preferences {
     chimeOnBell?: unknown;
     notifyOnBell?: unknown;
     reduceMotion?: unknown;
+    showStrip?: unknown;
   };
 
   return {
@@ -170,6 +182,8 @@ export function loadPreferences(raw: string | null): Preferences {
       typeof source.reduceMotion === "boolean"
         ? source.reduceMotion
         : DEFAULT_PREFERENCES.reduceMotion,
+    showStrip:
+      typeof source.showStrip === "boolean" ? source.showStrip : DEFAULT_PREFERENCES.showStrip,
   };
 }
 
@@ -204,5 +218,6 @@ export function serializePreferences(preferences: Preferences): string {
     chimeOnBell: preferences.chimeOnBell,
     notifyOnBell: preferences.notifyOnBell,
     reduceMotion: preferences.reduceMotion,
+    showStrip: preferences.showStrip,
   });
 }
