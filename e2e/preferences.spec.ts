@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-import { openApp, openSettings, MID_PERIOD, PREFERENCES_STORAGE_KEY } from "./helpers";
+import { openApp, openSettings, MID_PERIOD, PREFERENCES_STORAGE_KEY, WEEKEND } from "./helpers";
 
 /**
  * The preferences panel, and the two things it changes about the app.
@@ -450,5 +450,54 @@ test.describe("a large offset", () => {
 
     await page.locator("#bell-offset").fill("12");
     await expect(page.locator("#bell-offset-warning")).toHaveCount(0);
+  });
+});
+
+test.describe("measuring the offset", () => {
+  /** Twelve seconds after the 10:05 bell, on the device's clock. */
+  const JUST_AFTER_THE_BELL = "2026-09-02T10:05:12-04:00";
+
+  test("sets the offset from the nearest bell when the button is pressed", async ({ page }) => {
+    await openApp(page, JUST_AFTER_THE_BELL);
+    await openSettings(page, "preferences");
+
+    // The bell rang at 10:05:00 and the device says 10:05:12: the device is
+    // twelve seconds AHEAD of the bell, so the countdown must run twelve
+    // seconds behind it to reach zero when the bell sounds.
+    await page.locator("#bell-calibrate").click();
+
+    await expect(offsetInput(page)).toHaveValue("-12");
+    await expect(page.locator("#bell-offset-readout")).toContainText(
+      "12 seconds behind this device’s clock",
+    );
+    await expect(page.locator("#bell-offset-error")).toContainText("Measured");
+
+    // And it is stored, like a typed offset would be.
+    expect(
+      await page.evaluate((key) => window.localStorage.getItem(key), PREFERENCES_STORAGE_KEY),
+    ).toContain('"bellOffsetSec":-12');
+  });
+
+  test("refuses to measure when no bell is near, and says so", async ({ page }) => {
+    // 09:30 is twenty-five minutes from either bell. A press here is a mistake
+    // rather than a measurement; five minutes of "correction" would be worse
+    // than none.
+    await openApp(page, MID_PERIOD, {
+      preferences: JSON.stringify({ theme: "system", bellOffsetSec: 7 }),
+    });
+    await openSettings(page, "preferences");
+
+    await page.locator("#bell-calibrate").click();
+
+    await expect(page.locator("#bell-offset-error")).toContainText("nothing was measured");
+    await expect(offsetInput(page)).toHaveValue("7");
+  });
+
+  test("has nothing to measure against on a day with no schedule", async ({ page }) => {
+    await openApp(page, WEEKEND);
+    await openSettings(page, "preferences");
+
+    await expect(page.locator("#bell-calibrate")).toBeDisabled();
+    await expect(page.locator("#bell-calibrate-hint")).toContainText("Needs a schedule");
   });
 });

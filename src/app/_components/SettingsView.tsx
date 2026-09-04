@@ -6,7 +6,7 @@ import type { Library } from "@/app/_lib/library";
 import type { Preferences } from "@/app/_lib/preferences";
 import type { WakeLockStatus } from "@/app/_lib/wakeLock";
 import type { BellStatuses } from "@/app/_lib/bells";
-import { scheduleIndexToEdit } from "@/app/_lib/today";
+import { scheduleForToday, scheduleIndexToEdit } from "@/app/_lib/today";
 import { SchedulesPanel } from "@/app/_components/SchedulesPanel";
 import { CalendarPanel } from "@/app/_components/CalendarPanel";
 import { BackupPanel } from "@/app/_components/BackupPanel";
@@ -128,6 +128,8 @@ export function SettingsView({
             save={savePreferences}
             wakeLockStatus={wakeLockStatus}
             bellStatuses={bellStatuses}
+            now={now}
+            todaySchedule={now === null ? null : scheduleForToday(library, now)}
             headingRef={headingRef}
           />
         )}

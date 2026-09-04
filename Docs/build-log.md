@@ -347,6 +347,8 @@ development too, so the bare origin is a 404 exactly as it is in production.
 | 2026-09-03 | `kind` is descriptive only — the engine no longer reads it | `blockPositionAt` was the one engine consumer ("is this Passing?" for the retired Day view's "3 of 7" counter) and it went with that view's residue. Keeping a semantic alive for a feature that does not exist would have meant keeping the function alive for the test that proved it. The comment on `PERIOD_KINDS` now says where the semantic would return if a strip or a counter is ever rebuilt. |
 | 2026-09-03 | Parked rows are decided, not carried | Five rows had sat in Open gaps under "left rather than swept up, because deleting is a different decision from deleting the code that stopped using it." That was right for the sessions that made them — and wrong to leave for six weeks. The decisions: delete the Day view's dead code and CSS (history keeps it), and move the three design calls (am/pm, Big mode reload, Big mode fullscreen) to the roadmap's Deferred table, each with the condition that would reopen it. An open-gaps row with no owner and no trigger is a decision nobody made. |
 | 2026-09-03 | An empty state may carry a quieter second route, as a link-weight button under the pill | "No school today" has two honest answers — a one-off exception, or a weekday that runs school — and the pill can only be one of them. A second pill would make the screen a choice; a sentence-weight link beneath it makes it an escape hatch. It opens the same panel with focus placed by id on the section that answers it, through the same `openSettingsFrom` the signpost uses. |
+| 2026-09-04 | The calibration button measures against the NEAREST bell and refuses beyond the cap | Every period's start and end is a bell, so the nearest one is the only sensible reading of "the bell just rang". Beyond ±300 seconds the press is a mistake, not a measurement — 09:30 is twenty-five minutes from either bell — and storing five minutes of "correction" would be the exact confusion the large-offset sentence warns about. The refusal goes through the offset's existing polite region: one region, two reasons the thing you just did had no effect. |
+| 2026-09-04 | `calibrateOffset` takes the cap as an argument | The first draft imported `BELL_OFFSET_LIMIT_SEC` from `src/app/_lib/preferences` into `src/lib/`, which is the engine reaching into the app. A parameter keeps the layer rule intact and the function testable with any cap. |
 
 ## Deviations from the plan docs
 
@@ -593,18 +595,18 @@ before the origin ever served.
 | 2026-09-01 | An import cannot be undone | It replaces every schedule and the whole calendar, behind a confirmation that says so. Exporting first is the answer the panel gives, and it puts the export above the import for that reason. A real undo would be better and is the same gap as the one open for deleting a period. |
 | 2026-09-01 | "WebKit" is not one browser, and none of them is Safari | Measured, not assumed: the development machine's WebKit build reports `type === "text"` for both `<input type="time">` and `type="date"` and renders bare text boxes; the Linux CI runner's build implements them. Real Safari has shipped `type="time"` since 14.1 and is a third thing again. The app handles all of it — the parser was always doing the work — but any sentence of the form "X works in WebKit" now has to say which WebKit, and none of them is evidence about a Mac. |
 | 2026-09-02 | The page ships an unhashed inline script, and the CSP still carries no `script-src` | Half of the 2026-08-27 gap this replaces. The toggle and the pre-paint application both exist now; what does not is the hardening they were supposed to arrive with. The reason is measured and is in the Decisions table: Next's own two inline scripts cannot be hashed from `next.config.ts`, and the nonce that would fix it needs middleware this repo bans. What would change the call is Next shipping a nonce path that is not middleware, or `output: "export"` growing one. Until then the CSP is `frame-ancestors 'none'` and the honest statement is that this app has no script policy at all. |
-| 2026-09-02 | The bell offset has never been measured against a real bell | It is a correction with no calibration aid: the user is asked for a number of seconds and given no way to discover which number. The panel states which way the number goes and the wall clock beside the countdown is deliberately left unshifted so there is something to check against, but the actual workflow — stand in a corridor, hear the bell, read the phone, subtract — is unassisted. A "tap when the bell rings" button that measured it would be the fix, and is not built. |
-| 2026-09-02 | The macOS WebKit build does not Tab to buttons, so one editor test fails locally | `e2e/editor.spec.ts`'s keyboard walk cannot reach `#add-period` within its 120-press budget on the development machine's WebKit, because macOS omits buttons from the Tab order unless full keyboard access is on. It passes on the Linux CI runner's build and on Chrome and Firefox everywhere. Verified pre-existing on `main` by stashing this session's work and re-running. A third entry for the row above: "WebKit" is not one browser. |
 | 2026-08-27 | Three pieces of cited evidence live in the Puzzle Lab repo, not this one | `multi-zone-migration-safety-review.md` marks its rate-limit finding **VERIFIED** against method and numbers in `src/lib/rate-limit.md`; `multi-zone-cost-and-alternatives.md` reverses its own earlier position on the authority of `puzzle-lab-hub-merge-research.md` and `vercel-cron-deployment-protection-outage.md`. All three files are real and all three are one repo away. The broken links are fixed — they now name the repo — but the claims remain unauditable from inside BellTab. Copying the three in would fix it and would also import three more documents about someone else's stack; not done, and the tradeoff is the reason. |
 | 2026-09-02 | Page-created notifications do not work on Android Chrome | `new Notification(...)` throws there — Android requires a service worker to show notifications. The constructor is wrapped so the bell cannot take the clock down, which means the feature is silently absent on Android rather than broken. The PWA slice is the natural place to revisit: a manifest brings a service worker into scope, and `registration.showNotification` is the Android-shaped version of the same feature. |
 | 2026-09-02 | The chime's `locked` sentence is all but unobservable | Reaching the panel takes a click or a keypress, and either one is the gesture that unlocks the chime — so by the time the readout is visible it says "ready". The sentence still earns its place (a refused `resume()` under an OS-level block would land there and stay), but no E2E can show it through the UI, and the suite says so where it asserts the behaviour instead. |
-| 2026-09-02 | A dark-mode install gets a light splash | The manifest takes one `background_color` and one `theme_color`, and they are the light paper. A user whose device is dark sees a cream splash for the moment before the page paints and re-themes. The spec has no per-scheme colours; what would close this is the `user_preferences` manifest member if it ever ships beyond proposals, and until then the honest statement is that the splash is single-theme by web-platform limitation. |
 | 2026-09-02 | The origin host is publicly reachable, and cannot not be | `origin-bell.biscuitlab.net/bell` serves 200 to anyone, as `origin-puzzles` always has: custom production domains are EXEMPT from Deployment Protection, and that exemption is precisely why the hub's proxy can reach the origin at all. What IS locked is every per-deployment `*.vercel.app` URL (302). The roadmap's gate line "origin host still locked to direct traffic" was written before the recipe was understood and asked for something the recipe forbids; corrected 2026-09-02, and the canonical (`biscuitlab.net/bell`) is the mitigation for the duplicate address — which is the reason it shipped in the same phase. `belltab.vercel.app/bell` is public too, exactly as `puzzle-generator.vercel.app` is; same mitigation. |
 
 ## Closed
 
 | Opened | Closed | Item |
 | --- | --- | --- |
+| 2026-09-02 | 2026-09-04 | The bell offset has a calibration aid: "The bell just rang", pressed as the real bell sounds, measures the offset from the nearest bell in today's schedule (`calibrateOffset`, pure, cap as an argument). Refuses with a sentence when nothing is within the cap; disabled with a reason when today has no schedule. Whether it has been pressed at a REAL bell is still a report to collect; the mechanism is built. |
+| 2026-09-02 | 2026-09-04 | The macOS WebKit Tab quirk is handled, not annotated: Option+Tab is macOS's "tab to everything" and Playwright's WebKit honours it — measured with a probe (Tab: body, body, body; Option+Tab: the buttons in order). `tabTo` uses it on `webkit` + `darwin` only. The editor spec passes on WebKit locally for the first time. |
+| 2026-09-02 | 2026-09-04 | The half of the dark-splash row that CAN close: `viewport.themeColor` takes a media list, so the installed window's chrome and the phone's status bar follow the scheme. The manifest's single `background_color` for the splash itself is the spec's limit and stays in the roadmap's Deferred table. |
 | 2026-08-27 | 2026-09-03 | The editor's tab chain is grouped: each row's controls are a named `role="group"` — "Period 2, group" on entry — which is one of the two fixes the row itself named. The other, a skip link, had nothing below the rows to skip to. The chain is still seventy-seven stops; it is now seventy-seven stops that say where you are. |
 | 2026-09-01 | 2026-09-03 | The axe sweep now also runs at 320px for the three densest panels — the reflowed DOM, the revealed labels, the shrunken targets. The critical/serious bar is unchanged and still deliberate. |
 | 2026-09-01 | 2026-09-03 | The weekday defaults are one step from "No school today": a second, link-weight route under the primary action that opens the calendar panel with focus on that section's heading, so the next Tab is Monday's select. |
@@ -4772,3 +4774,35 @@ critical/serious, on purpose.
 
 **Tests:** unit unchanged at 412. Playwright 654 → 666 — the link test and
 three 320px sweeps, per engine.
+
+### 2026-09-04 09:40 — the calibration aid, and two rows the checks turned actionable
+
+Asked "anything we can do about the rest", and the answer was: check before
+assuming. Two rows that read as hardware-gated were not.
+
+**"The bell just rang."** A button beside the offset that does the
+subtraction the row complained nobody did: press it as the real bell sounds,
+and `calibrateOffset` takes the nearest bell in today's schedule — every
+period's start and end — and stores the difference with the offset's own
+sign. Beyond the cap it refuses with a sentence through the offset's existing
+polite region; with no schedule today it is disabled and says why. The pure
+function takes the cap as an argument, because the first draft imported it
+from the app layer into `src/lib/` and that is the wrong direction.
+
+**Option+Tab.** A probe against macOS WebKit walked plain Tab (body, body,
+body) and Option+Tab (the buttons, in order). `tabTo` uses the latter on
+`webkit` + `darwin`, and the editor spec passes on WebKit locally for the
+first time since the three-engine matrix landed - the "known exception" in
+every session log since is gone.
+
+**`theme-color` per scheme.** `viewport.themeColor` takes a media list; the
+installed window's chrome follows the OS scheme now. The splash itself
+cannot, by spec, and that half stays deferred.
+
+**Also checked and still facts:** TypeScript 7 (`typescript-eslint` peers
+`<6.1.0`); the CSP `script-src` (Next 16's guide offers only a nonce from
+`proxy.ts` - middleware renamed - with dynamic rendering, both banned here).
+
+**Tests:** unit 412 → 422 (nine for `calibrateOffset`, one for
+`scheduleForToday`). Playwright 666 → 675 — three per engine for the aid: a
+measured press, a refused press, and a day with nothing to measure against.
