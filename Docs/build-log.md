@@ -54,8 +54,9 @@ imported with `.ts`, which a browser cannot load, so `src/index.html`,
 behaviour — three views, the editor, the calendar, preferences — is owed back by
 Phases 2–4 and its tests are parked, not deleted. See **Open gaps**.
 
-- Sharing: a link per schedule, decoded on arrival and added only when the
-  recipient presses a button, and JSON export/import as the durable backup.
+- Sharing: a link per schedule. Opening one SHOWS that schedule running at
+  once; "Keep it" writes it and makes it today's, "No thanks" puts the regular
+  day back. JSON export/import is the durable backup.
 - Preferences, in their own storage key so none of them travels in a share link
   or a backup: a three-way theme applied before the first paint, a bell offset
   that shifts the clock reading rather than the schedule, a Screen Wake Lock
@@ -67,9 +68,18 @@ Phases 2–4 and its tests are parked, not deleted. See **Open gaps**.
 
 - Installable: a web app manifest with the bell icon at every size the
   platforms ask for, `standalone` display, and everything scoped inside
-  `/bell`. No service worker, on purpose — see Decisions.
+  `/bell`. One service worker with no fetch handler, for Android's
+  notifications only — see Decisions.
+- The Day view (Phase 8): the whole schedule as a list under a one-line
+  summary, finished periods folded away, the running row with its own
+  countdown and track. And, as a preference, the day as blocks in the progress
+  bar's place — proportional, a dash wherever the kind changes.
+- The bell offset can be MEASURED: "The bell just rang", pressed as it rings.
+- Settings copy in plain second person, in the user's own words.
 
-**Phase 6 is complete.** What remains is Phase 7, the cutover.
+**Live at `biscuitlab.net/bell` since 2026-09-02.** Every phase, D through 8,
+is done; Open gaps holds one row (undo, declined for now) and Known limits
+holds the facts. The last session log entry has the day's state.
 
 ### Files
 
@@ -5101,3 +5111,20 @@ change; the rule "planning, dash, classes, dash, lunch" is one vocabulary and
 the better one. Decisions has the superseding row. Test counts unchanged; the
 three strip assertions changed shape (seven blocks, not eleven cells; two
 dashes; one past block at 09:30, not two).
+
+### 2026-09-05 — the tidy-up
+
+Hub #53 merged: "A clock that never counts down", the BellTab build-log post,
+with three images, an answer-first opening, question headings and the one
+code snippet it was missing, plus the two research docs the hub was writing
+against but did not hold - `devlog-blog-portfolio-strategy.md` and
+`web-design-and-game-juice.md`, copied verbatim from Puzzle Lab with a
+provenance line. The hub's dev server is stopped.
+
+Local housekeeping in both repos: merged branches deleted, worktrees pruned,
+`main` fast-forwarded. The README gained the Day view, the day-as-blocks
+option, the calibration button and the share preview; the Current state block
+at the top of this file caught up with two days of work.
+
+Nothing is in flight. The next thing that happens to this project should be
+a week of real use.

@@ -25,9 +25,17 @@ schedule lives in your browser and in a shareable link.
 - **Honest empty states** — before first bell, after last bell, and days with no
   schedule are first-class screens, not blanks.
 - **Bell offset** — real bells never match the published schedule. Nudge every
-  time by ±N seconds so the countdown matches the bell you actually hear. The
+  time by ±N seconds so the countdown matches the bell you actually hear — or
+  press "The bell just rang" as it rings and BellTab measures it. The
   correction is applied to the clock, never to the schedule, so it stays on your
   device and never travels in a link you send.
+- **The Day view** — the whole schedule as a list: what's done, what's running
+  with its own countdown, what's left, and a one-line summary like "2 of 7 ·
+  5h 00m until dismissal". Finished periods fold away so the running one sits
+  at the top.
+- **The day as blocks** — optionally, the period progress bar becomes a bar for
+  the whole day, one block per period sized to its length, a dash wherever the
+  kind of block changes, filling in as the day goes. Preferences → Countdown.
 - **Big mode** — the same countdown, scaled for a projector at the front of a
   room. It is a presentation mode over the ordinary view rather than a second
   screen, so the two cannot disagree.
@@ -42,7 +50,8 @@ schedule lives in your browser and in a shareable link.
 - **Light, dark, or whatever your device says** — applied before the page
   paints, so there is no flash of the wrong one.
 - **Share by link** — the whole schedule compresses into the URL fragment. Send
-  it to a colleague; nothing is uploaded anywhere.
+  it to a colleague; nothing is uploaded anywhere. Opening a link shows that
+  schedule running straight away; "Keep it" makes it today's.
 - **Installable** — add it to a phone's home screen or a laptop's dock and it
   opens in its own window, bell icon and all. There is still no server behind
   it; installing changes where it lives, not what it knows.
