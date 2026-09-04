@@ -65,6 +65,38 @@ test.describe("a link out and a link in", () => {
     await recipient.close();
   });
 
+  test("shows the shared schedule the moment the link opens, and puts the regular day back on No thanks", async ({
+    page,
+  }) => {
+    await openApp(page, MID_PERIOD);
+    await openSettings(page, "schedules");
+    await page.locator("#schedule-name-input").fill("Sent to you");
+    // Retime Period 2 so the preview is visibly a different schedule.
+    await page.locator("#period-editor .editrow").nth(2).locator('[data-field="length"]').fill("40");
+    const url = await copyShareLink(page);
+    // Put the local library back to the seeded Regular day, so the link is
+    // genuinely somebody else's schedule arriving over this one.
+    await page.locator("#schedule-name-input").fill("Regular");
+    await page.locator("#period-editor .editrow").nth(2).locator('[data-field="length"]').fill("60");
+    await page.locator("#settings-toggle").click();
+    await expect(page.locator("#countdown-minutes")).toHaveText("35");
+
+    await page.goto(url);
+    await expect(page.locator("#share-offer")).toBeVisible();
+
+    // Nothing has been kept yet, and the whole page is already running it:
+    // the header, the digits and the tab title. Somebody clicked a link to
+    // see a schedule; they see that schedule.
+    await expect(page.locator("#schedule-name")).toHaveText("Sent to you");
+    await expect(page.locator("#countdown-minutes")).toHaveText("15");
+    await expect(page).toHaveTitle("15m · Period 2");
+
+    await page.locator("#share-dismiss").click();
+    await expect(page.locator("#share-offer")).toHaveCount(0);
+    await expect(page.locator("#schedule-name")).toHaveText("Regular");
+    await expect(page.locator("#countdown-minutes")).toHaveText("35");
+  });
+
   test("adding a shared schedule appends it and makes it today's", async ({ page }) => {
     await openApp(page, MID_PERIOD);
     await openSettings(page, "schedules");

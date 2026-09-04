@@ -44,24 +44,41 @@ export function DayStrip({ schedule, nowSec }: { schedule: ValidSchedule; nowSec
   return (
     <div className="strip-block">
       <div className="strip" id="strip" aria-hidden="true">
-        {schedule.periods.map((period) => {
+        {schedule.periods.map((period, index) => {
           const status = periodStatusAt(period, nowSec);
           const isLink = period.kind === PERIOD_KINDS.PASSING;
           const elapsed = nowSec - period.startMin * 60;
           const length = (period.endMin - period.startMin) * 60;
           const percent = status === "past" ? 100 : status === "future" ? 0 : percentOf(elapsed / length);
 
+          // A seam where two blocks of different kinds meet with no passing
+          // between them - Period 3 straight into A Lunch - so a change of
+          // kind is visible even where there is no hallway to draw.
+          const previous = index > 0 ? schedule.periods[index - 1] : null;
+          const seam =
+            !isLink &&
+            previous !== null &&
+            previous.kind !== PERIOD_KINDS.PASSING &&
+            previous.kind !== period.kind;
+
           return (
             <span
               key={`${period.startMin}-${period.endMin}`}
-              className={`strip__cell strip__cell--${isLink ? "link" : "block"} strip__cell--${status}`}
+              className="strip__pair"
               // Blocks grow in proportion to their length, so the strip reads
-              // as the day's timeline; a dash is a dash whatever it joins.
+              // as the day's timeline; a dash is a dash whatever it joins. The
+              // grow sits on the PAIR (block plus any seam before it), which
+              // is the flex item the strip actually lays out.
               style={isLink ? undefined : { flexGrow: period.endMin - period.startMin }}
+            >
+            {seam && <span className="strip__seam" />}
+            <span
+              className={`strip__cell strip__cell--${isLink ? "link" : "block"} strip__cell--${status}`}
               onPointerEnter={isLink ? undefined : () => setHovered(period)}
               onPointerLeave={isLink ? undefined : () => setHovered(null)}
             >
               <span className="strip__fill" style={{ width: `${percent}%` }} />
+            </span>
             </span>
           );
         })}

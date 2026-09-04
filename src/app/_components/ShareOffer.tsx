@@ -48,12 +48,12 @@ export function ShareOffer({ offer, onAdd, onDismiss }: ShareOfferProps) {
     <aside className="offer" id="share-offer">
       <p className="offer__text" id="share-offer-text">
         Someone shared a schedule called <strong>{schedule.name}</strong>, with {periods}{" "}
-        {periods === 1 ? "period" : "periods"}. Add it and it runs today; your other days
-        aren&rsquo;t changed.
+        {periods === 1 ? "period" : "periods"}. It&rsquo;s showing now. Keep it and it runs
+        today; your other days aren&rsquo;t changed.
       </p>
       <div className="offer__actions">
         <button type="button" className="minibutton" id="share-add" onClick={onAdd}>
-          Add to my schedules
+          Keep it
         </button>
         <button type="button" className="minibutton" id="share-dismiss" onClick={onDismiss}>
           No thanks

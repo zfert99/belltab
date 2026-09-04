@@ -360,6 +360,8 @@ development too, so the bare origin is a 404 exactly as it is in production.
 | 2026-09-04 | Open gaps holds work; Known limits holds facts | Eight rows had sat in Open gaps that no action could close — an upstream peer range, a spec limit, a platform behaviour — beside rows that were an afternoon's work. A reader could not tell which was which, and the table's job is to say what is owed. The facts moved to their own section with their original dates and text, each with what would change it. |
 | 2026-09-04 | The strip is the period progress bar broken into blocks - edge to edge, proportional, dashes for passing | Superseding the retired build's equal, capped, centred squares and the "how many left, not how long left" reasoning behind them. The user's memory of the strip was a bar spanning the card left to right with dashes where the block type changed, and that is the better design: it takes the progress bar's place rather than adding a second thing under it, each block is as wide as it is long so lunch reads as half a class, and a passing period is a dash between the blocks it joins. The old objection - proportional cells make passing an unreadable sliver - was right, and the dash is what answers it. |
 | 2026-09-04 | Accepting a shared schedule makes it today's, as a dated exception | The first version added it to the library and opened the editor, leaving the countdown on the regular day - so the person who clicked a link to see a schedule saw a different one. The link is about today, so today gets an exception pointing at it and the countdown swaps at once; the weekday default is untouched, so next week is still the regular day. The offer's sentence now says so. |
+| 2026-09-04 | A shared schedule is SHOWN the moment its link opens; "Keep it" writes it, "No thanks" puts the regular day back | The first two versions offered it in a banner over the regular day and swapped only after Add - and the user opened a link, saw the regular day and called it confusing, twice. The link is the schedule; the page should be running it before anybody is asked anything. So while an offer is pending the countdown, the title, the Day view and the strip all compute from the offered schedule on the same clock, and nothing is written until they choose. |
+| 2026-09-04 | A seam between back-to-back blocks of different kinds | Period 3 runs straight into A Lunch with no passing between them, and without a mark the two read as one long block. A seam - shorter and fainter than a passing dash, because it marks a change of kind rather than a hallway - draws the boundary. Asked for as "dashes to separate by type"; "not necessary", and cheap. |
 
 ## Deviations from the plan docs
 
@@ -5070,3 +5072,23 @@ and that the weekday is still the regular day.
 
 **Tests:** unit unchanged at 441. Playwright 747 → 750 - one strip test per
 engine; the share test changed shape rather than count.
+
+### 2026-09-04 21:20 — the shared schedule shows itself; the strip, taller and seamed
+
+"The share link still doesn't work." It did what I had built and not what
+had been asked: it swapped to the shared schedule after Add, and the user
+wanted to see it on opening the link. So now a pending offer IS the view -
+countdown, title, Day view, strip, all from the offered schedule on the same
+clock - and the buttons are "Keep it" and "No thanks". Keeping writes the
+schedule and today's exception; declining restores the regular day. Nothing
+is written until they choose. Found in the same change: at the fifty-schedule
+cap `addSchedule` hands the library back unchanged, and my "take the last
+schedule" would have pointed today at somebody else's - guarded before it
+shipped.
+
+The strip's blocks are 20px tall (30 in Big mode) so hovering does not need
+aiming, and a seam now marks where two blocks of different kinds meet with
+no passing between them.
+
+**Tests:** Playwright 750 → 756 - the preview-and-revert test and the seam
+test, per engine. Unit unchanged at 441.

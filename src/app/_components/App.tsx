@@ -13,6 +13,7 @@ import type { ValidSchedule } from "@/lib/schedule";
 import { tabTitleFor, viewForNow } from "@/app/_lib/today";
 import { formatClock } from "@/lib/format";
 import { shiftNow, type LocalNow } from "@/lib/clock";
+import { stateAt } from "@/lib/engine";
 import { NowView } from "@/app/_components/NowView";
 import { DayView } from "@/app/_components/DayView";
 import { SettingsView, type PanelId } from "@/app/_components/SettingsView";
@@ -122,6 +123,31 @@ export function App() {
   const shifted = now === null ? null : shiftNow(now, preferences.bellOffsetSec);
   const view = shifted === null ? null : viewForNow(library, shifted);
 
+  const [offer, setOffer] = useState<
+    { kind: "schedule"; schedule: ValidSchedule } | { kind: "error"; message: string } | null
+  >(null);
+
+  /**
+   * A shared schedule is SHOWN the moment its link opens, before it is kept.
+   *
+   * The first version offered it in a banner over the regular day, which the
+   * user called confusing: they clicked a link to see a schedule and saw a
+   * different one. So while an offer is pending, the countdown, the title, the
+   * Day view and the strip all run the offered schedule - a preview, computed
+   * from the same clock - and "add" means keep it, "no thanks" means put the
+   * regular day back. Nothing is written until they choose.
+   */
+  const previewed =
+    offer?.kind === "schedule" && shifted !== null
+      ? {
+          kind: "scheduled" as const,
+          scheduleName: offer.schedule.name,
+          schedule: offer.schedule,
+          state: stateAt(offer.schedule, shifted.secOfDay),
+        }
+      : null;
+  const shown = previewed ?? view;
+
   /**
    * Which screen is up: the countdown, or the whole day as a list.
    *
@@ -141,7 +167,7 @@ export function App() {
    * Mounted here beside the wake lock for the same reason it is: a bell that
    * rings while the editor is open is still a bell.
    */
-  const bellStatuses = useBells(view?.kind === "scheduled" ? view.state : null, preferences);
+  const bellStatuses = useBells(shown?.kind === "scheduled" ? shown.state : null, preferences);
 
   /**
    * A schedule somebody sent, waiting to be accepted or dismissed.
@@ -160,9 +186,6 @@ export function App() {
    * `window.location` on the server, and a fragment is never sent to one anyway.
    * That is the property the whole sharing design rests on.
    */
-  const [offer, setOffer] = useState<
-    { kind: "schedule"; schedule: ValidSchedule } | { kind: "error"; message: string } | null
-  >(null);
 
   useEffect(() => {
     // The decode is asynchronous - it runs a decompression stream - so Strict
@@ -200,9 +223,14 @@ export function App() {
       // one, which the user called confusing on 2026-09-04. A dated exception
       // for today, never a weekday default: the link is about today.
       const withSchedule = addSchedule(library, offer.schedule);
-      const added = withSchedule.schedules[withSchedule.schedules.length - 1];
+      // `addSchedule` refuses at the cap and hands the library back unchanged;
+      // taking "the last schedule" then would point today at somebody else's.
+      const added =
+        withSchedule.schedules.length > library.schedules.length
+          ? withSchedule.schedules[withSchedule.schedules.length - 1]
+          : null;
       saveLibrary(
-        shifted === null || added.id === null
+        added === null || added.id === null || shifted === null
           ? withSchedule
           : setOverride(withSchedule, shifted.isoDate, added.id),
       );
@@ -344,7 +372,7 @@ export function App() {
         The countdown's title stands while settings is open. The clock has not
         stopped just because it is not on screen.
       */}
-      <title>{view === null ? "BellTab" : tabTitleFor(view)}</title>
+      <title>{shown === null ? "BellTab" : tabTitleFor(shown)}</title>
 
       {offer !== null && (
         <ShareOffer
@@ -358,7 +386,7 @@ export function App() {
         <h1 className="screen__schedule">BellTab</h1>
         <div className="screen__meta">
           <p id="schedule-name" className="screen__clock">
-            {view?.kind === "scheduled" ? view.scheduleName : PENDING}
+            {shown?.kind === "scheduled" ? shown.scheduleName : PENDING}
           </p>
           <WallClock now={now} />
           <button
@@ -393,15 +421,15 @@ export function App() {
         />
       ) : (
         <>
-          {screen === "day" && !big && view?.kind === "scheduled" && shifted !== null ? (
-            <DayView schedule={view.schedule} nowSec={shifted.secOfDay} />
+          {screen === "day" && !big && shown?.kind === "scheduled" && shifted !== null ? (
+            <DayView schedule={shown.schedule} nowSec={shifted.secOfDay} />
           ) : (
             <NowView
-              view={view}
+              view={shown}
               onOpenSettings={(panel, focusId) => openSettingsFrom(panel, null, focusId ?? null)}
               strip={
-                preferences.showStrip && shifted !== null && view?.kind === "scheduled"
-                  ? { schedule: view.schedule, nowSec: shifted.secOfDay }
+                preferences.showStrip && shifted !== null && shown?.kind === "scheduled"
+                  ? { schedule: shown.schedule, nowSec: shifted.secOfDay }
                   : null
               }
             />
@@ -493,7 +521,7 @@ export function App() {
         regions are the same set on both screens, which is what makes the
         enumeration tests worth running.
       */}
-      <PeriodAnnouncer state={view?.kind === "scheduled" ? view.state : null} />
+      <PeriodAnnouncer state={shown?.kind === "scheduled" ? shown.state : null} />
     </>
   );
 }

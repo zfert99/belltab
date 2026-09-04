@@ -834,7 +834,9 @@ body {
      five-minute block tappable at 320px. */
   flex: 1 1 0;
   min-width: 14px;
-  height: 14px;
+  /* Tall enough to hover without aiming - the caption swap is the strip's one
+     interaction, and a 14px target was fiddly. Asked for on 2026-09-04. */
+  height: 20px;
   border: var(--border-passive);
   border-radius: 999px;
 }
@@ -854,6 +856,39 @@ body {
 
 .strip__cell--link.strip__cell--future {
   opacity: 0.3;
+}
+
+/* A seam between two blocks of DIFFERENT kinds that sit back to back with no
+   passing period between them - Period 3 straight into A Lunch. Shorter and
+   fainter than a passing dash, because it marks a change of kind rather than
+   a hallway; without it the two would read as one long block. */
+/* A block and any seam before it, as one flex item that grows by the block's
+   length; `display: contents` would lose the grow, so it is a real box. */
+.strip__pair {
+  display: flex;
+  align-items: center;
+  gap: var(--s-1);
+  min-width: 0;
+}
+
+.strip__pair:has(.strip__cell--block) {
+  flex: 1 1 0;
+}
+
+.strip__pair:has(.strip__cell--link) {
+  flex: 0 0 auto;
+}
+
+.strip__pair .strip__cell--block {
+  flex: 1 1 0;
+}
+
+.strip__seam {
+  flex: 0 0 6px;
+  height: 3px;
+  border-radius: 999px;
+  background: var(--fg-soft);
+  opacity: 0.35;
 }
 
 /* --- State ---
@@ -999,7 +1034,7 @@ body.is-big {
 }
 
 .is-big .strip__cell--block {
-  height: 22px;
+  height: 30px;
   border-width: 2px;
 }
 

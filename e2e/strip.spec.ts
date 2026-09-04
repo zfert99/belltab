@@ -96,6 +96,16 @@ test.describe("the blocks strip", () => {
     await expect(caption(page)).toHaveText("3 of 7 · 3h 54m until dismissal");
   });
 
+  test("marks a change of kind between back-to-back blocks with a seam", async ({ page }) => {
+    await openApp(page, MID_PERIOD, { preferences: prefs(true) });
+
+    // Period 3 runs straight into A Lunch and A Lunch straight into Period 4,
+    // with no passing period either side: two seams, and no others - every
+    // other kind change in the seeded day has a passing dash between it.
+    await expect(page.locator("#strip .strip__seam")).toHaveCount(2);
+    await expect(page.locator("#strip .strip__cell--link")).toHaveCount(4);
+  });
+
   test("hovering a square borrows the caption for that period", async ({ page }) => {
     await openApp(page, MID_PERIOD, { preferences: prefs(true) });
 
