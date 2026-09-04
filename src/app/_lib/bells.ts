@@ -203,6 +203,40 @@ function permissionServerSnapshot(): null {
 }
 
 /**
+ * The service worker registration, once notifications are granted.
+ *
+ * Android Chrome refuses `new Notification()` from a page and requires
+ * `registration.showNotification()`; every other engine accepts either. So a
+ * worker is registered the moment permission is granted - never before, since
+ * a user who has not asked for notifications should not carry a worker - and
+ * the bell goes through it wherever it exists. The worker itself (public/sw.js)
+ * has no fetch handler: this is notifications on Android, not caching, and the
+ * 2026-09-02 decision against a caching worker stands.
+ *
+ * `null` until registered, and also on engines without service workers, where
+ * `new Notification` is the only path and still works.
+ */
+let registration: ServiceWorkerRegistration | null = null;
+
+function serviceWorkersSupported(): boolean {
+  return typeof navigator !== "undefined" && "serviceWorker" in navigator;
+}
+
+async function registerBellWorker(): Promise<void> {
+  if (!serviceWorkersSupported() || registration !== null) return;
+
+  try {
+    // Scoped to the app's own path. `basePath` serves public/ under /bell, so
+    // the script and its scope both carry the prefix, spelled out by hand as
+    // every other URL in this repo is.
+    registration = await navigator.serviceWorker.register("/bell/sw.js", { scope: "/bell/" });
+  } catch {
+    // A registration that fails (an insecure context, a policy) leaves the
+    // page path in place, which is what would have happened anyway.
+  }
+}
+
+/**
  * Asks, and reports back. Must be called from a user gesture - browsers now
  * quietly auto-deny prompts that arrive from nowhere, which would burn the only
  * ask this origin gets.
@@ -265,6 +299,15 @@ export function useBells(state: DayState | null, preferences: Preferences): Bell
     return listenForGesture(unlockChime);
   }, [preferences.chimeOnBell, audioState]);
 
+  /**
+   * The worker is registered when notifications are on AND granted - a
+   * restored preference at load, or the grant that just came back from the
+   * prompt. Idempotent; the registration is a module singleton.
+   */
+  useEffect(() => {
+    if (preferences.notifyOnBell && permission === "granted") void registerBellWorker();
+  }, [preferences.notifyOnBell, permission]);
+
   const key = state === null ? null : boundaryKey(state);
   const message = state === null ? "" : announcementFor(state);
 
@@ -297,14 +340,21 @@ export function useBells(state: DayState | null, preferences: Preferences): Bell
       // notification exists for the tab that is open but behind something.
       document.visibilityState !== "visible"
     ) {
-      try {
-        // `tag` makes each bell REPLACE the previous toast rather than pile up
-        // - by the time Period 3 starts, "Period 2 has started" is not news.
-        new Notification(message, { tag: "belltab-bell" });
-      } catch {
-        // Android Chrome throws here - page-created notifications require a
-        // service worker there. Catching it keeps the bell from taking the
-        // clock down; the panel's copy already calls this feature best-effort.
+      // `tag` makes each bell REPLACE the previous toast rather than pile up
+      // - by the time Period 3 starts, "Period 2 has started" is not news.
+      const options = { tag: "belltab-bell" };
+
+      if (registration !== null) {
+        // The worker's way - the only way on Android, and fine everywhere.
+        void registration.showNotification(message, options).catch(() => {});
+      } else {
+        try {
+          new Notification(message, options);
+        } catch {
+          // Android Chrome throws here when the worker has not registered yet
+          // (or could not). Catching it keeps the bell from taking the clock
+          // down; the panel's copy already calls this feature best-effort.
+        }
       }
     }
     // The preference and permission values are read at ring time and belong in

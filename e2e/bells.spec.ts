@@ -27,8 +27,10 @@ interface BellsProbe {
   strikes: number;
   /** `AudioContext` constructions - zero until somebody wants sound. */
   contexts: number;
-  /** Notifications constructed, newest last. */
-  shown: { title: string; tag: string | undefined }[];
+  /** Notifications shown, newest last, and by which route. */
+  shown: { title: string; tag: string | undefined; via: "page" | "worker" }[];
+  /** Service worker registrations - zero until notifications are granted. */
+  workers: number;
   /** `requestPermission` calls. */
   asks: number;
   setVisibility(next: "visible" | "hidden"): void;
@@ -45,6 +47,7 @@ const probe = (page: Page) => ({
   strikes: () => page.evaluate(() => (window as never as { __bells: BellsProbe }).__bells.strikes),
   contexts: () =>
     page.evaluate(() => (window as never as { __bells: BellsProbe }).__bells.contexts),
+  workers: () => page.evaluate(() => (window as never as { __bells: BellsProbe }).__bells.workers),
   shown: () => page.evaluate(() => (window as never as { __bells: BellsProbe }).__bells.shown),
   asks: () => page.evaluate(() => (window as never as { __bells: BellsProbe }).__bells.asks),
   setVisibility: (next: "visible" | "hidden") =>
@@ -65,13 +68,15 @@ async function stubBells(page: Page, options: StubOptions = {}): Promise<void> {
       const state: {
         strikes: number;
         contexts: number;
-        shown: { title: string; tag: string | undefined }[];
+        shown: { title: string; tag: string | undefined; via: "page" | "worker" }[];
+        workers: number;
         asks: number;
         setVisibility(next: string): void;
       } = {
         strikes: 0,
         contexts: 0,
         shown: [],
+        workers: 0,
         asks: 0,
         setVisibility(next: string) {
           visibility = next;
@@ -141,9 +146,29 @@ async function stubBells(page: Page, options: StubOptions = {}): Promise<void> {
         }
 
         constructor(title: string, options?: { tag?: string }) {
-          state.shown.push({ title, tag: options?.tag });
+          state.shown.push({ title, tag: options?.tag, via: "page" });
         }
       }
+
+      // The service worker route, which is Android's only one. A real
+      // registration would fetch /bell/sw.js and install it for real; what is
+      // under test is that the page registers on grant and shows through it,
+      // so the registration is a fake with the one method the bell calls.
+      const fakeRegistration = {
+        showNotification(title: string, options?: { tag?: string }) {
+          state.shown.push({ title, tag: options?.tag, via: "worker" });
+          return Promise.resolve();
+        },
+      };
+      Object.defineProperty(navigator, "serviceWorker", {
+        configurable: true,
+        value: {
+          register() {
+            state.workers += 1;
+            return Promise.resolve(fakeRegistration);
+          },
+        },
+      });
 
       Object.defineProperty(window, "AudioContext", {
         configurable: true,
@@ -311,7 +336,50 @@ test.describe("the notification", () => {
     // the tag is what makes each toast replace the last instead of piling up.
     await expect
       .poll(() => probe(page).shown())
-      .toEqual([{ title: "Passing has started.", tag: "belltab-bell" }]);
+      .toEqual([{ title: "Passing has started.", tag: "belltab-bell", via: "worker" }]);
+  });
+
+  test("registers a worker on grant, and never before - Android's only route", async ({ page }) => {
+    await stubBells(page, { permission: "default", onAsk: "granted" });
+    await openApp(page, MID_PERIOD);
+    await openSettings(page, "preferences");
+
+    // A user who has not asked for notifications carries no worker.
+    expect(await probe(page).workers()).toBe(0);
+
+    await notify(page).check();
+    await expect(notify(page)).toBeChecked();
+    await expect.poll(() => probe(page).workers()).toBe(1);
+  });
+
+  test("a restored preference with a standing grant registers the worker at load", async ({
+    page,
+  }) => {
+    // Stubbed with the grant already given, since the stub's init script
+    // re-runs on every navigation and cannot carry a grant across a reload.
+    await stubBells(page, { permission: "granted" });
+    await openApp(page, MID_PERIOD, { preferences: prefs({ notifyOnBell: true }) });
+
+    await expect.poll(() => probe(page).workers()).toBe(1);
+  });
+
+  test("falls back to a page notification where there is no service worker", async ({ page }) => {
+    await stubBells(page, { permission: "granted" });
+    // Both the stub's own property AND the prototype accessor beneath it -
+    // deleting only the former re-exposes the real API, which registers a real
+    // worker on localhost and takes the bell through it.
+    await page.addInitScript(() => {
+      Reflect.deleteProperty(navigator, "serviceWorker");
+      Reflect.deleteProperty(Navigator.prototype, "serviceWorker");
+    });
+    await openApp(page, MID_PERIOD, { preferences: prefs({ notifyOnBell: true }) });
+
+    await probe(page).setVisibility("hidden");
+    await crossBoundary(page, PASSING_STARTS);
+
+    await expect
+      .poll(() => probe(page).shown())
+      .toEqual([{ title: "Passing has started.", tag: "belltab-bell", via: "page" }]);
   });
 
   test("stays quiet while the tab is visible", async ({ page }) => {
@@ -330,7 +398,7 @@ test.describe("the notification", () => {
 
     await expect
       .poll(() => probe(page).shown())
-      .toEqual([{ title: "Period 3 has started.", tag: "belltab-bell" }]);
+      .toEqual([{ title: "Period 3 has started.", tag: "belltab-bell", via: "worker" }]);
   });
 
   test("a refused prompt saves nothing and says where the lever went", async ({ page }) => {

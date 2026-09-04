@@ -115,7 +115,7 @@ An older note, kept for the same reason:
 **Testing:** 441 Vitest tests over the pure engine, the parser, the formatters,
 the clock reader, the day resolver, the editor's draft model, the storage
 boundary, the library mutators, the share codec, the preferences boundary and
-the wake lock's and the bells' wording, plus **726 Playwright tests across
+the wake lock's and the bells' wording, plus **738 Playwright tests across
 three engines** —
 Chrome, WebKit and Firefox — **none of them parked**, which is true for the first
 time in the project. The last parked block was Big mode's, and Phase 6 built it.
@@ -547,9 +547,11 @@ one press.
 - ✅ One SVG glyph — the butterscotch bell — rendered to five committed PNGs by
   `scripts/render-icons.mjs` through the Playwright already in devDependencies:
   plain and maskable at 192/512, plus the 180px apple-touch-icon.
-- ✅ **No service worker, on purpose.** Installation no longer needs one,
-  offline is a non-goal, and the update-lifecycle risk buys nothing here. The
-  Android notification gap keeps its row, with the SW named as its price.
+- ✅ **No CACHING service worker, on purpose.** Installation no longer needs
+  one, offline is a non-goal, and the update-lifecycle risk buys nothing here.
+  (2026-09-04: a worker with no fetch handler was added for Android
+  notifications — the one thing with no other route — registered only after a
+  grant. The caching decision stands; see Decisions in `Docs/build-log.md`.)
 - ✅ Colours pinned to the page: the E2E reads the live `--paper` token and
   asserts the manifest matches, so a palette change cannot strand the splash.
 

@@ -356,6 +356,8 @@ development too, so the bare origin is a 404 exactly as it is in production.
 | 2026-09-04 | The period strip is a PREFERENCE under the countdown, not a third screen | The user asked for it as "an alternate Now view" - the day as blocks with progress through them, horizontal. It reads the same clock as the countdown and sits under it, so a screen of its own would be a switcher position for a second reading of the same number. A checkbox in Preferences ("Show the day as blocks") puts it under the countdown for the people who liked it, off by default because the countdown is the product. The Day view stays the readable version; the strip is `aria-hidden` and its caption says the position in words. |
 | 2026-09-04 | Hovering a square borrows the caption; nothing gets a tooltip or a tab stop | The plain build's own choice, kept: no positioning code, no new focus stops in a strip that is decorative by declaration, and it works on a touch tap. The Day view carries the same labels for everyone who is not pointing. |
 | 2026-09-04 | Settings copy, second pass, in the user's own words | "Periods stay in start order and can't overlap. Changes save automatically. The countdown runs on the most recent valid version of the schedule." "Each weekday uses its default schedule unless a dated exception says otherwise. If neither is set, there's no school that day." The bell offset stops asking a question and says what it does. The first pass had made the sentences friendlier; the user wanted them plainer still, and supplied the shape. |
+| 2026-09-04 | A service worker after all — with no fetch handler, registered only after a grant | The 2026-09-02 decision refused a service worker because of what one does to caching: serve last week's HTML after a deploy. That reasoning was about the FETCH handler, and this worker has none — it exists for the one thing with no other route, `showNotification` on Android, where `new Notification()` throws from a page. Registered only once notifications are on and granted, so a user who never asked carries no worker. Not a reversal; a narrowing, and the earlier row is left standing because its reason still holds. |
+| 2026-09-04 | Open gaps holds work; Known limits holds facts | Eight rows had sat in Open gaps that no action could close — an upstream peer range, a spec limit, a platform behaviour — beside rows that were an afternoon's work. A reader could not tell which was which, and the table's job is to say what is owed. The facts moved to their own section with their original dates and text, each with what would change it. |
 
 ## Deviations from the plan docs
 
@@ -605,26 +607,37 @@ half-recorded on 2026-09-02 about Big mode: **a parked block has to name the
 phase that revives it, AND the phase has to name the block back** — and when
 neither does, the block is not "deferred", it is lost.
 
-## Open gaps
+## Known limits
 
-| Opened | Item | Notes |
+Facts about the platform, the toolchain or the deploy that this repo has
+checked and cannot change. They were rows in **Open gaps** until 2026-09-04,
+when a pass over that table found the work and the facts had become hard to
+tell apart. Each keeps its original date and text; each says what would change
+it. None is a task.
+
+| Recorded | Limit | Notes |
 | --- | --- | --- |
 | 2026-08-26 | TypeScript is a major version behind on purpose | 6.0.3 rather than 7.0.2, because `typescript-eslint` cannot load under TS 7. This is a real cost — TS 7 is the Go rewrite — and it is deliberate, not neglect. Revisit when typescript-eslint#10940 lands; the upgrade should be a one-line version bump plus a full lint run. |
 | 2026-08-27 | `next build` now needs the network | `next/font/google` fetches the three families at BUILD time. Runtime is still network-free — that invariant is untouched, and the emitted HTML was checked for Google hosts — but an offline `npm run build` now fails where it used to succeed. Next caches the downloads, so this bites a cold checkout rather than a rebuild. Self-hosting the `.woff2` files in-repo with `next/font/local` would remove it; not done, because it means committing binaries and hand-tracking upstream revisions. |
 | 2026-08-27 | Next ships a live region we did not write | `div#__next-route-announcer__` is `aria-live="assertive"` `role="alert"`, injected by the App Router after hydration and not removable. It should stay silent — one route, no client navigation — but `AGENTS.md`'s "never wrap the countdown in a live region" now has a framework-owned region on the page to coexist with. The announcer spec enumerates it so a second one cannot arrive unnoticed. |
-| 2026-08-27 | There is no undo | Deleting a *period* is still immediate and unconfirmed, and the only way back is to retype it. Deliberate for a four-field row whose result is visible behind the editor. Deleting a whole *schedule* now goes through a modal confirmation, which is the half of this gap Phase 4 closed; a real undo is still owed and would remove the need for the dialog. |
-| 2026-09-01 | An import cannot be undone | It replaces every schedule and the whole calendar, behind a confirmation that says so. Exporting first is the answer the panel gives, and it puts the export above the import for that reason. A real undo would be better and is the same gap as the one open for deleting a period. |
 | 2026-09-01 | "WebKit" is not one browser, and none of them is Safari | Measured, not assumed: the development machine's WebKit build reports `type === "text"` for both `<input type="time">` and `type="date"` and renders bare text boxes; the Linux CI runner's build implements them. Real Safari has shipped `type="time"` since 14.1 and is a third thing again. The app handles all of it — the parser was always doing the work — but any sentence of the form "X works in WebKit" now has to say which WebKit, and none of them is evidence about a Mac. |
 | 2026-09-02 | The page ships an unhashed inline script, and the CSP still carries no `script-src` | Half of the 2026-08-27 gap this replaces. The toggle and the pre-paint application both exist now; what does not is the hardening they were supposed to arrive with. The reason is measured and is in the Decisions table: Next's own two inline scripts cannot be hashed from `next.config.ts`, and the nonce that would fix it needs middleware this repo bans. What would change the call is Next shipping a nonce path that is not middleware, or `output: "export"` growing one. Until then the CSP is `frame-ancestors 'none'` and the honest statement is that this app has no script policy at all. |
 | 2026-08-27 | Three pieces of cited evidence live in the Puzzle Lab repo, not this one | `multi-zone-migration-safety-review.md` marks its rate-limit finding **VERIFIED** against method and numbers in `src/lib/rate-limit.md`; `multi-zone-cost-and-alternatives.md` reverses its own earlier position on the authority of `puzzle-lab-hub-merge-research.md` and `vercel-cron-deployment-protection-outage.md`. All three files are real and all three are one repo away. The broken links are fixed — they now name the repo — but the claims remain unauditable from inside BellTab. Copying the three in would fix it and would also import three more documents about someone else's stack; not done, and the tradeoff is the reason. |
-| 2026-09-02 | Page-created notifications do not work on Android Chrome | `new Notification(...)` throws there — Android requires a service worker to show notifications. The constructor is wrapped so the bell cannot take the clock down, which means the feature is silently absent on Android rather than broken. The PWA slice is the natural place to revisit: a manifest brings a service worker into scope, and `registration.showNotification` is the Android-shaped version of the same feature. |
 | 2026-09-02 | The chime's `locked` sentence is all but unobservable | Reaching the panel takes a click or a keypress, and either one is the gesture that unlocks the chime — so by the time the readout is visible it says "ready". The sentence still earns its place (a refused `resume()` under an OS-level block would land there and stay), but no E2E can show it through the UI, and the suite says so where it asserts the behaviour instead. |
 | 2026-09-02 | The origin host is publicly reachable, and cannot not be | `origin-bell.biscuitlab.net/bell` serves 200 to anyone, as `origin-puzzles` always has: custom production domains are EXEMPT from Deployment Protection, and that exemption is precisely why the hub's proxy can reach the origin at all. What IS locked is every per-deployment `*.vercel.app` URL (302). The roadmap's gate line "origin host still locked to direct traffic" was written before the recipe was understood and asked for something the recipe forbids; corrected 2026-09-02, and the canonical (`biscuitlab.net/bell`) is the mitigation for the duplicate address — which is the reason it shipped in the same phase. `belltab.vercel.app/bell` is public too, exactly as `puzzle-generator.vercel.app` is; same mitigation. |
+
+## Open gaps
+
+| Opened | Item | Notes |
+| --- | --- | --- |
+| 2026-08-27 | There is no undo | Deleting a *period* is still immediate and unconfirmed, and the only way back is to retype it. Deliberate for a four-field row whose result is visible behind the editor. Deleting a whole *schedule* now goes through a modal confirmation, which is the half of this gap Phase 4 closed; a real undo is still owed and would remove the need for the dialog. |
+| 2026-09-01 | An import cannot be undone | It replaces every schedule and the whole calendar, behind a confirmation that says so. Exporting first is the answer the panel gives, and it puts the export above the import for that reason. A real undo would be better and is the same gap as the one open for deleting a period. |
 
 ## Closed
 
 | Opened | Closed | Item |
 | --- | --- | --- |
+| 2026-09-02 | 2026-09-04 | Notifications work on Android Chrome — a service worker with NO fetch handler (`public/sw.js`) is registered the moment notifications are granted, never before, and every bell goes through `registration.showNotification` wherever a worker exists, falling back to `new Notification` where none can. The 2026-09-02 decision against a caching worker stands; this one caches nothing. Verified against a stubbed worker on three engines; the real Android device is the user's, who asked for this. |
 | 2026-09-02 | 2026-09-04 | The bell offset has a calibration aid: "The bell just rang", pressed as the real bell sounds, measures the offset from the nearest bell in today's schedule (`calibrateOffset`, pure, cap as an argument). Refuses with a sentence when nothing is within the cap; disabled with a reason when today has no schedule. Whether it has been pressed at a REAL bell is still a report to collect; the mechanism is built. |
 | 2026-09-02 | 2026-09-04 | The macOS WebKit Tab quirk is handled, not annotated: Option+Tab is macOS's "tab to everything" and Playwright's WebKit honours it — measured with a probe (Tab: body, body, body; Option+Tab: the buttons in order). `tabTo` uses it on `webkit` + `darwin` only. The editor spec passes on WebKit locally for the first time. |
 | 2026-09-02 | 2026-09-04 | The half of the dark-splash row that CAN close: `viewport.themeColor` takes a media list, so the installed window's chrome and the phone's status bar follow the scheme. The manifest's single `background_color` for the splash itself is the spec's limit and stays in the roadmap's Deferred table. |
@@ -4952,3 +4965,26 @@ more than a little weird.
 suite). Playwright 702 → 726 - seven strip tests and one axe journey per
 engine; the reflow gate now walks the Now view with the strip on at every
 width, and the preferences byte-pins gained their sixth field.
+
+### 2026-09-04 17:10 — notifications on Android, and the gaps table split in two
+
+**The worker.** `public/sw.js`, thirty lines, no fetch handler: install,
+activate, and a `notificationclick` that brings the tab forward. `bells.ts`
+registers it the moment notifications are on and granted — never before, so a
+user who never asked carries no worker — and shows every bell through
+`registration.showNotification` where a registration exists, which is the
+only route Android Chrome allows, falling back to `new Notification` where
+there is no worker at all. The 2026-09-02 decision against a service worker
+was about caching, and this caches nothing; the Decisions table has the
+narrowing. The E2E stubs `navigator.serviceWorker` with a fake registration
+that records which route a bell took, and asserts: no worker before a grant,
+one after, one again after a reload with a standing grant, the worker's route
+by default, the page's where no worker can exist.
+
+**The table.** Eight open-gap rows were facts, not work — TypeScript 7, the
+CSP nonce, Next's route announcer, WebKit-is-not-Safari, the Puzzle Lab
+evidence, the `locked` sentence, the public origin, the network at build.
+They now live under **Known limits**, dates and text intact, so Open gaps
+reads as what is owed. What is owed is now one row: undo, declined for now.
+
+**Tests:** unit unchanged at 441. Playwright 726 → 738 — four per engine: registration on grant, registration at load under a standing grant, the page fallback where no worker can exist, and the worker file's contract (served as script, no fetch handler) in the manifest suite.
