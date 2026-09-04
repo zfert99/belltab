@@ -245,6 +245,10 @@ export/import, and the round-trip fixture suite.
 Screen Wake Lock behind an explicit toggle, opt-in foreground chime and
 notification with honest copy, PWA manifest.
 
+**Phase 8 — the Day view (added 2026-09-04).** The whole day as a list — every
+period, where the day stands, what is left — beside the countdown. Built in
+the plain build, lost in the port, rebuilt on request; see the roadmap.
+
 Big mode was added to this list on 2026-09-02, having been absent from it since
 this document was written; see **Deviations** in `Docs/build-log.md` for where
 it came from and why it was built anyway.

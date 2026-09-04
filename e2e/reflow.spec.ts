@@ -256,9 +256,18 @@ for (const width of WIDTHS) {
      * every other parked block it named no phase, and its ids were a contract
      * nothing had agreed to. See Docs/build-log.md.
      */
-    test("Now and Big both reflow to one column", async ({ page }) => {
+    test("Now, Day and Big all reflow to one column", async ({ page }) => {
       await openApp(page, MID_PERIOD);
       await expectNoHorizontalScroll(page, `${width}px Now view`);
+
+      // The Day view's rows stack their time column under 30rem; eleven of
+      // them, with the running row's track, must not widen the page either.
+      await page.locator("#view-day").click();
+      await expect(page.locator("#day-view")).toBeVisible();
+      await expectNoHorizontalScroll(page, `${width}px Day view`);
+      await page.locator("#past-toggle").click();
+      await expectNoHorizontalScroll(page, `${width}px Day view, past shown`);
+      await page.locator("#view-now").click();
 
       await page.locator("#view-big").click();
       await expect(page.locator("#big-exit")).toBeVisible();

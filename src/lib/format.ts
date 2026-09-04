@@ -1,4 +1,4 @@
-import type { DayState } from "./engine";
+import type { BlockPosition, DayState, DaySummary } from "./engine";
 import type { MinuteOfDay, Period } from "./schedule";
 
 /**
@@ -94,6 +94,22 @@ export function splitCountdown(totalSeconds: number): CountdownParts {
   };
 }
 
+
+/**
+ * The Day view's one-line summary: "3 of 7 · 3h 38m until dismissal".
+ *
+ * Built from formatRemaining, not from splitCountdown's bare numbers, because
+ * this caption has nothing beside it to say which scale it is on - a bare
+ * "1:00" is one minute and one hour at once. Restored on 2026-09-04 with the
+ * rebuilt Day view; see Docs/build-log.md.
+ */
+export function formatDayCaption(day: DaySummary, position: BlockPosition): string {
+  if (day.phase === "empty") return "No schedule";
+  if (day.phase === "after") return `${position.total} of ${position.total} · done for today`;
+
+  const target = day.phase === "before" ? "until first bell" : "until dismissal";
+  return `${position.index} of ${position.total} · ${formatRemaining(day.remainingSec)} ${target}`;
+}
 
 /** One period, spelled out: "Period 3 - 10:10 to 11:05". */
 export function formatPeriodLabel(period: Period, options?: ClockOptions): string {

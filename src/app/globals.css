@@ -315,6 +315,7 @@ body {
    width the row would otherwise grow to fit, pushing the wall clock off the
    card. See Docs/build-log.md. */
 .countdown__period,
+.period__name,
 #schedule-name {
   overflow-wrap: anywhere;
 }
@@ -516,6 +517,23 @@ body {
    button in it rather than a second pill: it is advice, not a control of
    equal weight, and two pills side by side would read as a two-state switch -
    which is exactly what Big mode was built not to be. */
+/* The buttons sit in a row; the signpost sentence sits under them. */
+.viewswitch__row {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--s-2);
+}
+
+/* Grape marks navigation, per the design system. The label still says which
+   view is which - the color is not carrying the state on its own, and
+   aria-pressed carries it for assistive tech. Deleted on 2026-09-03 as inert;
+   back on 2026-09-04 with the Day view it was written for. */
+.viewswitch__btn[aria-pressed="true"] {
+  color: var(--bg);
+  background: var(--grape);
+}
+
 .viewswitch__hint {
   margin: 0;
   font-size: 0.875rem;
@@ -561,7 +579,210 @@ body {
 }
 
 /* ============================================================
-   10. BIG MODE (the projector)
+   10. THE DAY VIEW - SUMMARY
+   Rebuilt 2026-09-04. The retired build's summary was a big number with its
+   units and a label beside it; the rebuilt one is a single formatted caption -
+   "3 of 7 · 3h 38m until dismissal" - because the Now view already owns the
+   big number, and the Day view's job is the list under it.
+   ============================================================ */
+
+.day {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+}
+
+.day__summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--s-2) var(--s-4);
+}
+
+.day__label {
+  font-family: var(--font-display);
+  font-size: 1.5rem;
+  font-weight: 600;
+  line-height: 1.2;
+  margin: 0;
+}
+
+.day__caption {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: 0.9375rem;
+  color: var(--fg-soft);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ============================================================
+   11. THE DAY VIEW - PERIOD ROWS
+   ============================================================ */
+
+.periods {
+  /* An <ol> for the semantics, but the numbers are the clock times, not 1..11. */
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.period {
+  padding: var(--s-3) 0;
+  border-top: var(--border-passive);
+}
+
+.period:last-child {
+  border-bottom: var(--border-passive);
+}
+
+.period__row {
+  display: grid;
+  grid-template-columns: 4.5rem 1fr auto;
+  align-items: baseline;
+  gap: var(--s-2) var(--s-4);
+}
+
+.period__time {
+  font-family: var(--font-mono);
+  font-size: 0.875rem;
+  color: var(--fg-soft);
+  font-variant-numeric: tabular-nums;
+}
+
+
+.period__name {
+  font-size: 1rem;
+}
+
+.period__aside {
+  font-family: var(--font-mono);
+  font-size: 0.875rem;
+  color: var(--fg-soft);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+/* Already over. Dimmed by TOKEN, not by opacity: the retired build used
+   `opacity: 0.55` with a comment claiming it stayed above 4.5:1, and the first
+   axe sweep to ever scan this list (2026-09-04) found it did not - 0.55 of
+   `--fg-soft` on paper is well under the floor. `--fg-soft` itself is 5.7:1,
+   so past rows read as secondary without becoming unreadable; past periods are
+   still information, not decoration. */
+.period--past .period__name {
+  color: var(--fg-soft);
+  font-weight: 400;
+}
+
+/* Now. Marked four ways - weight, size, the ink-dark time, and a visible
+   progress track - because the design system forbids encoding state by color
+   alone; the row also carries aria-current. The retired build painted the
+   time butterscotch, and the first axe sweep to scan it (2026-09-04) measured
+   the accent at under 3:1 on the card - fine for the track's fill, not for
+   text. The accent stays on the fill; the time goes bold in ink. */
+.period--current .period__time {
+  color: var(--fg);
+  font-weight: 700;
+}
+
+.period--current .period__name {
+  font-size: 1.125rem;
+  font-weight: 600;
+}
+
+.period--current .period__aside {
+  font-size: 1.125rem;
+  font-weight: 700;
+  color: var(--fg);
+}
+
+/* The per-row track exists in every cloned row but only the current one shows
+   it, so rows do not change height as the day moves through them. */
+.period__track {
+  display: none;
+  height: 6px;
+  margin-top: var(--s-2);
+  background: var(--bg);
+  border: var(--border-passive);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.period--current .period__track {
+  display: block;
+}
+
+.period__fill {
+  height: 100%;
+  width: 0%;
+  background: var(--accent);
+  transition: width 300ms linear;
+}
+
+/* At 320px the fixed time column plus a long period name forces a horizontal
+   scrollbar, so the row stacks: time and duration share a line, name below. */
+@media (max-width: 30rem) {
+  .period__row {
+    grid-template-columns: auto 1fr;
+    grid-template-areas:
+      "time aside"
+      "name name";
+  }
+
+  .period__time {
+    grid-area: time;
+  }
+
+  .period__name {
+    grid-area: name;
+  }
+
+  .period__aside {
+    grid-area: aside;
+  }
+}
+
+/* ============================================================
+/* ============================================================
+   12. THE DAY VIEW - DISCLOSURE (collapsed past periods)
+   ============================================================ */
+
+.disclosure {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  min-height: 44px;
+  padding: 0;
+  font-family: var(--font-body);
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--fg-soft);
+  text-align: left;
+  background: none;
+  border: 0;
+  cursor: pointer;
+}
+
+.disclosure:hover {
+  color: var(--fg);
+}
+
+/* The marker span is empty in the HTML on purpose - it is decoration, and
+   decoration belongs in the stylesheet rather than the document. */
+.disclosure__marker::before {
+  content: "\25B8";
+  display: inline-block;
+  transition: transform 150ms ease-out;
+}
+
+.disclosure[aria-expanded="true"] .disclosure__marker::before {
+  transform: rotate(90deg);
+}
+
+/* ============================================================
+
+/* ============================================================
+   13. BIG MODE (the projector)
 
    Not a separate view - a presentation mode laid over the Now view, so both
    paint from the same code and cannot drift apart. Everything here is either
@@ -680,7 +901,7 @@ body.is-big {
 }
 
 /* ============================================================
-   11. SETTINGS
+   14. SETTINGS
    ============================================================ */
 
 .settings {
@@ -862,7 +1083,7 @@ body.is-big {
 }
 
 /* ============================================================
-   12. THE SCHEDULE EDITOR
+   15. THE SCHEDULE EDITOR
    ============================================================ */
 
 /* Present to assistive tech, absent from the page. clip-path plus a 1px box is
@@ -1315,7 +1536,7 @@ body.is-big {
 }
 
 /* ============================================================
-   13. THE CALENDAR
+   16. THE CALENDAR
    ============================================================ */
 
 .calsection {
@@ -1498,7 +1719,7 @@ body.is-big {
 }
 
 /* ============================================================
-   14. ICONS AND THE CONFIRM DIALOG
+   17. ICONS AND THE CONFIRM DIALOG
    ============================================================ */
 
 /* Inline SVG rather than glyphs: ⚙ and × render at wildly different weights
@@ -1555,7 +1776,7 @@ body.is-big {
 }
 
 /* ============================================================
-   15. SHARING
+   18. SHARING
    ============================================================ */
 
 /* The banner offering a schedule somebody sent. Above everything, on whichever
@@ -1635,7 +1856,7 @@ body.is-big {
 }
 
 /* ============================================================
-   16. PREFERENCES
+   19. PREFERENCES
    The device's own settings. `.field`, `.field__legend`, `.field__hint`,
    `.field__options` and `.option` live with the other form styles above - they
    came over from the retired build for this panel and were inert until Phase 6
@@ -1692,7 +1913,7 @@ body.is-big {
 }
 
 /* ============================================================
-   17. INVALID FIELDS - last in the file, deliberately
+   20. INVALID FIELDS - last in the file, deliberately
    ============================================================ */
 
 /* This rule has to come after EVERY rule that sets a `border` shorthand on a

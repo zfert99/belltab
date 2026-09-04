@@ -10,10 +10,11 @@ import { useBells } from "@/app/_lib/bells";
 import { addSchedule } from "@/app/_lib/library";
 import { clearShareFragment, incomingSchedule } from "@/app/_lib/shareLink";
 import type { ValidSchedule } from "@/lib/schedule";
-import { tabTitleFor, viewForNow } from "@/app/_lib/today";
+import { scheduleForToday, tabTitleFor, viewForNow } from "@/app/_lib/today";
 import { formatClock } from "@/lib/format";
 import { shiftNow, type LocalNow } from "@/lib/clock";
 import { NowView } from "@/app/_components/NowView";
+import { DayView } from "@/app/_components/DayView";
 import { SettingsView, type PanelId } from "@/app/_components/SettingsView";
 import { PeriodAnnouncer } from "@/app/_components/PeriodAnnouncer";
 import { ShareOffer } from "@/app/_components/ShareOffer";
@@ -118,8 +119,18 @@ export function App() {
    * there so a user can check the countdown against something, and a clock that
    * moves with the correction is not something to check against.
    */
-  const view =
-    now === null ? null : viewForNow(library, shiftNow(now, preferences.bellOffsetSec));
+  const shifted = now === null ? null : shiftNow(now, preferences.bellOffsetSec);
+  const view = shifted === null ? null : viewForNow(library, shifted);
+
+  /**
+   * Which screen is up: the countdown, or the whole day as a list.
+   *
+   * Component state, like Big mode, and for the same reason - a screen you
+   * re-enter beats one you cannot see the way out of. Big mode is a MODE over
+   * the countdown, not a third screen, so entering it shows the Now view
+   * whatever this says, and leaving it comes back here.
+   */
+  const [screen, setScreen] = useState<"now" | "day">("now");
 
   /**
    * The audible bell and the notification, keyed on the SHIFTED state - the
@@ -367,19 +378,21 @@ export function App() {
         />
       ) : (
         <>
-          <NowView
-            view={view}
-            onOpenSettings={(panel, focusId) => openSettingsFrom(panel, null, focusId ?? null)}
-          />
+          {screen === "day" && !big && view?.kind === "scheduled" && shifted !== null ? (
+            <DayView schedule={scheduleForToday(library, shifted)!} nowSec={shifted.secOfDay} />
+          ) : (
+            <NowView
+              view={view}
+              onOpenSettings={(panel, focusId) => openSettingsFrom(panel, null, focusId ?? null)}
+            />
+          )}
 
           {/*
-            One button in, one button out, rather than a two-state switcher.
-
-            `globals.css` carries `.viewswitch` from the retired build, where it
-            toggled between the Now view and a Day view that no longer exists. A
-            switcher whose second state is "normal" is a control that mostly
-            says nothing, so this is an action: press it to go big, and the mode
-            supplies its own way back.
+            Two screens and a mode. Now and Day are a pressed pair - two real
+            destinations, which is what the 2026-09-02 decision said a switcher
+            needs before it earns one. Big mode stays one button in and one out:
+            it is a mode over the countdown, and its second state would be
+            "normal".
           */}
           {big ? (
             <button
@@ -393,15 +406,35 @@ export function App() {
             </button>
           ) : (
             <div className="viewswitch">
-              <button
-                type="button"
-                className="viewswitch__btn"
-                id="view-big"
-                ref={bigEnterRef}
-                onClick={() => setBig(true)}
-              >
-                Big mode
-              </button>
+              <div className="viewswitch__row">
+                <button
+                  type="button"
+                  className="viewswitch__btn"
+                  id="view-now"
+                  aria-pressed={screen === "now"}
+                  onClick={() => setScreen("now")}
+                >
+                  Now
+                </button>
+                <button
+                  type="button"
+                  className="viewswitch__btn"
+                  id="view-day"
+                  aria-pressed={screen === "day"}
+                  onClick={() => setScreen("day")}
+                >
+                  Day
+                </button>
+                <button
+                  type="button"
+                  className="viewswitch__btn"
+                  id="view-big"
+                  ref={bigEnterRef}
+                  onClick={() => setBig(true)}
+                >
+                  Big mode
+                </button>
+              </div>
               {/*
                 The signpost between the two features built for the same room.
                 Big mode scales the countdown for a projector; the wake lock
