@@ -86,6 +86,18 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   colorScheme: "light dark",
+  /**
+   * The browser's own chrome around the page - the installed app's title bar,
+   * a phone's status bar - in each scheme's paper. The manifest can name only
+   * ONE colour for the splash, which is the open gap this does not close; this
+   * `<meta>` takes a media query and closes the half it can. It follows the
+   * OS, not the in-app theme toggle: it is written on the server, exactly like
+   * `color-scheme` above.
+   */
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#fbf3e3" },
+    { media: "(prefers-color-scheme: dark)", color: "#1b1224" },
+  ],
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

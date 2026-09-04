@@ -2,7 +2,7 @@ import type { LocalNow } from "@/lib/clock";
 import { stateAt, type DayState } from "@/lib/engine";
 import { formatTabTitle } from "@/lib/format";
 import { resolveScheduleId } from "@/lib/parse";
-import type { IsoDate } from "@/lib/schedule";
+import type { IsoDate, ValidSchedule } from "@/lib/schedule";
 import type { Library } from "@/app/_lib/library";
 
 /**
@@ -52,6 +52,17 @@ export function viewForNow(library: Library, now: LocalNow): TodayView {
  * number; where there is not, the string still has to say something useful in
  * the ~12 characters a tab shows.
  */
+/**
+ * The schedule today resolves to, or `null` - the same resolution
+ * `viewForNow` performs, for the one caller that wants the schedule itself
+ * rather than its state: the bell-offset calibration, which needs every
+ * period's bells.
+ */
+export function scheduleForToday(library: Library, now: LocalNow): ValidSchedule | null {
+  const id = resolveScheduleId(library.calendar, now.isoDate, now.weekday);
+  return library.schedules.find((candidate) => candidate.id === id) ?? null;
+}
+
 export function tabTitleFor(view: TodayView): string {
   if (view.kind === "scheduled") return formatTabTitle(view.state);
   return view.kind === "no-school" ? "No school · BellTab" : "BellTab";

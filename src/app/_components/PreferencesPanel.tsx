@@ -7,6 +7,9 @@ import {
   type Preferences,
 } from "@/app/_lib/preferences";
 import { THEMES, type Theme } from "@/app/_lib/theme";
+import { calibrateOffset } from "@/lib/calibrate";
+import type { LocalNow } from "@/lib/clock";
+import type { ValidSchedule } from "@/lib/schedule";
 import { describeWakeLock, type WakeLockStatus } from "@/app/_lib/wakeLock";
 import {
   askForNotifications,
@@ -62,6 +65,9 @@ export interface PreferencesPanelProps {
   /** Same arrangement as the wake lock's: computed by the one `useBells` in
    * `App.tsx`, which outlives this panel, and passed down. */
   bellStatuses: BellStatuses;
+  /** The device clock, UNSHIFTED, and today's schedule - for measuring the offset. */
+  now: LocalNow | null;
+  todaySchedule: ValidSchedule | null;
   headingRef: RefObject<HTMLHeadingElement | null>;
 }
 
@@ -70,6 +76,8 @@ export function PreferencesPanel({
   save,
   wakeLockStatus,
   bellStatuses,
+  now,
+  todaySchedule,
   headingRef,
 }: PreferencesPanelProps) {
   return (
@@ -136,7 +144,12 @@ export function PreferencesPanel({
 
       <BellsField preferences={preferences} save={save} statuses={bellStatuses} />
 
-      <BellOffsetField preferences={preferences} save={save} />
+      <BellOffsetField
+        preferences={preferences}
+        save={save}
+        now={now}
+        todaySchedule={todaySchedule}
+      />
     </div>
   );
 }
@@ -365,11 +378,38 @@ function BellsField({
 function BellOffsetField({
   preferences,
   save,
+  now,
+  todaySchedule,
 }: {
   preferences: Preferences;
   save: (next: Preferences) => void;
+  now: LocalNow | null;
+  todaySchedule: ValidSchedule | null;
 }) {
   const [draft, setDraft] = useState<string | null>(null);
+
+  /**
+   * What the last press of "The bell just rang" came to.
+   *
+   * `null` is "never pressed"; `"none"` is a press with no bell within the
+   * cap, which is a mistake to say out loud rather than a number to store.
+   * Rendered through the same polite region as the range error, because both
+   * are "the thing you just did had no effect, and here is why".
+   */
+  const [calibration, setCalibration] = useState<number | "none" | null>(null);
+
+  const canCalibrate = now !== null && todaySchedule !== null;
+
+  const calibrate = () => {
+    if (now === null || todaySchedule === null) return;
+
+    const measured = calibrateOffset(todaySchedule, now.secOfDay, BELL_OFFSET_LIMIT_SEC);
+    setCalibration(measured ?? "none");
+    if (measured !== null) {
+      setDraft(null);
+      save({ ...preferences, bellOffsetSec: measured });
+    }
+  };
 
   /**
    * The draft is dropped when the stored offset changes underneath it.
@@ -486,6 +526,30 @@ function BellOffsetField({
       </div>
 
       {/*
+        The calibration aid the offset shipped without: press it AS the bell
+        rings and the subtraction is done for you, against the nearest bell in
+        today's schedule. Disabled when there is no schedule today - there is
+        nothing to measure against - and the readout below says which.
+      */}
+      <div className="offset">
+        <button
+          type="button"
+          className="minibutton"
+          id="bell-calibrate"
+          disabled={!canCalibrate}
+          aria-describedby="bell-calibrate-hint"
+          onClick={calibrate}
+        >
+          The bell just rang
+        </button>
+        <span className="offset__unit" id="bell-calibrate-hint">
+          {canCalibrate
+            ? "Press it as the real bell rings and the offset is measured from today's schedule."
+            : "Needs a schedule running today to measure against."}
+        </span>
+      </div>
+
+      {/*
         ALWAYS RENDERED, and hidden with `.visually-hidden` rather than by being
         unmounted - the same rule `ScheduleEditor.tsx` documents for its own
         error, and for the same reason: a live region has to be in the
@@ -504,7 +568,7 @@ function BellOffsetField({
         keystroke.
       */}
       <p
-        className={unusable ? "editor__error" : "visually-hidden"}
+        className={unusable || calibration === "none" ? "editor__error" : "visually-hidden"}
         id="bell-offset-error"
         aria-live="polite"
       >
@@ -512,7 +576,12 @@ function BellOffsetField({
           ? `A bell offset is a whole number of seconds between \u2212${BELL_OFFSET_LIMIT_SEC} and ` +
             `${BELL_OFFSET_LIMIT_SEC}. The countdown is still running ` +
             `${describeOffset(preferences.bellOffsetSec)}.`
-          : ""}
+          : calibration === "none"
+            ? `No bell in today's schedule is within ${BELL_OFFSET_LIMIT_SEC} seconds of now, so nothing ` +
+              "was measured. Press it as the bell rings."
+            : typeof calibration === "number"
+              ? `Measured: the countdown now runs ${describeOffset(calibration)}.`
+              : ""}
       </p>
 
       <p className="offset__readout" id="bell-offset-readout">

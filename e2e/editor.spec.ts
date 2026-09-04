@@ -473,11 +473,21 @@ test.describe("the keyboard alone", () => {
   // recorded in the build log's open gaps, not a number picked to make the
   // test pass.
   async function tabTo(page: Page, selector: string, limit = 160) {
+    // macOS omits buttons from the Tab order unless "full keyboard access" is
+    // on, and Playwright's WebKit inherits that - so on a Mac this test could
+    // never reach #add-period and failed on every local run for two days.
+    // Option+Tab is macOS's own "tab to everything" and WebKit honours it;
+    // measured on 2026-09-04 with a probe that walked Tab (body, body, body)
+    // against Option+Tab (the buttons, in order). Linux WebKit and the other
+    // engines take plain Tab.
+    const key =
+      test.info().project.name === "webkit" && process.platform === "darwin" ? "Alt+Tab" : "Tab";
+
     for (let press = 0; press < limit; press++) {
       if (await page.locator(selector).evaluate((element) => element === document.activeElement)) {
         return;
       }
-      await page.keyboard.press("Tab");
+      await page.keyboard.press(key);
     }
     throw new Error(`${selector} was not reachable by Tab within ${limit} presses`);
   }

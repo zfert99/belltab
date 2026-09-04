@@ -1,12 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { localNow } from "@/lib/clock";
 import { DEFAULT_LIBRARY } from "@/app/_lib/library";
-import {
-  scheduleIndexToEdit,
-  scheduleNameOn,
-  tabTitleFor,
-  viewForNow,
-} from "@/app/_lib/today";
+import { scheduleIndexToEdit, scheduleNameOn, tabTitleFor, viewForNow, scheduleForToday } from "@/app/_lib/today";
 
 /**
  * The seam between the clock and the engine.
@@ -187,5 +182,16 @@ describe("scheduleNameOn", () => {
 
     expect(scheduleNameOn(withOverrides, "2026-09-02", 3)).toBe("Assembly");
     expect(scheduleNameOn(withOverrides, "2026-09-03", 4)).toBeNull();
+  });
+});
+
+describe("scheduleForToday", () => {
+  it("is the schedule the calendar points today at, or null", () => {
+    // Wednesday resolves to "regular" in the seed calendar; Saturday to nothing.
+    const wednesday = { isoDate: "2026-09-02", weekday: 3, secOfDay: 34_200 } as const;
+    const saturday = { isoDate: "2026-09-05", weekday: 6, secOfDay: 34_200 } as const;
+
+    expect(scheduleForToday(DEFAULT_LIBRARY, wednesday)?.name).toBe("Regular");
+    expect(scheduleForToday(DEFAULT_LIBRARY, saturday)).toBeNull();
   });
 });
