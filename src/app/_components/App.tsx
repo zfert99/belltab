@@ -384,6 +384,11 @@ export function App() {
             <NowView
               view={view}
               onOpenSettings={(panel, focusId) => openSettingsFrom(panel, null, focusId ?? null)}
+              strip={
+                preferences.showStrip && shifted !== null && view?.kind === "scheduled"
+                  ? { schedule: scheduleForToday(library, shifted)!, nowSec: shifted.secOfDay }
+                  : null
+              }
             />
           )}
 

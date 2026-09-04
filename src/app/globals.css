@@ -781,8 +781,112 @@ body {
 
 /* ============================================================
 
+
+
 /* ============================================================
-   13. BIG MODE (the projector)
+   13. THE PERIOD STRIP (an option under the countdown)
+
+   Equal-width squares for the day's real blocks, thin connectors for passing
+   periods. Equal squares deliberately misrepresent duration: a 5-minute
+   passing and a 55-minute class are not the same size in reality, but the
+   strip is answering "how many left", not "how long left" - the big number
+   above it already answers that. Proportional cells would be an accurate
+   timeline in which every passing period is an unreadable sliver.
+   ============================================================ */
+
+.strip {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  /* A gap rather than letting connectors do the spacing: two blocks can sit
+     back to back with no passing between them (Period 3 into A Lunch), and
+     without this they would fuse into one long rectangle. */
+  gap: var(--s-1);
+}
+
+.strip__cell {
+  /* Every cell clips its own fill, so one border-radius covers both. */
+  overflow: hidden;
+  background: var(--bg);
+}
+
+.strip__fill {
+  display: block;
+  width: 0%;
+  height: 100%;
+  background: var(--fg-soft);
+  transition: width 300ms linear;
+}
+
+/* --- Squares: the day's countable units --- */
+
+.strip__cell--block {
+  /* Shrinks to fit on a narrow screen, caps out so it does not become a slab
+     on a projector. aspect-ratio keeps it square at every size in between. */
+  flex: 1 1 0;
+  min-width: 18px;
+  max-width: 56px;
+  aspect-ratio: 1;
+  border: var(--border-passive);
+  border-radius: var(--r-sm);
+}
+
+/* --- Connectors: the seams between them --- */
+
+.strip__cell--link {
+  flex: 0 1 28px;
+  min-width: 8px;
+  height: 4px;
+  border-radius: 999px;
+}
+
+/* --- State ---
+   Past cells fill muted; the current cell fills butterscotch, because
+   butterscotch marks *now*. The strip is aria-hidden, so it is not carrying
+   this state alone - the caption states it in words and the Day view lists it. */
+
+.strip__cell--past .strip__fill {
+  background: var(--fg-soft);
+}
+
+.strip__cell--current {
+  border-color: var(--fg);
+}
+
+.strip__cell--current .strip__fill {
+  background: var(--accent);
+}
+
+/* Hovering a cell swaps the caption below to that period's name and times.
+   Mouse-only by design: the cells are aria-hidden and not focusable, so this
+   is an extra for pointer users, and the Day view is where the same labels
+   live for everyone else. */
+.strip__cell--block:hover {
+  border-color: var(--fg);
+}
+
+/* ============================================================
+
+/* The caption under the strip: "2 of 7 · 5h 00m until dismissal", or the
+   hovered period's name and times. Same mono voice as the bounds footer. */
+.strip-block {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  margin-top: var(--s-4);
+}
+
+.strip__caption {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: 0.875rem;
+  color: var(--fg-soft);
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ============================================================
+   14. BIG MODE (the projector)
 
    Not a separate view - a presentation mode laid over the Now view, so both
    paint from the same code and cannot drift apart. Everything here is either
@@ -872,6 +976,27 @@ body.is-big {
   font-size: clamp(0.875rem, 1.8vw, 1.5rem);
 }
 
+/* The strip scales with the mode it is under: bigger squares, thicker links,
+   a caption the back row can read. Deleted 2026-09-03 as inert, back
+   2026-09-04 with the strip it scales. */
+.is-big .strip {
+  gap: var(--s-2);
+}
+
+.is-big .strip__cell--block {
+  max-width: 96px;
+  border-width: 2px;
+}
+
+.is-big .strip__cell--link {
+  flex-basis: 48px;
+  height: 6px;
+}
+
+.is-big .strip__caption {
+  font-size: clamp(0.875rem, 1.8vw, 1.5rem);
+}
+
 /* Quiet, not invisible. An opacity fade would have taken the label below the
    contrast floor while it was still the only way out of the mode, so this
    dims with a token that still passes and gains a surface on interaction. */
@@ -901,7 +1026,7 @@ body.is-big {
 }
 
 /* ============================================================
-   14. SETTINGS
+   15. SETTINGS
    ============================================================ */
 
 .settings {
@@ -1083,7 +1208,7 @@ body.is-big {
 }
 
 /* ============================================================
-   15. THE SCHEDULE EDITOR
+   16. THE SCHEDULE EDITOR
    ============================================================ */
 
 /* Present to assistive tech, absent from the page. clip-path plus a 1px box is
@@ -1536,7 +1661,7 @@ body.is-big {
 }
 
 /* ============================================================
-   16. THE CALENDAR
+   17. THE CALENDAR
    ============================================================ */
 
 .calsection {
@@ -1719,7 +1844,7 @@ body.is-big {
 }
 
 /* ============================================================
-   17. ICONS AND THE CONFIRM DIALOG
+   18. ICONS AND THE CONFIRM DIALOG
    ============================================================ */
 
 /* Inline SVG rather than glyphs: ⚙ and × render at wildly different weights
@@ -1776,7 +1901,7 @@ body.is-big {
 }
 
 /* ============================================================
-   18. SHARING
+   19. SHARING
    ============================================================ */
 
 /* The banner offering a schedule somebody sent. Above everything, on whichever
@@ -1856,7 +1981,7 @@ body.is-big {
 }
 
 /* ============================================================
-   19. PREFERENCES
+   20. PREFERENCES
    The device's own settings. `.field`, `.field__legend`, `.field__hint`,
    `.field__options` and `.option` live with the other form styles above - they
    came over from the retired build for this panel and were inert until Phase 6
@@ -1913,7 +2038,7 @@ body.is-big {
 }
 
 /* ============================================================
-   20. INVALID FIELDS - last in the file, deliberately
+   21. INVALID FIELDS - last in the file, deliberately
    ============================================================ */
 
 /* This rule has to come after EVERY rule that sets a `border` shorthand on a

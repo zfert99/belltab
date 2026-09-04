@@ -353,6 +353,9 @@ development too, so the bare origin is a 404 exactly as it is in production.
 | 2026-09-04 | The Day view's summary is one caption line, not the retired build's big number | The retired build put a second large countdown at the top of the list, with its units and a label beside it. The Now view already owns the big number, and a second one a tap away is two clocks to disagree. `formatDayCaption` — "2 of 7 · 5h 00m until dismissal" — carries the unit in words so "5h 00m" cannot be read as 5:00, and says the one thing the countdown does not: how far through the day this is. |
 | 2026-09-04 | Now/Day is a pressed pair; Big mode stays one button in and one out | The 2026-09-02 decision refused a two-state switcher whose second state was "normal". Day is a real second destination, so the pair earns its `aria-pressed`. Big mode is still a MODE over the countdown - entering it shows the Now view whatever the pair says, and leaving it comes back to whichever screen was up. |
 | 2026-09-04 | Finished periods collapse by default, and the collapse is off once the day is over | So the running row sits at the top of the list, which is where a glance lands. The retired build did the same. A finished day with every row behind a toggle would be a list of nothing, so after the last bell every row shows and reads "done". |
+| 2026-09-04 | The period strip is a PREFERENCE under the countdown, not a third screen | The user asked for it as "an alternate Now view" - the day as blocks with progress through them, horizontal. It reads the same clock as the countdown and sits under it, so a screen of its own would be a switcher position for a second reading of the same number. A checkbox in Preferences ("Show the day as blocks") puts it under the countdown for the people who liked it, off by default because the countdown is the product. The Day view stays the readable version; the strip is `aria-hidden` and its caption says the position in words. |
+| 2026-09-04 | Hovering a square borrows the caption; nothing gets a tooltip or a tab stop | The plain build's own choice, kept: no positioning code, no new focus stops in a strip that is decorative by declaration, and it works on a touch tap. The Day view carries the same labels for everyone who is not pointing. |
+| 2026-09-04 | Settings copy, second pass, in the user's own words | "Periods stay in start order and can't overlap. Changes save automatically. The countdown runs on the most recent valid version of the schedule." "Each weekday uses its default schedule unless a dated exception says otherwise. If neither is set, there's no school that day." The bell offset stops asking a question and says what it does. The first pass had made the sentences friendlier; the user wanted them plainer still, and supplied the shape. |
 
 ## Deviations from the plan docs
 
@@ -4916,3 +4919,36 @@ up.
 **Tests:** unit 422 → 436 (the restored fourteen). Playwright 675 → 702 -
 eight Day view tests and one axe journey per engine, and the reflow gate now
 walks Now, Day (past rows shown) and Big at every width.
+
+### 2026-09-04 15:30 — the blocks strip, back as a preference; the copy, again
+
+Two asks in one message. The horizontal blocks - "the full day but just
+blocks, and you could see progress through them" - and plainer copy, with the
+sentences supplied.
+
+**The strip.** The plain build's period strip, restored from the commit
+before #40: one square per block, a thin link per Passing, each filling as
+its time passes, `aria-hidden` under a caption that says the position in
+words - "2 of 7 · 5h 00m until dismissal", or the hovered period's name and
+times. It lives under the countdown behind a Preferences checkbox, "Show the
+day as blocks", off by default; Big mode scales it with the rest. The strip
+CSS and Big mode's scaling of it came back from git; the caption class is
+new. A partly filled square is a STATE, not a tick - a frozen tab that jumps
+20% on return reads as normal, which is the recompute rule with a shape that
+makes it also look right.
+
+**The copy.** In the user's words, near enough: the schedules note, the
+calendar note, and a bell-offset hint that says what it does instead of
+asking a question. Backup stays.
+
+**Noted, not changed:** the Day view and the strip both read the SHIFTED
+clock, like the countdown, so under an offset their rows and cells agree with
+the countdown rather than with the header's wall clock. The user called it "a
+little weird" and "maybe okay"; it is the same decision the offset made on
+day one - every derived view of the clock agrees - and it stays until it is
+more than a little weird.
+
+**Tests:** unit 436 → 441 (the sixth boolean preference joins the shared
+suite). Playwright 702 → 726 - seven strip tests and one axe journey per
+engine; the reflow gate now walks the Now view with the strip on at every
+width, and the preferences byte-pins gained their sixth field.

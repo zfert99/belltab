@@ -91,6 +91,26 @@ export function PreferencesPanel({
       </p>
 
       <fieldset className="field">
+        <legend className="field__legend">Countdown</legend>
+        <p className="field__hint" id="strip-hint">
+          Shows the day as a row of blocks under the countdown &mdash; one square per period,
+          filling in as the day goes.
+        </p>
+        <div className="field__options">
+          <label className="option">
+            <input
+              type="checkbox"
+              id="show-strip"
+              checked={preferences.showStrip}
+              aria-describedby="strip-hint"
+              onChange={(event) => save({ ...preferences, showStrip: event.target.checked })}
+            />
+            Show the day as blocks
+          </label>
+        </div>
+      </fieldset>
+
+      <fieldset className="field">
         <legend className="field__legend">Theme</legend>
         <p className="field__hint" id="theme-hint">
           System matches your device&rsquo;s light or dark setting, and changes along with it.
@@ -460,8 +480,9 @@ function BellOffsetField({
     <fieldset className="field">
       <legend className="field__legend">Bell offset</legend>
       <p className="field__hint" id="bell-offset-hint">
-        Does the real bell ring before the countdown hits zero? Raise this. It nudges the clock
-        BellTab reads, not your schedule. Up to {BELL_OFFSET_LIMIT_SEC} seconds either way.
+        Shifts the clock BellTab reads by this many seconds, so the countdown hits zero when the
+        real bell rings. Raise it if the bell rings early, lower it if it rings late. Your schedule
+        isn&rsquo;t changed. Up to {BELL_OFFSET_LIMIT_SEC} seconds either way.
       </p>
 
       <div className="offset">

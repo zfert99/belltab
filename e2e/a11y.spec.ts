@@ -104,6 +104,14 @@ test.describe("the countdown", () => {
     });
   }
 
+  test("has no serious violations (the blocks strip under the countdown)", async ({ page }) => {
+    await openApp(page, MID_PERIOD, {
+      preferences: JSON.stringify({ theme: "system", bellOffsetSec: 0, showStrip: true }),
+    });
+    await expect(page.locator("#strip")).toBeVisible();
+    await expectNoSeriousViolations(page, "the blocks strip");
+  });
+
   test("has no serious violations (the Day view)", async ({ page }) => {
     // Eleven rows, one `aria-current="time"`, a disclosure with
     // `aria-expanded`, and a decorative track - the list's whole accessible

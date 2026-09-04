@@ -90,6 +90,7 @@ test.describe("the bell offset", () => {
         chimeOnBell: false,
         notifyOnBell: false,
         reduceMotion: false,
+        showStrip: false,
       }),
     );
   });
@@ -316,6 +317,7 @@ test.describe("preferences and the library", () => {
         chimeOnBell: false,
         notifyOnBell: false,
         reduceMotion: false,
+        showStrip: false,
       }),
     });
 
@@ -349,6 +351,7 @@ test.describe("preferences and the library", () => {
         chimeOnBell: false,
         notifyOnBell: false,
         reduceMotion: false,
+        showStrip: false,
       }),
     );
   });

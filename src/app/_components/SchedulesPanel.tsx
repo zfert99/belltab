@@ -122,8 +122,8 @@ export function SchedulesPanel({
         Schedules
       </h2>
       <p className="panel__note">
-        Periods stay in start order and can&rsquo;t overlap. Every valid change saves to this
-        browser as you type, and the countdown keeps running on the last version that made sense.
+        Periods stay in start order and can&rsquo;t overlap. Changes save automatically. The
+        countdown runs on the most recent valid version of the schedule.
       </p>
 
       <div className="schedpicker">
