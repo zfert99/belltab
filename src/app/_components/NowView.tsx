@@ -31,7 +31,7 @@ const PENDING = "--";
 export interface NowViewProps {
   view: TodayView | null;
   /** The way out of the two empty states that are otherwise dead ends. */
-  onOpenSettings: (panel: PanelId) => void;
+  onOpenSettings: (panel: PanelId, focusId?: string) => void;
 }
 
 export function NowView({ view, onOpenSettings }: NowViewProps) {
@@ -67,6 +67,14 @@ function Focus({ view, onOpenSettings }: NowViewProps) {
         headline="No school today"
         detail="The calendar has nothing scheduled for today. Enjoy it."
         action={{ label: "Pick a schedule for today", onClick: () => onOpenSettings("calendar") }}
+        // The second way out, for the person whose SATURDAY genuinely runs
+        // school: the primary action writes a one-off exception, and until
+        // this line the weekday defaults were a section they had to find below
+        // it. Opens the same panel, focus on that section's heading.
+        secondary={{
+          label: "Change the weekday defaults",
+          onClick: () => onOpenSettings("calendar", "weekday-defaults"),
+        }}
       />
     );
   }
@@ -190,10 +198,13 @@ function Message({
   headline,
   detail,
   action,
+  secondary,
 }: {
   headline: string;
   detail: string;
   action?: { label: string; onClick: () => void };
+  /** A quieter second route, rendered as a link-styled button under the first. */
+  secondary?: { label: string; onClick: () => void };
 }) {
   return (
     <>
@@ -208,6 +219,18 @@ function Message({
           <button type="button" className="minibutton message__action" onClick={action.onClick}>
             {action.label}
           </button>
+        )}
+        {secondary !== undefined && (
+          <p className="message__secondary">
+            <button
+              type="button"
+              className="linkbutton"
+              id="message-secondary"
+              onClick={secondary.onClick}
+            >
+              {secondary.label}
+            </button>
+          </p>
         )}
       </div>
     </>

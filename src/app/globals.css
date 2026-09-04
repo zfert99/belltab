@@ -433,6 +433,15 @@ body {
 /* The call to action on an empty state. Spans the whole grid on a row of its
    own rather than taking one of the three named areas, so it does not fight the
    period bounds for space at 320px. */
+/* The quieter second route under an empty state's action: a sentence-weight
+   link, not a second pill. */
+.message__secondary {
+  margin: var(--s-1) 0 0;
+  font-size: 0.875rem;
+  color: var(--fg-soft);
+  text-align: center;
+}
+
 .message__action {
   grid-column: 1 / -1;
   justify-self: center;

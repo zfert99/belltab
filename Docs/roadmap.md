@@ -115,7 +115,7 @@ An older note, kept for the same reason:
 **Testing:** 412 Vitest tests over the pure engine, the parser, the formatters,
 the clock reader, the day resolver, the editor's draft model, the storage
 boundary, the library mutators, the share codec, the preferences boundary and
-the wake lock's and the bells' wording, plus **654 Playwright tests across
+the wake lock's and the bells' wording, plus **666 Playwright tests across
 three engines** —
 Chrome, WebKit and Firefox — **none of them parked**, which is true for the first
 time in the project. The last parked block was Big mode's, and Phase 6 built it.

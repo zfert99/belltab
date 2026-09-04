@@ -73,7 +73,14 @@ export function PeriodRow({ row, position, total, errors, onChange, onMove, onDe
 
   return (
     <li className="editrow">
-      <div className="editrow__grid">
+      {/*
+        A named group, so a screen reader entering the row hears which period's
+        seven controls these are - "Period 2, group" - instead of seven
+        unattributed fields in a chain of seventy-seven. One of the two fixes
+        the tab-chain gap named; the other, a skip link, had nothing below the
+        rows to skip to.
+      */}
+      <div className="editrow__grid" role="group" aria-label={label}>
         <label className="editrow__field">
           <span className="editrow__labeltext visually-hidden">Name</span>
           <input

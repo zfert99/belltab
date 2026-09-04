@@ -346,6 +346,7 @@ development too, so the bare origin is a 404 exactly as it is in production.
 | 2026-09-03 | Past exceptions are pruned by a button, not automatically | Automatic pruning would delete data on a schedule the user never chose — a load, a midnight — and a calendar exported yesterday would differ from the one on screen today for no visible reason. A button that names the count and does one thing keeps the deletion a decision. |
 | 2026-09-03 | `kind` is descriptive only — the engine no longer reads it | `blockPositionAt` was the one engine consumer ("is this Passing?" for the retired Day view's "3 of 7" counter) and it went with that view's residue. Keeping a semantic alive for a feature that does not exist would have meant keeping the function alive for the test that proved it. The comment on `PERIOD_KINDS` now says where the semantic would return if a strip or a counter is ever rebuilt. |
 | 2026-09-03 | Parked rows are decided, not carried | Five rows had sat in Open gaps under "left rather than swept up, because deleting is a different decision from deleting the code that stopped using it." That was right for the sessions that made them — and wrong to leave for six weeks. The decisions: delete the Day view's dead code and CSS (history keeps it), and move the three design calls (am/pm, Big mode reload, Big mode fullscreen) to the roadmap's Deferred table, each with the condition that would reopen it. An open-gaps row with no owner and no trigger is a decision nobody made. |
+| 2026-09-03 | An empty state may carry a quieter second route, as a link-weight button under the pill | "No school today" has two honest answers — a one-off exception, or a weekday that runs school — and the pill can only be one of them. A second pill would make the screen a choice; a sentence-weight link beneath it makes it an escape hatch. It opens the same panel with focus placed by id on the section that answers it, through the same `openSettingsFrom` the signpost uses. |
 
 ## Deviations from the plan docs
 
@@ -588,12 +589,9 @@ before the origin ever served.
 | 2026-08-26 | TypeScript is a major version behind on purpose | 6.0.3 rather than 7.0.2, because `typescript-eslint` cannot load under TS 7. This is a real cost — TS 7 is the Go rewrite — and it is deliberate, not neglect. Revisit when typescript-eslint#10940 lands; the upgrade should be a one-line version bump plus a full lint run. |
 | 2026-08-27 | `next build` now needs the network | `next/font/google` fetches the three families at BUILD time. Runtime is still network-free — that invariant is untouched, and the emitted HTML was checked for Google hosts — but an offline `npm run build` now fails where it used to succeed. Next caches the downloads, so this bites a cold checkout rather than a rebuild. Self-hosting the `.woff2` files in-repo with `next/font/local` would remove it; not done, because it means committing binaries and hand-tracking upstream revisions. |
 | 2026-08-27 | Next ships a live region we did not write | `div#__next-route-announcer__` is `aria-live="assertive"` `role="alert"`, injected by the App Router after hydration and not removable. It should stay silent — one route, no client navigation — but `AGENTS.md`'s "never wrap the countdown in a live region" now has a framework-owned region on the page to coexist with. The announcer spec enumerates it so a second one cannot arrive unnoticed. |
-| 2026-08-27 | The editor is a long tab chain | Twelve rows of six controls is seventy-two stops between the schedule name and the bottom of the form, and the keyboard test needs a 120-press budget to cross it. Nothing is unreachable and nothing is trapped, so this is not a failure — but a skip link, or grouping each row so a screen reader can jump by row, would make it usable rather than merely operable. |
 | 2026-08-27 | There is no undo | Deleting a *period* is still immediate and unconfirmed, and the only way back is to retype it. Deliberate for a four-field row whose result is visible behind the editor. Deleting a whole *schedule* now goes through a modal confirmation, which is the half of this gap Phase 4 closed; a real undo is still owed and would remove the need for the dialog. |
 | 2026-09-01 | An import cannot be undone | It replaces every schedule and the whole calendar, behind a confirmation that says so. Exporting first is the answer the panel gives, and it puts the export above the import for that reason. A real undo would be better and is the same gap as the one open for deleting a period. |
-| 2026-09-01 | The axe scan is critical/serious only, at one viewport | `e2e/a11y.spec.ts` fails on `critical` and `serious` and only reports `moderate` and `minor`, which is the release bar `Docs/research/accessibility-responsive-qa.md` names — and a deliberate line, since a gate that fails on `minor` is a gate people start skipping. It also runs at the default viewport only, because small-screen layout is the reflow gate's job. Neither limit is a claim that the app is clean below them. |
 | 2026-09-01 | "WebKit" is not one browser, and none of them is Safari | Measured, not assumed: the development machine's WebKit build reports `type === "text"` for both `<input type="time">` and `type="date"` and renders bare text boxes; the Linux CI runner's build implements them. Real Safari has shipped `type="time"` since 14.1 and is a third thing again. The app handles all of it — the parser was always doing the work — but any sentence of the form "X works in WebKit" now has to say which WebKit, and none of them is evidence about a Mac. |
-| 2026-09-01 | The weekday map is not reachable from the countdown's "no school today" screen in one step | The empty state links to the calendar panel, which is right for the common case — a one-off. Somebody whose *Saturday* genuinely runs school has to notice that the Today control writes an override and that the weekday defaults are the section below. |
 | 2026-09-02 | The page ships an unhashed inline script, and the CSP still carries no `script-src` | Half of the 2026-08-27 gap this replaces. The toggle and the pre-paint application both exist now; what does not is the hardening they were supposed to arrive with. The reason is measured and is in the Decisions table: Next's own two inline scripts cannot be hashed from `next.config.ts`, and the nonce that would fix it needs middleware this repo bans. What would change the call is Next shipping a nonce path that is not middleware, or `output: "export"` growing one. Until then the CSP is `frame-ancestors 'none'` and the honest statement is that this app has no script policy at all. |
 | 2026-09-02 | The bell offset has never been measured against a real bell | It is a correction with no calibration aid: the user is asked for a number of seconds and given no way to discover which number. The panel states which way the number goes and the wall clock beside the countdown is deliberately left unshifted so there is something to check against, but the actual workflow — stand in a corridor, hear the bell, read the phone, subtract — is unassisted. A "tap when the bell rings" button that measured it would be the fix, and is not built. |
 | 2026-09-02 | The macOS WebKit build does not Tab to buttons, so one editor test fails locally | `e2e/editor.spec.ts`'s keyboard walk cannot reach `#add-period` within its 120-press budget on the development machine's WebKit, because macOS omits buttons from the Tab order unless full keyboard access is on. It passes on the Linux CI runner's build and on Chrome and Firefox everywhere. Verified pre-existing on `main` by stashing this session's work and re-running. A third entry for the row above: "WebKit" is not one browser. |
@@ -607,6 +605,9 @@ before the origin ever served.
 
 | Opened | Closed | Item |
 | --- | --- | --- |
+| 2026-08-27 | 2026-09-03 | The editor's tab chain is grouped: each row's controls are a named `role="group"` — "Period 2, group" on entry — which is one of the two fixes the row itself named. The other, a skip link, had nothing below the rows to skip to. The chain is still seventy-seven stops; it is now seventy-seven stops that say where you are. |
+| 2026-09-01 | 2026-09-03 | The axe sweep now also runs at 320px for the three densest panels — the reflowed DOM, the revealed labels, the shrunken targets. The critical/serious bar is unchanged and still deliberate. |
+| 2026-09-01 | 2026-09-03 | The weekday defaults are one step from "No school today": a second, link-weight route under the primary action that opens the calendar panel with focus on that section's heading, so the next Tab is Monday's select. |
 | 2026-09-01 | 2026-09-03 | The Day view's residue is deleted, on purpose this time: `formatDayCaption`, `daySummaryAt`/`DaySummary`, `blockPositionAt`/`BlockPosition` and their tests (eleven), plus four CSS sections that nothing rendered — the day summary, the period rows, the period strip, the disclosure — and Big mode's scaling of the strip. Unit 423 → 412. Git history keeps all of it; a rebuilt Day view would start from the engine, not from this. |
 | 2026-09-02 | 2026-09-03 | The three inert CSS rules are gone with the rest: `.viewswitch__btn[aria-pressed]`, `body.is-settings .viewswitch`, `.is-big .strip*`. Sections renumbered; no comment referenced a number. |
 | 2026-08-26 | 2026-09-03 | am/pm on the 12-hour clock — decided: not added. Moved to the roadmap's Deferred table with what would change the call (a schedule crossing noon ambiguously). |
@@ -4747,3 +4748,27 @@ runs only after a boundary has been seen. Its own Bugs found entry.
 **Tests:** unit 423 → 412 — eleven deleted with the code they proved. No new
 tests: nothing here added behaviour. Playwright unchanged at 654; the reflow
 and a11y gates ran on the trimmed stylesheet - and earned their keep twice.
+
+### 2026-09-03 17:30 — the last code-fixable rows
+
+Three rows, and with them the open-gaps table is down to the things this
+machine cannot settle: real Safari, the CSP that needs a nonce Next will not
+give without middleware, TypeScript 7, Android notifications, evidence that
+lives in another repo, and undo.
+
+**"No school today" reaches the weekday defaults in one step.** A link-weight
+second route under the pill, opening the calendar panel with focus on the
+"Weekday defaults" heading so the next Tab is Monday's select. Focus-by-id on
+open is the same mechanism the wake-lock signpost uses for focus-by-id on
+close, now both directions of `openSettingsFrom`.
+
+**The editor's rows are named groups.** `role="group"` and `aria-label` on
+each row's grid, so a screen reader announces "Period 2, group" on entry. The
+tab-chain row named two fixes; this is the one with something to attach to.
+
+**Axe at 320px.** Three more journeys through the densest panels at the
+reflow floor, where the editor's DOM is a different shape. The bar stays at
+critical/serious, on purpose.
+
+**Tests:** unit unchanged at 412. Playwright 654 → 666 — the link test and
+three 320px sweeps, per engine.

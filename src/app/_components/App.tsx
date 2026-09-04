@@ -238,10 +238,14 @@ export function App() {
    * once the lock is on, which is the likely outcome of using it).
    */
   const openerIdRef = useRef<string | null>(null);
+  /** Where focus lands on OPEN, when a link asked for somewhere below the heading. */
+  const openFocusIdRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (settingsOpen) {
-      headingRef.current?.focus();
+      const target =
+        openFocusIdRef.current === null ? null : document.getElementById(openFocusIdRef.current);
+      (target ?? headingRef.current)?.focus();
       return;
     }
 
@@ -288,8 +292,13 @@ export function App() {
    * settings panel would render inside the full-bleed projector layout, which
    * is a screen nobody designed.
    */
-  const openSettingsFrom = (panel: PanelId, openerId: string | null = null) => {
+  const openSettingsFrom = (
+    panel: PanelId,
+    openerId: string | null = null,
+    focusId: string | null = null,
+  ) => {
     openerIdRef.current = openerId;
+    openFocusIdRef.current = focusId;
     setBig(false);
     setOpenPanel(panel);
   };
@@ -358,7 +367,10 @@ export function App() {
         />
       ) : (
         <>
-          <NowView view={view} onOpenSettings={openSettingsFrom} />
+          <NowView
+            view={view}
+            onOpenSettings={(panel, focusId) => openSettingsFrom(panel, null, focusId ?? null)}
+          />
 
           {/*
             One button in, one button out, rather than a two-state switcher.
