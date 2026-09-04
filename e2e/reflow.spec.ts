@@ -8,6 +8,7 @@ import {
   BEFORE_SCHOOL,
   WEEKEND,
 } from "./helpers";
+import { PANEL_IDS } from "../src/app/_lib/panels";
 
 /**
  * The reflow gate (WCAG 2.2 SC 1.4.10).
@@ -230,6 +231,31 @@ for (const width of WIDTHS) {
     });
 
     /**
+     * EVERY settings panel, driven off the app's own list.
+     *
+     * The tests around this one are hand-written per panel, and each has a
+     * reason to be: they plant a 60-character name, or the widest offset the
+     * box can hold, because those are the CONTENTS most likely to refuse to
+     * stack. What none of them did was open Backup at all - it was the one
+     * panel with no reflow test and no 320px axe test, and it was the panel
+     * that overflowed, by 25px, from a native file input's intrinsic width.
+     *
+     * So this loop is the floor: every panel the app renders, opened and
+     * measured empty. It reads `PANEL_IDS` rather than a list written out
+     * here, which is the actual fix - a fifth panel is covered the moment it
+     * is added to `_lib/panels.ts`, instead of when somebody remembers to
+     * extend two arrays in two files. See Bugs found, 2026-09-05.
+     */
+    for (const panel of PANEL_IDS) {
+      test(`the ${panel} panel reflows on open`, async ({ page }) => {
+        await openApp(page, MID_PERIOD);
+        await openSettings(page, panel);
+
+        await expectNoHorizontalScroll(page, `${width}px settings/${panel}`);
+      });
+    }
+
+    /**
      * The preferences panel, live since Phase 6. Run at the widest offset the
      * panel can hold, because the readout under the number box is a full
      * sentence and the row above it is a flex line of three controls - the two
@@ -281,3 +307,28 @@ for (const width of WIDTHS) {
     });
   });
 }
+
+/**
+ * The nav is the list, and the list is `PANEL_IDS`.
+ *
+ * Outside the width loop on purpose: the set of panels does not change with
+ * the viewport, so running this five times over five widths and three engines
+ * would be forty-five copies of one answer.
+ *
+ * Without it, the per-panel loop above is only as good as somebody remembering
+ * to update `_lib/panels.ts` when they add a panel - a smaller version of the
+ * same drift that let Backup ship with no reflow test and no 320px axe test.
+ * Comparing the ids the app actually RENDERS against the ids the suite
+ * ITERATES turns "the new panel has no coverage" from something nobody
+ * notices into a red test that names it.
+ */
+test("every settings tab the app renders is one the suite loops over", async ({ page }) => {
+  await openApp(page, MID_PERIOD);
+  await openSettings(page, "schedules");
+
+  const rendered = await page
+    .locator(".settings__nav button[id^='tab-']")
+    .evaluateAll((nodes) => nodes.map((node) => node.id.replace(/^tab-/, "")));
+
+  expect(rendered).toEqual([...PANEL_IDS]);
+});

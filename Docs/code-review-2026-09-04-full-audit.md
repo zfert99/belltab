@@ -31,6 +31,10 @@ domain invariants. Two are worth fixing before the next deploy; the rest are
 small. Pass 1 found no bugs at all — only documentation drift, dead code and
 duplication, which is what that pass was asked for.
 
+> **Status.** The findings below are recorded as they were written, before any
+> fix. **B1 and B5 were fixed on `fix/backup-panel-reflow`** — see *What was
+> changed* at the bottom. Everything else is still open.
+
 ---
 
 ## Summary
@@ -510,3 +514,31 @@ enough to measure, and reverted.
 No build-log entries were written for the findings themselves, since nothing was
 fixed. Each fix should carry its own entry when it lands, and B3 belongs in
 **Open gaps** whether or not it is fixed now.
+
+---
+
+## What was changed
+
+**B1 and B5, together**, because they are one problem from two sides: the panel
+overflowed, and the reason nobody knew is that the gate never opened it.
+
+- `src/app/globals.css` — `width: 100%` and `min-width: 0` on `.backup__file`
+  and `#backup-import`. Page goes from 345px to 320px inside a 320px viewport.
+- `src/app/_lib/panels.ts` — **new.** `PANELS` and `PANEL_IDS`, React-free so a
+  Node spec can import them.
+- `src/app/_components/SettingsView.tsx` — renders from the manifest and
+  re-exports `PanelId`, so no caller changed.
+- `e2e/reflow.spec.ts` — a per-panel loop over `PANEL_IDS` (Backup included for
+  the first time), plus a guard test outside the width loop asserting the tabs
+  the app *renders* equal the ids the suite *iterates*.
+- `e2e/a11y.spec.ts` — the hardcoded three-panel array replaced by `PANEL_IDS`;
+  the 320px axe sweep now covers four panels.
+
+**Verified as a negative control, not assumed.** With the CSS reverted, exactly
+one test fails, and its message is
+`320px settings/backup: page scrolls horizontally (345 > 320)` with the widest
+elements named. Sixteen others pass. A test that is green with and without the
+fix is not a test.
+
+Still open: **B2** (one verified attribute, not applied), **B3** (wants a design
+rather than a patch), **B4**, **B6**, **B7**, **B8**, and all of **S1–S10**.
