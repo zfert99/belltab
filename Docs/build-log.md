@@ -769,6 +769,46 @@ container, the viewport is the wrong thing to measure.** The old note said the
 settings layout "was sized for the editor's width"; it was, and then the editor
 grew, and only a query on the actual width could have followed it.
 
+### 2026-09-04 — the worker was used before it was active, and a bell in that window was swallowed
+
+Found by a `high`-effort code review of the Android-notifications branch
+before it merged, and MEASURED there: on real Chrome against the production
+build, `register('/bell/sw.js', { scope: '/bell/' })` resolved in about fifty
+milliseconds with `active === null` and `installing` set, and an immediate
+`showNotification` threw "No active registration available". About a second
+later it succeeded. The code assigned `registration` the moment `register()`
+resolved, sent the next bell through it, caught the rejection, and did not
+fall back - so a user who granted notifications seconds before a bell and
+switched tabs got nothing, silently.
+
+Two more from the same review, one of them a trap worth knowing: the page is
+served at `/bell` - Next 308-redirects `/bell/` to it - which is OUTSIDE the
+worker's `/bell/` scope, so `navigator.serviceWorker.ready` never resolves for
+this page and cannot be the fix (measured). And `clients.matchAll` in the
+`notificationclick` handler returns every window on the ORIGIN, not the scope;
+biscuitlab.net is shared with the hub and Puzzle Lab, so a tap on the bell's
+toast could have raised the puzzles tab.
+
+The fixes: `registration` is assigned only once the worker is active, waited
+for through `installing`'s `statechange`; a rejected `showNotification` falls
+back to the page route; the click handler filters clients by pathname; and
+switching notifications off now unregisters the worker, which the docstring
+had promised and the code had not done. The stub in the E2E was the thing
+that hid all of this - its `register()` resolved with a registration that
+worked immediately - so it now models the lifecycle (`active: null` until
+told otherwise, `showNotification` rejecting meanwhile), and one Chrome-only
+test registers the REAL file and asserts an active registration at `/bell/`.
+
+Also from the review: the Day view and the strip wrote `toFixed(2)` widths
+every tick into fills with 300ms transitions - the permanent crawl
+`NowView.percentOf` was written to prevent, re-implemented unrounded twice.
+One `percentOf` in `src/lib/format.ts` now, used by every fill.
+
+**The lesson:** a stub that succeeds immediately proves nothing about a
+lifecycle - the same lesson as the wake lock's in-flight race, two days
+later, in a different API. And "any client will do" was a claim about the
+origin, made from inside one app's path.
+
 ### 2026-09-04 — the Day view's CSS carried two contrast failures under a comment that said it did not
 
 Found by the axe sweep the moment the rebuilt Day view joined it - the first
@@ -4988,3 +5028,15 @@ They now live under **Known limits**, dates and text intact, so Open gaps
 reads as what is owed. What is owed is now one row: undo, declined for now.
 
 **Tests:** unit unchanged at 441. Playwright 726 → 738 — four per engine: registration on grant, registration at load under a standing grant, the page fallback where no worker can exist, and the worker file's contract (served as script, no fetch handler) in the manifest suite.
+
+**Addendum, 2026-09-04 18:40 — after review.** A `high`-effort code review
+of this branch found seven things; five taken. The worker was used before it
+was active and a bell in that window was lost (measured on real Chrome - its
+own Bugs found entry, with the `/bell` vs `/bell/` scope trap that rules out
+`serviceWorker.ready`); the click handler could focus a Puzzle Lab tab; the
+worker was never unregistered on off; three fills crawled on per-tick
+decimals; and the scheduled view now carries its schedule so the Day view and
+the strip stop re-resolving the calendar and discharging the result with `!`.
+The strip's "works on a touch tap" claim is withdrawn rather than implemented.
+The stub models the activation lifecycle, and one Chrome test registers the
+real worker. Playwright 738 → 747.

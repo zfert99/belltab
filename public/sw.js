@@ -24,14 +24,18 @@ self.addEventListener("activate", (event) => {
   event.waitUntil(self.clients.claim());
 });
 
-// Tapping the bell's toast brings the tab forward, or opens one if none is
-// left. `/bell/` is the app's whole surface, so any client will do.
+// Tapping the bell's toast brings a BellTab tab forward, or opens one if none
+// is left. `matchAll` returns every window on the ORIGIN, not the scope - and
+// biscuitlab.net is shared with the hub and Puzzle Lab - so the path is
+// checked, or a tap could raise the wrong app. Caught in review, 2026-09-04.
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
   event.waitUntil(
     self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((clients) => {
-      const open = clients.find((client) => "focus" in client);
-      return open ? open.focus() : self.clients.openWindow("/bell");
+      const belltab = clients.find(
+        (client) => "focus" in client && new URL(client.url).pathname.startsWith("/bell"),
+      );
+      return belltab ? belltab.focus() : self.clients.openWindow("/bell");
     }),
   );
 });

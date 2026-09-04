@@ -217,22 +217,75 @@ function permissionServerSnapshot(): null {
  * `new Notification` is the only path and still works.
  */
 let registration: ServiceWorkerRegistration | null = null;
+let registering = false;
 
 function serviceWorkersSupported(): boolean {
   return typeof navigator !== "undefined" && "serviceWorker" in navigator;
 }
 
-async function registerBellWorker(): Promise<void> {
-  if (!serviceWorkersSupported() || registration !== null) return;
+/**
+ * Resolves once the registration has an ACTIVE worker, which `register()`
+ * itself does not promise: on a first install it resolves in tens of
+ * milliseconds with `active === null` and `installing` set, and
+ * `showNotification` on that throws "No active registration available".
+ * Measured on real Chrome in review, 2026-09-04. `navigator.serviceWorker.ready`
+ * cannot be used instead - the page lives at /bell, which Next serves without
+ * the trailing slash, and that is outside the /bell/ scope, so `ready` never
+ * resolves for this page (also measured).
+ */
+function whenActive(reg: ServiceWorkerRegistration): Promise<void> {
+  if (reg.active !== null) return Promise.resolve();
 
+  const worker = reg.installing ?? reg.waiting;
+  if (worker === null) return Promise.resolve();
+
+  return new Promise((resolve) => {
+    const onChange = () => {
+      if (worker.state === "activated" || worker.state === "redundant") {
+        worker.removeEventListener("statechange", onChange);
+        resolve();
+      }
+    };
+    worker.addEventListener("statechange", onChange);
+    onChange();
+  });
+}
+
+async function registerBellWorker(): Promise<void> {
+  if (!serviceWorkersSupported() || registration !== null || registering) return;
+
+  registering = true;
   try {
     // Scoped to the app's own path. `basePath` serves public/ under /bell, so
     // the script and its scope both carry the prefix, spelled out by hand as
     // every other URL in this repo is.
-    registration = await navigator.serviceWorker.register("/bell/sw.js", { scope: "/bell/" });
+    const reg = await navigator.serviceWorker.register("/bell/sw.js", { scope: "/bell/" });
+    await whenActive(reg);
+    // Assigned only now: until the worker is active a bell takes the page
+    // route below, which is what would have happened without a worker.
+    registration = reg.active === null ? null : reg;
   } catch {
     // A registration that fails (an insecure context, a policy) leaves the
     // page path in place, which is what would have happened anyway.
+  } finally {
+    registering = false;
+  }
+}
+
+/**
+ * The counterpart: switching notifications off takes the worker with it, so
+ * "a user who has not asked carries no worker" stays true in both directions
+ * rather than only until the first grant.
+ */
+async function unregisterBellWorker(): Promise<void> {
+  const reg = registration;
+  registration = null;
+  if (reg === null) return;
+
+  try {
+    await reg.unregister();
+  } catch {
+    // Nothing to do; the browser will drop it on its own eventually.
   }
 }
 
@@ -306,6 +359,7 @@ export function useBells(state: DayState | null, preferences: Preferences): Bell
    */
   useEffect(() => {
     if (preferences.notifyOnBell && permission === "granted") void registerBellWorker();
+    else if (!preferences.notifyOnBell) void unregisterBellWorker();
   }, [preferences.notifyOnBell, permission]);
 
   const key = state === null ? null : boundaryKey(state);
@@ -344,17 +398,23 @@ export function useBells(state: DayState | null, preferences: Preferences): Bell
       // - by the time Period 3 starts, "Period 2 has started" is not news.
       const options = { tag: "belltab-bell" };
 
-      if (registration !== null) {
-        // The worker's way - the only way on Android, and fine everywhere.
-        void registration.showNotification(message, options).catch(() => {});
-      } else {
+      const viaPage = () => {
         try {
           new Notification(message, options);
         } catch {
-          // Android Chrome throws here when the worker has not registered yet
-          // (or could not). Catching it keeps the bell from taking the clock
-          // down; the panel's copy already calls this feature best-effort.
+          // Android Chrome throws here when there is no active worker.
+          // Catching it keeps the bell from taking the clock down; the
+          // panel's copy already calls this feature best-effort.
         }
+      };
+
+      if (registration !== null) {
+        // The worker's way - the only way on Android, and fine everywhere.
+        // If the worker refuses after all (evicted between bells), the page
+        // route is still tried rather than the bell being swallowed.
+        void registration.showNotification(message, options).catch(viaPage);
+      } else {
+        viaPage();
       }
     }
     // The preference and permission values are read at ring time and belong in

@@ -21,7 +21,7 @@ import type { Library } from "@/app/_lib/library";
  */
 
 export type TodayView =
-  | { kind: "scheduled"; scheduleName: string; state: DayState }
+  | { kind: "scheduled"; scheduleName: string; schedule: ValidSchedule; state: DayState }
   | { kind: "no-school" }
   | { kind: "no-schedules" };
 
@@ -41,7 +41,15 @@ export function viewForNow(library: Library, now: LocalNow): TodayView {
   // that no longer resolves - all three are the same screen to the user.
   if (id === null || schedule === undefined) return { kind: "no-school" };
 
-  return { kind: "scheduled", scheduleName: schedule.name, state: stateAt(schedule, now.secOfDay) };
+  // The schedule rides along for the Day view and the strip, which need
+  // every period rather than the state's running one - so they read it here
+  // instead of resolving the calendar a second time and agreeing by luck.
+  return {
+    kind: "scheduled",
+    scheduleName: schedule.name,
+    schedule,
+    state: stateAt(schedule, now.secOfDay),
+  };
 }
 
 /**

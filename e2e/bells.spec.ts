@@ -31,6 +31,11 @@ interface BellsProbe {
   shown: { title: string; tag: string | undefined; via: "page" | "worker" }[];
   /** Service worker registrations - zero until notifications are granted. */
   workers: number;
+  /** `unregister()` calls - one when notifications are switched off. */
+  unregistered: number;
+  /** Keeps the next registration's worker from activating until `activate()`. */
+  hold(): void;
+  activate(): void;
   /** `requestPermission` calls. */
   asks: number;
   setVisibility(next: "visible" | "hidden"): void;
@@ -48,6 +53,11 @@ const probe = (page: Page) => ({
   contexts: () =>
     page.evaluate(() => (window as never as { __bells: BellsProbe }).__bells.contexts),
   workers: () => page.evaluate(() => (window as never as { __bells: BellsProbe }).__bells.workers),
+  unregistered: () =>
+    page.evaluate(() => (window as never as { __bells: BellsProbe }).__bells.unregistered),
+  hold: () => page.evaluate(() => (window as never as { __bells: BellsProbe }).__bells.hold()),
+  activate: () =>
+    page.evaluate(() => (window as never as { __bells: BellsProbe }).__bells.activate()),
   shown: () => page.evaluate(() => (window as never as { __bells: BellsProbe }).__bells.shown),
   asks: () => page.evaluate(() => (window as never as { __bells: BellsProbe }).__bells.asks),
   setVisibility: (next: "visible" | "hidden") =>
@@ -70,14 +80,26 @@ async function stubBells(page: Page, options: StubOptions = {}): Promise<void> {
         contexts: number;
         shown: { title: string; tag: string | undefined; via: "page" | "worker" }[];
         workers: number;
+        unregistered: number;
+        held: boolean;
         asks: number;
         setVisibility(next: string): void;
+        hold(): void;
+        activate(): void;
       } = {
         strikes: 0,
         contexts: 0,
         shown: [],
         workers: 0,
+        unregistered: 0,
+        held: false,
         asks: 0,
+        hold() {
+          state.held = true;
+        },
+        activate() {
+          activateWorker();
+        },
         setVisibility(next: string) {
           visibility = next;
           document.dispatchEvent(new Event("visibilitychange"));
@@ -151,20 +173,54 @@ async function stubBells(page: Page, options: StubOptions = {}): Promise<void> {
       }
 
       // The service worker route, which is Android's only one. A real
-      // registration would fetch /bell/sw.js and install it for real; what is
-      // under test is that the page registers on grant and shows through it,
-      // so the registration is a fake with the one method the bell calls.
+      // registration would fetch /bell/sw.js and install it for real (one
+      // Chrome-only test below does exactly that); what is under test here is
+      // the page's side of the lifecycle, so the registration is a fake that
+      // models the one thing that bit in review: `register()` resolves BEFORE
+      // the worker is active, and `showNotification` throws until it is.
+      const listeners: (() => void)[] = [];
+      const worker = {
+        state: "installing",
+        addEventListener(_type: string, listener: () => void) {
+          listeners.push(listener);
+        },
+        removeEventListener(_type: string, listener: () => void) {
+          const at = listeners.indexOf(listener);
+          if (at !== -1) listeners.splice(at, 1);
+        },
+      };
       const fakeRegistration = {
+        active: null as typeof worker | null,
+        waiting: null,
+        installing: worker,
         showNotification(title: string, options?: { tag?: string }) {
+          if (fakeRegistration.active === null) {
+            return Promise.reject(new TypeError("No active registration available"));
+          }
           state.shown.push({ title, tag: options?.tag, via: "worker" });
           return Promise.resolve();
         },
+        unregister() {
+          state.unregistered += 1;
+          return Promise.resolve(true);
+        },
+      };
+      const activateWorker = () => {
+        if (fakeRegistration.active !== null) return;
+        fakeRegistration.active = worker;
+        worker.state = "activated";
+        for (const listener of [...listeners]) listener();
       };
       Object.defineProperty(navigator, "serviceWorker", {
         configurable: true,
         value: {
           register() {
             state.workers += 1;
+            // A microtask, not a timeout: the suite runs under Playwright's paused
+            // clock, where a setTimeout never fires until a test advances time,
+            // and a worker that activates only when the clock moves would leave
+            // every test that does not move it stuck before activation.
+            if (!state.held) void Promise.resolve().then(activateWorker);
             return Promise.resolve(fakeRegistration);
           },
         },
@@ -361,6 +417,64 @@ test.describe("the notification", () => {
     await openApp(page, MID_PERIOD, { preferences: prefs({ notifyOnBell: true }) });
 
     await expect.poll(() => probe(page).workers()).toBe(1);
+  });
+
+  test("does not use the worker until it is active, and falls back to the page meanwhile", async ({
+    page,
+  }) => {
+    // Measured in review on real Chrome: register() resolves in ~50ms with
+    // no active worker, and showNotification on that throws. A bell in that
+    // window used to be swallowed. Held here so the window can be observed.
+    await stubBells(page, { permission: "granted" });
+    await page.addInitScript(() => {
+      (window as never as { __bells: { held: boolean } }).__bells.held = true;
+    });
+    await openApp(page, MID_PERIOD, { preferences: prefs({ notifyOnBell: true }) });
+    await expect.poll(() => probe(page).workers()).toBe(1);
+
+    await probe(page).setVisibility("hidden");
+    await crossBoundary(page, PASSING_STARTS);
+    await expect
+      .poll(() => probe(page).shown())
+      .toEqual([{ title: "Passing has started.", tag: "belltab-bell", via: "page" }]);
+
+    // Once the worker activates, the next bell goes through it.
+    await probe(page).activate();
+    await crossBoundary(page, PERIOD_3_STARTS);
+    await expect.poll(() => probe(page).shown().then((shown) => shown[1]?.via)).toBe("worker");
+  });
+
+  test("switching notifications off takes the worker with it", async ({ page }) => {
+    await stubBells(page, { permission: "granted" });
+    await openApp(page, MID_PERIOD, { preferences: prefs({ notifyOnBell: true }) });
+    await openSettings(page, "preferences");
+    await expect.poll(() => probe(page).workers()).toBe(1);
+
+    await notify(page).uncheck();
+    await expect.poll(() => probe(page).unregistered()).toBe(1);
+  });
+
+  test("registers the REAL worker at /bell/ with an active worker", async ({ page, context }, testInfo) => {
+    // Chrome only: the other engines' Playwright builds do not grant the
+    // Notification permission from a test, and without a grant the page never
+    // registers. No stubs at all here - this is the file itself, fetched from
+    // the app, installed by the browser, and asserted active. The fake above
+    // models the lifecycle; this is the one test that proves the model.
+    test.skip(testInfo.project.name !== "chrome", "Notification permission grant is Chromium-only");
+    await context.grantPermissions(["notifications"]);
+    await openApp(page, MID_PERIOD, { preferences: prefs({ notifyOnBell: true }) });
+
+    await expect
+      .poll(
+        () =>
+          page.evaluate(async () => {
+            const registrations = await navigator.serviceWorker.getRegistrations();
+            const ours = registrations.find((r) => new URL(r.scope).pathname === "/bell/");
+            return ours ? (ours.active !== null ? "active" : "installing") : "none";
+          }),
+        { timeout: 15_000 },
+      )
+      .toBe("active");
   });
 
   test("falls back to a page notification where there is no service worker", async ({ page }) => {

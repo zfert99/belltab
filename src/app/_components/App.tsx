@@ -10,7 +10,7 @@ import { useBells } from "@/app/_lib/bells";
 import { addSchedule } from "@/app/_lib/library";
 import { clearShareFragment, incomingSchedule } from "@/app/_lib/shareLink";
 import type { ValidSchedule } from "@/lib/schedule";
-import { scheduleForToday, tabTitleFor, viewForNow } from "@/app/_lib/today";
+import { tabTitleFor, viewForNow } from "@/app/_lib/today";
 import { formatClock } from "@/lib/format";
 import { shiftNow, type LocalNow } from "@/lib/clock";
 import { NowView } from "@/app/_components/NowView";
@@ -379,14 +379,14 @@ export function App() {
       ) : (
         <>
           {screen === "day" && !big && view?.kind === "scheduled" && shifted !== null ? (
-            <DayView schedule={scheduleForToday(library, shifted)!} nowSec={shifted.secOfDay} />
+            <DayView schedule={view.schedule} nowSec={shifted.secOfDay} />
           ) : (
             <NowView
               view={view}
               onOpenSettings={(panel, focusId) => openSettingsFrom(panel, null, focusId ?? null)}
               strip={
                 preferences.showStrip && shifted !== null && view?.kind === "scheduled"
-                  ? { schedule: scheduleForToday(library, shifted)!, nowSec: shifted.secOfDay }
+                  ? { schedule: view.schedule, nowSec: shifted.secOfDay }
                   : null
               }
             />

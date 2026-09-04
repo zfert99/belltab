@@ -50,10 +50,11 @@ test.describe("the blocks strip", () => {
   test("fills the running square by how far through it the day is", async ({ page }) => {
     await openApp(page, MID_PERIOD, { preferences: prefs(true) });
 
-    // 25 minutes into a 60-minute period.
+    // 25 minutes into a 60-minute period - a whole percent, because the fill
+    // has a 300ms transition and a per-tick decimal would crawl forever.
     await expect(page.locator("#strip .strip__cell--current .strip__fill")).toHaveAttribute(
       "style",
-      /width:\s*41\.67%/,
+      /width:\s*42%/,
     );
     await expect(page.locator("#strip .strip__cell--past .strip__fill").first()).toHaveAttribute(
       "style",
