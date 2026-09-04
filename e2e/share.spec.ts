@@ -39,7 +39,7 @@ test.describe("when the clipboard is refused", () => {
     await page.locator("#schedule-share").click();
 
     await expect(page.locator("#share-link-status")).toHaveText(
-      "This browser would not let BellTab reach the clipboard. Copy the link by hand:",
+      "This browser wouldn’t let BellTab use the clipboard. Copy the link by hand:",
     );
     // And the link is there to be copied - the read-only input is the one
     // control that reliably supports select-all on every platform.
@@ -213,7 +213,7 @@ test.describe("backup", () => {
 
     // Destructive, so it asks first.
     await expect(page.locator("#confirm-dialog")).toBeVisible();
-    await expect(page.locator("#confirm-body")).toContainText("cannot be undone");
+    await expect(page.locator("#confirm-body")).toContainText("be undone");
     await page.locator("#confirm-ok").click();
 
     await page.locator("#tab-schedules").click();

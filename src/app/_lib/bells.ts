@@ -344,11 +344,11 @@ export function useBells(state: DayState | null, preferences: Preferences): Bell
 export function describeChime(status: ChimeStatus): string {
   switch (status) {
     case "unsupported":
-      return "This browser cannot play sound.";
+      return "This browser can\u2019t play sound.";
     case "off":
       return "Period changes will be silent.";
     case "locked":
-      return "The chime will be ready after your first tap or key press on the page.";
+      return "The chime will be ready after your first tap or key press.";
     case "ready":
       return "The chime will ring when a period starts or ends.";
   }
@@ -358,14 +358,14 @@ export function describeChime(status: ChimeStatus): string {
 export function describeNotify(status: NotifyStatus): string {
   switch (status) {
     case "unsupported":
-      return "This browser cannot show notifications.";
+      return "This browser can\u2019t show notifications.";
     case "off":
-      return "Period changes will not be announced by the system.";
+      return "You won\u2019t get a notification when a period changes.";
     case "blocked":
-      return "The browser has blocked notifications for this site. Allow them in the browser's site settings to use this.";
+      return "Notifications are blocked for this site. To turn them on, allow them in your browser\u2019s site settings.";
     case "unasked":
-      return "The browser needs permission again. Turn this off and on to be asked.";
+      return "Your browser needs to ask permission again. Turn this off and on to get the prompt.";
     case "ready":
-      return "A notification will appear when a period starts or ends while this tab is in the background.";
+      return "You\u2019ll get a notification when a period starts or ends while this tab is in the background.";
   }
 }

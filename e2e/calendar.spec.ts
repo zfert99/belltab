@@ -107,7 +107,7 @@ test.describe("the calendar resolves the day", () => {
     await page.locator("#override-schedule").selectOption({ label: "No school" });
     await page.locator("#override-add").click();
 
-    await expect(page.locator("#calendar-today")).toContainText("there is no school scheduled");
+    await expect(page.locator("#calendar-today")).toContainText("there’s no school scheduled");
 
     await backToCountdown(page);
     await expect(periodName(page)).toHaveText("No school today");
@@ -221,7 +221,7 @@ test.describe("the schedule library", () => {
     // on the user's behalf; the panel it lands on says what to press next.
     await page.getByRole("button", { name: "Set up a schedule" }).click();
     await expect(page.locator("#panel-schedules")).toBeVisible();
-    await expect(page.locator("#panel-schedules")).toContainText("There are no schedules");
+    await expect(page.locator("#panel-schedules")).toContainText("No schedules yet");
 
     await page.locator("#schedule-new").click();
     await expect(chips(page)).toHaveCount(1);
@@ -260,7 +260,7 @@ test.describe("the schedule library", () => {
 
     await expect(chips(page)).toHaveCount(0);
     await expect(page.locator("#schedule-delete")).toBeDisabled();
-    await expect(page.locator("#panel-schedules")).toContainText("There are no schedules");
+    await expect(page.locator("#panel-schedules")).toContainText("No schedules yet");
 
     await backToCountdown(page);
     await expect(periodName(page)).toHaveText("No schedule yet");
@@ -417,7 +417,7 @@ test.describe("past exceptions", () => {
     await openSettings(page, "calendar");
 
     await expect(page.locator("#overrides li")).toHaveCount(3);
-    await expect(page.locator("#past-overrides")).toContainText("One of these is in the past");
+    await expect(page.locator("#past-overrides")).toContainText("One of these dates has passed");
 
     await page.locator("#prune-overrides").click();
 

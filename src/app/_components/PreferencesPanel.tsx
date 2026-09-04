@@ -86,14 +86,14 @@ export function PreferencesPanel({
         Preferences
       </h2>
       <p className="panel__note">
-        These belong to this browser on this device. They are not part of a schedule, so a share
-        link and a backup carry neither of them.
+        These settings are just for this browser on this device. Share links and backups
+        don&rsquo;t include them.
       </p>
 
       <fieldset className="field">
         <legend className="field__legend">Theme</legend>
         <p className="field__hint" id="theme-hint">
-          System follows whatever your device is set to, and changes with it.
+          System matches your device&rsquo;s light or dark setting, and changes along with it.
         </p>
         <div className="field__options" id="theme-options">
           {THEMES.map((theme) => (
@@ -123,8 +123,8 @@ export function PreferencesPanel({
       <fieldset className="field">
         <legend className="field__legend">Motion</legend>
         <p className="field__hint" id="motion-hint">
-          The OS&rsquo;s own reduce-motion setting is already honoured. This cuts animation here
-          regardless of it &mdash; for a shared machine, or a projector that judders.
+          Turns off animations here, even if your device allows them. Handy on a shared computer,
+          or a projector that stutters.
         </p>
         <div className="field__options">
           <label className="option">
@@ -179,9 +179,8 @@ function WakeLockField({
     <fieldset className="field">
       <legend className="field__legend">Screen</legend>
       <p className="field__hint" id="wake-lock-hint">
-        Stops the screen dimming or locking while BellTab is on it, which is what
-        a countdown on a projector needs. It only holds while this tab is
-        visible, and it uses more battery.
+        Keeps the screen from dimming or locking while BellTab is showing &mdash; handy on a
+        projector. It only works while this tab is visible, and it uses a bit more battery.
       </p>
 
       <div className="field__options">
@@ -269,9 +268,9 @@ function BellsField({
     <fieldset className="field">
       <legend className="field__legend">Bells</legend>
       <p className="field__hint" id="bells-hint">
-        A chime and a system notification when a period starts or ends. Both work only while a
-        BellTab tab is open: a tab in the background can ring up to a minute late, and a closed
-        tab never rings.
+        A chime and a notification when a period starts or ends. They only work while BellTab is
+        open in a tab: a tab in the background may ring up to a minute late, and a closed tab
+        can&rsquo;t ring at all.
       </p>
 
       <div className="field__options">
@@ -353,9 +352,8 @@ function BellsField({
         statuses stay out of assistive tech's way.
       */}
       <p className="visually-hidden" id="notify-alert" aria-live="polite">
-        {statuses.notify === "blocked"
-          ? "The browser has blocked notifications for this site. Allow them in the browser's site settings to use this."
-          : ""}
+        {/* The same sentence the readout shows, from the same function - one owner. */}
+        {statuses.notify === "blocked" ? describeNotify(statuses.notify) : ""}
       </p>
     </fieldset>
   );
@@ -462,9 +460,8 @@ function BellOffsetField({
     <fieldset className="field">
       <legend className="field__legend">Bell offset</legend>
       <p className="field__hint" id="bell-offset-hint">
-        If the real bell rings before the countdown reaches zero, raise this. Seconds are added to
-        this device&rsquo;s clock before the schedule is read, so the schedule itself is left
-        alone. Up to {BELL_OFFSET_LIMIT_SEC} either way.
+        Does the real bell ring before the countdown hits zero? Raise this. It nudges the clock
+        BellTab reads, not your schedule. Up to {BELL_OFFSET_LIMIT_SEC} seconds either way.
       </p>
 
       <div className="offset">
@@ -544,8 +541,8 @@ function BellOffsetField({
         </button>
         <span className="offset__unit" id="bell-calibrate-hint">
           {canCalibrate
-            ? "Press it as the real bell rings and the offset is measured from today's schedule."
-            : "Needs a schedule running today to measure against."}
+            ? "Or press this the moment the bell rings, and BellTab works it out from today’s schedule."
+            : "Needs a schedule running today."}
         </span>
       </div>
 
@@ -573,14 +570,14 @@ function BellOffsetField({
         aria-live="polite"
       >
         {unusable
-          ? `A bell offset is a whole number of seconds between \u2212${BELL_OFFSET_LIMIT_SEC} and ` +
+          ? `Use a whole number of seconds between \u2212${BELL_OFFSET_LIMIT_SEC} and ` +
             `${BELL_OFFSET_LIMIT_SEC}. The countdown is still running ` +
             `${describeOffset(preferences.bellOffsetSec)}.`
           : calibration === "none"
-            ? `No bell in today's schedule is within ${BELL_OFFSET_LIMIT_SEC} seconds of now, so nothing ` +
-              "was measured. Press it as the bell rings."
+            ? "No bell in today’s schedule is close enough to now, so nothing was measured. " +
+              "Press it right as the bell rings."
             : typeof calibration === "number"
-              ? `Measured: the countdown now runs ${describeOffset(calibration)}.`
+              ? `Done — the countdown now runs ${describeOffset(calibration)}.`
               : ""}
       </p>
 
@@ -595,8 +592,8 @@ function BellOffsetField({
         {Math.abs(preferences.bellOffsetSec) >= LARGE_OFFSET_SEC && (
           <span id="bell-offset-warning">
             {" "}
-            That is a minute or more. If the timetable itself is wrong, edit the schedule
-            instead — this offset stays on this device and never travels in a link.
+            That&rsquo;s a minute or more. If the timetable itself is off, edit the schedule
+            instead &mdash; this setting stays on this device and isn&rsquo;t shared.
           </span>
         )}
       </p>

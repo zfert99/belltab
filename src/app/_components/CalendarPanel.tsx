@@ -108,8 +108,8 @@ export function CalendarPanel({ library, save, now, headingRef }: CalendarPanelP
         Calendar
       </h2>
       <p className="panel__note">
-        A dated exception wins. Failing that, the weekday default decides. Failing that, there is no
-        school.
+        A dated exception comes first. Otherwise the weekday default applies. If neither says
+        anything, there&rsquo;s no school that day.
       </p>
 
       <section className="calsection">
@@ -198,8 +198,8 @@ export function CalendarPanel({ library, save, now, headingRef }: CalendarPanelP
         {past.length > 0 && (
           <p className="panel__note" id="past-overrides">
             {past.length === 1
-              ? "One of these is in the past and can never apply again."
-              : `${past.length} of these are in the past and can never apply again.`}{" "}
+              ? "One of these dates has passed and can’t apply again."
+              : `${past.length} of these dates have passed and can’t apply again.`}{" "}
             <button
               type="button"
               className="minibutton"
@@ -346,7 +346,7 @@ function TodayLine({ library, now }: { library: Library; now: LocalNow | null })
   return (
     <p className="panel__note" id="calendar-today">
       {name === null
-        ? `Today is ${day}, and there is no school scheduled.`
+        ? `Today is ${day}, and there’s no school scheduled.`
         : `Today is ${day}, and it runs ${name}.`}
     </p>
   );

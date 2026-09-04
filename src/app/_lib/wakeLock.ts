@@ -253,14 +253,14 @@ export function wantsSignpost(status: WakeLockStatus): boolean {
 export function describeWakeLock(status: WakeLockStatus): string {
   switch (status) {
     case "unsupported":
-      return "This browser cannot keep the screen awake.";
+      return "This browser can\u2019t keep the screen awake.";
     case "off":
-      return "The screen will dim and lock as it normally does.";
+      return "The screen will dim and lock as usual.";
     case "held":
-      return "The screen is being kept awake.";
+      return "The screen is staying awake.";
     case "waiting":
-      return "The screen will be kept awake when this tab is visible.";
+      return "The screen will stay awake whenever this tab is visible.";
     case "refused":
-      return "This device refused to keep the screen awake. Battery saver is the usual reason; once that changes, a tap or a key press asks again.";
+      return "Your device refused to keep the screen awake. Battery saver is the usual reason \u2014 once it\u2019s off, tap or press any key and BellTab asks again.";
   }
 }

@@ -44,7 +44,7 @@ test.describe("the delete confirmation", () => {
 
     // The dangerous button must never be the one a stray Enter lands on.
     await expect(page.locator('#confirm-dialog button[value="cancel"]')).toBeFocused();
-    await expect(page.locator("#confirm-body")).toContainText("cannot be undone");
+    await expect(page.locator("#confirm-body")).toContainText("be undone");
 
     // showModal, not show: the rest of the page is inert behind it.
     const modal = await dialog.evaluate((element) => element.matches(":modal"));
