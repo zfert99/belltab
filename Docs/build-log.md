@@ -645,6 +645,9 @@ it. None is a task.
 
 | Opened | Item | Notes |
 | --- | --- | --- |
+| 2026-09-05 | An unreadable saved library is discarded without a word | `loadLibrary` degrades a library it cannot parse to the seeded defaults and shows nothing, so a user sees their schedules apparently wiped; the originals stay in `localStorage` only until the next write overwrites them. The degrade is right and argued for in `library.ts` - a tab that will not open is worse. The gap is the notice: `parseLibrary` already produces a specific sentence for the same input on the import path, and the load path throws it away. The fix is to say so and to defer the overwrite until the user has acknowledged it. Found 2026-09-05, see `Docs/code-review-2026-09-04-full-audit.md` B3. |
+| 2026-09-05 | The Backup panel fails the 320px reflow gate | `scrollWidth` 345 against a 320 viewport, from the native file input's 311.5px intrinsic width in a content-sized container. Both `reflow.spec.ts` and `a11y.spec.ts` loop over three of the four panels, so Backup has neither test. Fix verified in a browser: `min-width: 0` on `.backup__file` and `#backup-import`, the same recipe the calendar's selects already use. See B1 and B5. |
+| 2026-09-05 | A themed load logs a hydration mismatch | `THEME_SCRIPT` sets `data-theme` before React hydrates, so React reports the `<html>` attribute as a mismatch on every load for anyone who chose Light or Dark. The script is correct and stays; `<html>` needs `suppressHydrationWarning`. Verified: with `theme: "system"` the error is absent. See B2. |
 | 2026-08-27 | There is no undo | Deleting a *period* is still immediate and unconfirmed, and the only way back is to retype it. Deliberate for a four-field row whose result is visible behind the editor. Deleting a whole *schedule* now goes through a modal confirmation, which is the half of this gap Phase 4 closed; a real undo is still owed and would remove the need for the dialog. |
 | 2026-09-01 | An import cannot be undone | It replaces every schedule and the whole calendar, behind a confirmation that says so. Exporting first is the answer the panel gives, and it puts the export above the import for that reason. A real undo would be better and is the same gap as the one open for deleting a period. |
 
@@ -5128,3 +5131,55 @@ at the top of this file caught up with two days of work.
 
 Nothing is in flight. The next thing that happens to this project should be
 a week of real use.
+
+### 2026-09-05 — a full audit: static review, then the app in a browser
+
+An independent pass over the whole repository, then the same app driven through
+a real Chrome. Written up in `Docs/code-review-2026-09-04-full-audit.md`;
+nothing was fixed, so the findings live there rather than here.
+
+The static half found no bugs — only drift: three doc comments that a later
+insertion left sitting on the wrong declaration, four comments that now
+contradict their code (section 13 of `globals.css` still argues for the equal
+squares the strip stopped drawing), ~45 lines of unreachable CSS, six exports
+with no importer, and `DayView` hardcoding `"data-motion"` beside an unused
+`MOTION_ATTRIBUTE`.
+
+The browser half found eight defects, two of them worth fixing first.
+
+**The Backup panel scrolls sideways at 320px** — `scrollWidth` 345 against a
+320 viewport, which is the WCAG 2.2 SC 1.4.10 failure `AGENTS.md` calls
+blocking. The cause is the native file input's 311.5px intrinsic width in a
+container sized to its content, so `max-width: 100%` never binds: exactly the
+`<select>` problem this stylesheet already documents, missing the `min-width: 0`
+half of the answer. It shipped because `reflow.spec.ts` and `a11y.spec.ts` both
+loop over `["schedules", "calendar", "preferences"]` while `PANELS` has four
+entries — Backup is the one panel with neither test.
+
+**Every themed load logs a hydration mismatch.** `THEME_SCRIPT` sets
+`data-theme` on `<html>` before React hydrates, so React compares server HTML
+without the attribute against a DOM with it. The script is right and should
+stay; `<html>` needs `suppressHydrationWarning`. Verified both ways: with
+`theme: "system"` the script sets nothing and the error is absent.
+
+The rest are smaller — the Day button reporting `aria-pressed="true"` while the
+Now view is rendered, "1 schedules" in the import dialog, Chrome blanking an
+impossible date so Add disables with no reason, and `--` meaning both "clock not
+read" and "no schedule today".
+
+What did NOT break is worth recording. A 764:1 deflate bomb inside the
+`encodedChars` cap was stopped mid-stream. `toString` and `valueOf` as version
+markers came back "newer version" rather than being invoked — the `Map` dispatch
+fix, confirmed against a live page for the first time. An `<img onerror>` period
+name stored verbatim and rendered as text. An invalid draft never reached
+storage. And replacing `window.Date` at runtime — telling nothing that time had
+moved — left the countdown, the title, the fill, the strip and the announcer all
+correct on the next tick, which only works if every one of them is recomputed.
+
+One open gap is owed regardless of what gets fixed: `loadLibrary` degrades a
+library it cannot parse to the seeded defaults **silently**, and the next write
+overwrites the original. The degrade is right; `parseLibrary` already produces
+the sentence that should be shown, and the load path throws it away.
+
+`.claude/launch.json` gained `"autoPort": true` — port 3000 was held by another
+dev server. That is the only change to the tree.
