@@ -1,5 +1,7 @@
 "use client";
 
+import { useState } from "react";
+
 import type { DayState } from "@/lib/engine";
 import { boundaryKey, formatClock, splitCountdown } from "@/lib/format";
 import type { TodayView } from "@/app/_lib/today";
@@ -105,6 +107,23 @@ function PendingFocus() {
 }
 
 function ScheduleFocus({ state }: { state: DayState }) {
+  /**
+   * The crossfade runs at a BELL, not on first paint - the announcer's rule 2,
+   * applied to motion. `key` remounts the element on every boundary; this
+   * says whether a boundary has been seen yet, so the first mount draws the
+   * name plain and every remount after it fades in. Adjusted during render,
+   * the way the announcer does it.
+   *
+   * Two things were wrong with fading on first paint: a user opening the tab
+   * mid-period got a fade that meant nothing, and under a paused test clock
+   * WebKit never advanced the animation past frame one - opacity 0 - so axe
+   * read a period name with no contrast at all. See Bugs found, 2026-09-03.
+   */
+  const key = boundaryKey(state);
+  const [seen, setSeen] = useState({ key, swap: false });
+  if (seen.key !== key) setSeen({ key, swap: true });
+  const swap = seen.swap;
+
   if (state.phase === "empty") {
     return (
       <Message
@@ -123,7 +142,11 @@ function ScheduleFocus({ state }: { state: DayState }) {
   return (
     <>
       <div className="countdown">
-        <p className="countdown__period" id="period-name" key={boundaryKey(state)}>
+        <p
+          className={`countdown__period${swap ? " countdown__period--swap" : ""}`}
+          id="period-name"
+          key={key}
+        >
           {headlineFor(state)}
         </p>
         <p className="countdown__time">

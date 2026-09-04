@@ -344,6 +344,8 @@ development too, so the bare origin is a 404 exactly as it is in production.
 | 2026-09-03 | The crossfade is keyed to the boundary, not triggered by the tick | `NowView` puts `key={boundaryKey(state)}` on the period name, so a period change REMOUNTS the element and its CSS animation runs exactly then; the per-second repaint touches other elements and never restarts it. No JavaScript animation, no timer, and both reduced-motion paths (the OS media query and the in-app attribute) collapse it to 0.01ms with the same rule that covers everything else. |
 | 2026-09-03 | The large-offset warning is a sentence, not a lower cap | A building whose bells really are ninety seconds out is still real, so ±300 stands. What was missing was the distinction, said where the number is: at a minute or more the offset has stopped being a correction and started being a schedule edit made in the one place that does not travel in a link. |
 | 2026-09-03 | Past exceptions are pruned by a button, not automatically | Automatic pruning would delete data on a schedule the user never chose — a load, a midnight — and a calendar exported yesterday would differ from the one on screen today for no visible reason. A button that names the count and does one thing keeps the deletion a decision. |
+| 2026-09-03 | `kind` is descriptive only — the engine no longer reads it | `blockPositionAt` was the one engine consumer ("is this Passing?" for the retired Day view's "3 of 7" counter) and it went with that view's residue. Keeping a semantic alive for a feature that does not exist would have meant keeping the function alive for the test that proved it. The comment on `PERIOD_KINDS` now says where the semantic would return if a strip or a counter is ever rebuilt. |
+| 2026-09-03 | Parked rows are decided, not carried | Five rows had sat in Open gaps under "left rather than swept up, because deleting is a different decision from deleting the code that stopped using it." That was right for the sessions that made them — and wrong to leave for six weeks. The decisions: delete the Day view's dead code and CSS (history keeps it), and move the three design calls (am/pm, Big mode reload, Big mode fullscreen) to the roadmap's Deferred table, each with the condition that would reopen it. An open-gaps row with no owner and no trigger is a decision nobody made. |
 
 ## Deviations from the plan docs
 
@@ -583,12 +585,9 @@ before the origin ever served.
 
 | Opened | Item | Notes |
 | --- | --- | --- |
-| 2026-08-26 | 12-hour clock has no am/pm | Matches the mockups and is unambiguous for a school day. Revisit if a schedule ever crosses noon ambiguously. |
 | 2026-08-26 | TypeScript is a major version behind on purpose | 6.0.3 rather than 7.0.2, because `typescript-eslint` cannot load under TS 7. This is a real cost — TS 7 is the Go rewrite — and it is deliberate, not neglect. Revisit when typescript-eslint#10940 lands; the upgrade should be a one-line version bump plus a full lint run. |
 | 2026-08-27 | `next build` now needs the network | `next/font/google` fetches the three families at BUILD time. Runtime is still network-free — that invariant is untouched, and the emitted HTML was checked for Google hosts — but an offline `npm run build` now fails where it used to succeed. Next caches the downloads, so this bites a cold checkout rather than a rebuild. Self-hosting the `.woff2` files in-repo with `next/font/local` would remove it; not done, because it means committing binaries and hand-tracking upstream revisions. |
 | 2026-08-27 | Next ships a live region we did not write | `div#__next-route-announcer__` is `aria-live="assertive"` `role="alert"`, injected by the App Router after hydration and not removable. It should stay silent — one route, no client navigation — but `AGENTS.md`'s "never wrap the countdown in a live region" now has a framework-owned region on the page to coexist with. The announcer spec enumerates it so a second one cannot arrive unnoticed. |
-| 2026-09-02 | Three CSS rules are inert, and all three are the retired build's | `.viewswitch__btn[aria-pressed="true"]` styled a two-state switcher that Big mode deliberately did not become; `body.is-settings .viewswitch` hid it while settings was open, which conditional rendering does instead; and `.is-big .strip*` styles a period strip that has never been rebuilt. All three were already inert before Phase 6 and none was introduced by it. Left rather than swept up, on the same reasoning as the row below: deleting styles is a different decision from deleting the code that stopped using them, and it should be made on purpose. |
-| 2026-09-01 | The Day view's dead code outlived its tests | The parked assertions are gone (see Closed), but the view left residue behind: `formatDayCaption` in `src/lib/format.ts` is exported, fully tested and imported by nothing, and `globals.css` still carries `.day__summary`, `.day__remaining` and their siblings. Deliberately left rather than swept up in the same change — deleting a tested pure function is a different decision from deleting a test that named no phase, and it should be made on purpose. |
 | 2026-08-27 | The editor is a long tab chain | Twelve rows of six controls is seventy-two stops between the schedule name and the bottom of the form, and the keyboard test needs a 120-press budget to cross it. Nothing is unreachable and nothing is trapped, so this is not a failure — but a skip link, or grouping each row so a screen reader can jump by row, would make it usable rather than merely operable. |
 | 2026-08-27 | There is no undo | Deleting a *period* is still immediate and unconfirmed, and the only way back is to retype it. Deliberate for a four-field row whose result is visible behind the editor. Deleting a whole *schedule* now goes through a modal confirmation, which is the half of this gap Phase 4 closed; a real undo is still owed and would remove the need for the dialog. |
 | 2026-09-01 | An import cannot be undone | It replaces every schedule and the whole calendar, behind a confirmation that says so. Exporting first is the answer the panel gives, and it puts the export above the import for that reason. A real undo would be better and is the same gap as the one open for deleting a period. |
@@ -598,8 +597,6 @@ before the origin ever served.
 | 2026-09-02 | The page ships an unhashed inline script, and the CSP still carries no `script-src` | Half of the 2026-08-27 gap this replaces. The toggle and the pre-paint application both exist now; what does not is the hardening they were supposed to arrive with. The reason is measured and is in the Decisions table: Next's own two inline scripts cannot be hashed from `next.config.ts`, and the nonce that would fix it needs middleware this repo bans. What would change the call is Next shipping a nonce path that is not middleware, or `output: "export"` growing one. Until then the CSP is `frame-ancestors 'none'` and the honest statement is that this app has no script policy at all. |
 | 2026-09-02 | The bell offset has never been measured against a real bell | It is a correction with no calibration aid: the user is asked for a number of seconds and given no way to discover which number. The panel states which way the number goes and the wall clock beside the countdown is deliberately left unshifted so there is something to check against, but the actual workflow — stand in a corridor, hear the bell, read the phone, subtract — is unassisted. A "tap when the bell rings" button that measured it would be the fix, and is not built. |
 | 2026-09-02 | The macOS WebKit build does not Tab to buttons, so one editor test fails locally | `e2e/editor.spec.ts`'s keyboard walk cannot reach `#add-period` within its 120-press budget on the development machine's WebKit, because macOS omits buttons from the Tab order unless full keyboard access is on. It passes on the Linux CI runner's build and on Chrome and Firefox everywhere. Verified pre-existing on `main` by stashing this session's work and re-running. A third entry for the row above: "WebKit" is not one browser. |
-| 2026-09-02 | Big mode does not survive a reload | It is component state, deliberately: a mode you cannot see the way out of is worse than one you have to re-enter, and a projector is set up once per session by somebody standing at the machine. If a room ever wants a permanent display, that is a preference rather than a change to this state — and it would need the wake lock first to be worth anything. |
-| 2026-09-02 | Big mode does not request fullscreen | It fills the viewport (`100dvh`), which leaves the browser chrome and the OS bar on screen. The Fullscreen API would take those too and needs a user gesture, which the button already is. Not done because it adds an exit path the app does not control — the browser's own Escape-to-leave races the mode's — and that interaction deserves being designed rather than added. |
 | 2026-08-27 | Three pieces of cited evidence live in the Puzzle Lab repo, not this one | `multi-zone-migration-safety-review.md` marks its rate-limit finding **VERIFIED** against method and numbers in `src/lib/rate-limit.md`; `multi-zone-cost-and-alternatives.md` reverses its own earlier position on the authority of `puzzle-lab-hub-merge-research.md` and `vercel-cron-deployment-protection-outage.md`. All three files are real and all three are one repo away. The broken links are fixed — they now name the repo — but the claims remain unauditable from inside BellTab. Copying the three in would fix it and would also import three more documents about someone else's stack; not done, and the tradeoff is the reason. |
 | 2026-09-02 | Page-created notifications do not work on Android Chrome | `new Notification(...)` throws there — Android requires a service worker to show notifications. The constructor is wrapped so the bell cannot take the clock down, which means the feature is silently absent on Android rather than broken. The PWA slice is the natural place to revisit: a manifest brings a service worker into scope, and `registration.showNotification` is the Android-shaped version of the same feature. |
 | 2026-09-02 | The chime's `locked` sentence is all but unobservable | Reaching the panel takes a click or a keypress, and either one is the gesture that unlocks the chime — so by the time the readout is visible it says "ready". The sentence still earns its place (a refused `resume()` under an OS-level block would land there and stay), but no E2E can show it through the UI, and the suite says so where it asserts the behaviour instead. |
@@ -610,6 +607,11 @@ before the origin ever served.
 
 | Opened | Closed | Item |
 | --- | --- | --- |
+| 2026-09-01 | 2026-09-03 | The Day view's residue is deleted, on purpose this time: `formatDayCaption`, `daySummaryAt`/`DaySummary`, `blockPositionAt`/`BlockPosition` and their tests (eleven), plus four CSS sections that nothing rendered — the day summary, the period rows, the period strip, the disclosure — and Big mode's scaling of the strip. Unit 423 → 412. Git history keeps all of it; a rebuilt Day view would start from the engine, not from this. |
+| 2026-09-02 | 2026-09-03 | The three inert CSS rules are gone with the rest: `.viewswitch__btn[aria-pressed]`, `body.is-settings .viewswitch`, `.is-big .strip*`. Sections renumbered; no comment referenced a number. |
+| 2026-08-26 | 2026-09-03 | am/pm on the 12-hour clock — decided: not added. Moved to the roadmap's Deferred table with what would change the call (a schedule crossing noon ambiguously). |
+| 2026-09-02 | 2026-09-03 | Big mode not surviving a reload — decided: it is component state on purpose. Moved to Deferred with its trigger (a room wanting a permanent display, which is a preference). |
+| 2026-09-02 | 2026-09-03 | Big mode not requesting fullscreen — decided: deserves designing, not adding. Moved to Deferred with its trigger. |
 | 2026-08-27 | 2026-09-03 | The design system's period-change crossfade is implemented — a 150ms fade on the period name, keyed to `boundaryKey` so it runs at a bell and never on a tick, collapsed by both reduced-motion paths. |
 | 2026-09-01 | 2026-09-03 | Past exceptions can be removed at once — a "Remove past exceptions" button appears above the list when any date is strictly before today; today's own exception is kept because it is still running. |
 | 2026-09-02 | 2026-09-03 | A large offset is told apart from a schedule edit — at sixty seconds or more the readout says so beside the number: edit the schedule instead; the offset stays on this device and never travels. The cap is not lowered. |
@@ -729,6 +731,54 @@ that this change repeated anyway: **when a component lives inside a capped
 container, the viewport is the wrong thing to measure.** The old note said the
 settings layout "was sized for the editor's width"; it was, and then the editor
 grew, and only a query on the actual width could have followed it.
+
+### 2026-09-03 — the crossfade started at opacity 0 on first paint, and WebKit's axe read a period name with no contrast
+
+Found by the a11y sweep on WebKit, on the full run of the branch that deleted
+the Day view - though it had nothing to do with that deletion. The crossfade
+shipped in #39 ran on EVERY mount of the period name, first paint included,
+from `opacity: 0`. Chrome and Firefox advanced the animation under Playwright's
+paused clock; WebKit did not, so its period name sat at frame one, invisible,
+and axe reported `color-contrast` on `#period-name` in the two message
+states. Nothing a real user would hit at 150ms, but the test caught a design
+mistake on the way: a fade on first paint means nothing to somebody opening
+the tab mid-period. The announcer's rule 2 - say nothing on first paint -
+applies to motion too.
+
+The fix: `NowView` remembers whether a boundary has been seen (adjusted during
+render, the announcer's own pattern) and adds `.countdown__period--swap` only
+after one. The first mount draws the name plain; every remount after a bell
+fades in. The E2E now asserts `none` before the bell and `period-swap 0.15s`
+after it.
+
+**The lesson:** an animation that begins from invisible is a contrast failure
+for as long as anything holds the timeline still, and "on mount" is not "at a
+bell" - the two coincide only in the demo.
+
+### 2026-09-03 — deleting the Day view's CSS took two live rules with it, and the reflow gate said so in a minute
+
+Nothing shipped; the gate is a blocking check and it blocked.
+
+The sweep deleted four stylesheet sections that nothing rendered. A selector
+scan before the cut had listed `.countdown__period`, `.schedchip`,
+`.override__schedule` and `#calendar-today` inside that range, and the scan
+was read as noise from neighbouring sections. It was not. Two live rules -
+`overflow-wrap: anywhere` on every element that renders a period name or a
+schedule name - had been written into the Day view's section in Phase 2 and
+Phase 4, because that is where the first such element lived at the time. The
+rules outlived the view; the sections' headings did not say so.
+
+Six reflow tests failed at 320 and 375px on the first run after the cut: a
+60-character unbroken name scrolled the page sideways in the countdown and in
+the calendar panel, which is the exact defect those rules were added for on
+the gate's first CI run. The rules are back, each beside the element it
+protects and with a comment that says what it survived.
+
+**The lesson:** a stylesheet section's heading is a claim about what is inside
+it, and the claim rots - rules get written where the first consumer is, and
+the consumer moves. Before deleting a section, grep its selectors against the
+components and treat every hit as a rule to move, not noise to explain away.
+The gate exists because this mistake is easy; it took under a minute to catch.
 
 ### 2026-09-03 — the retry made a double-request race reachable, and the stub could not see it
 
@@ -4664,3 +4714,36 @@ the schedule instead, this stays on this device. The cap is not lowered.
 **Tests:** unit 418 → 423 (the pruning helpers). Playwright 639 → 654 — five
 per engine: two for motion, one each for the warning, the pruning and the
 crossfade. The preferences byte-pins gained their fifth field.
+
+### 2026-09-03 16:20 — deciding the parked rows
+
+Five open-gap rows were not gaps. They were decisions deferred with a note
+saying "decide on purpose", and the purpose never came. Made now.
+
+**Deleted:** the Day view's chain — `formatDayCaption`, `daySummaryAt`,
+`DaySummary`, `blockPositionAt`, `BlockPosition` — with their eleven tests,
+and four CSS sections nothing rendered (the day summary, the period rows, the
+period strip, the disclosure) plus the three inert rules the 2026-09-02 row
+enumerated. The stylesheet is 14 sections instead of 21 and every one is
+live. `blockPositionAt` was the engine's only reader of `kind`, so `kind` is
+now purely descriptive; the model's comment says so and says where the
+semantic would come back.
+
+**Deferred, with triggers:** am/pm, Big mode surviving a reload, Big mode
+requesting fullscreen — three rows moved to the roadmap's Deferred table, each
+with the condition that would reopen it, which is the difference between a
+decision and a row.
+
+**And one catch, under Bugs found:** two live `overflow-wrap` rules had been
+written into the Day view's section and went with it; the reflow gate failed
+six tests at 320 and 375px on the first run and they are back beside the
+elements they protect.
+
+**And a second catch, unrelated to the sweep:** WebKit's a11y run found the
+crossfade from #39 starting at opacity 0 on first paint - under a paused clock
+WebKit never advanced it, and the period name had no contrast. The fade now
+runs only after a boundary has been seen. Its own Bugs found entry.
+
+**Tests:** unit 423 → 412 — eleven deleted with the code they proved. No new
+tests: nothing here added behaviour. Playwright unchanged at 654; the reflow
+and a11y gates ran on the trimmed stylesheet - and earned their keep twice.

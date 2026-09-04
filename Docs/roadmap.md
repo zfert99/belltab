@@ -112,7 +112,7 @@ An older note, kept for the same reason:
 > yet. The UI is rebuilt on the engine phase by phase from here, starting with
 > the countdown.
 
-**Testing:** 423 Vitest tests over the pure engine, the parser, the formatters,
+**Testing:** 412 Vitest tests over the pure engine, the parser, the formatters,
 the clock reader, the day resolver, the editor's draft model, the storage
 boundary, the library mutators, the share codec, the preferences boundary and
 the wake lock's and the bells' wording, plus **654 Playwright tests across
@@ -622,6 +622,9 @@ shipped before the origin ever served. See Deviations in `Docs/build-log.md`.
 | Badging API | Installed-PWA only, unsupported on Chrome Android | Broader support |
 | Clock-skew correction | Requires a server, which is a stated non-goal | Evidence that device clocks are wrong often enough to matter |
 | Temporal (`PlainTime`) | Not stable in Safari; a 20–44KB polyfill for a subtraction | Safari shipping it |
+| am/pm on the 12-hour clock | Matches the mockups; a school day is unambiguous without it, and the `<time>` element carries the 24-hour value for machines | A schedule that crosses noon ambiguously — an evening programme, say |
+| Big mode surviving a reload | It is component state on purpose: a mode you cannot see the way out of is worse than one you re-enter, and a projector is set up once per session by somebody at the machine | A room wanting a permanent display — which would be a preference, not a change to this state |
+| Big mode requesting fullscreen | It fills the viewport; the Fullscreen API would take the browser chrome too, but adds an exit path the app does not control (the browser's own Escape races the mode's) and deserves designing rather than adding | Somebody asking for it after using Big mode on a real projector |
 
 ## Open questions
 
