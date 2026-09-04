@@ -182,7 +182,7 @@ test.describe("the wake lock toggle", () => {
 
     await expect(toggle(page)).not.toBeChecked();
     await expect(toggle(page)).toBeEnabled();
-    await expect(readout(page)).toHaveText("The screen will dim and lock as it normally does.");
+    await expect(readout(page)).toHaveText("The screen will dim and lock as usual.");
 
     // The whole reason the default is off: nothing is asked for until somebody
     // asks for it. A lock acquired on load would be one nobody consented to.
@@ -196,7 +196,7 @@ test.describe("the wake lock toggle", () => {
 
     await toggle(page).check();
 
-    await expect(readout(page)).toHaveText("The screen is being kept awake.");
+    await expect(readout(page)).toHaveText("The screen is staying awake.");
     // "screen" and not the default: `request()` takes a type, and the wrong one
     // would still resolve on some engines while locking nothing.
     expect(await probe(page).requests()).toEqual(["screen"]);
@@ -207,12 +207,12 @@ test.describe("the wake lock toggle", () => {
     await openApp(page, MID_PERIOD, { preferences: storedPreferences(true) });
     await openSettings(page, "preferences");
 
-    await expect(readout(page)).toHaveText("The screen is being kept awake.");
+    await expect(readout(page)).toHaveText("The screen is staying awake.");
     expect(await probe(page).releases()).toBe(0);
 
     await toggle(page).uncheck();
 
-    await expect(readout(page)).toHaveText("The screen will dim and lock as it normally does.");
+    await expect(readout(page)).toHaveText("The screen will dim and lock as usual.");
     // The assertion that matters. A toggle that stops SAYING it holds a lock
     // while still holding one is the version of this bug that keeps a laptop
     // awake all night and reports nothing.
@@ -224,7 +224,7 @@ test.describe("the wake lock toggle", () => {
     await openApp(page, MID_PERIOD, { preferences: storedPreferences(true) });
     await openSettings(page, "preferences");
 
-    await expect(readout(page)).toHaveText("The screen is being kept awake.");
+    await expect(readout(page)).toHaveText("The screen is staying awake.");
 
     // What a real browser does on its own when the tab hides: it takes the lock
     // back and fires `release`. Nothing tells the page in advance, so a design
@@ -234,12 +234,12 @@ test.describe("the wake lock toggle", () => {
     await probe(page).drop();
 
     await expect(readout(page)).toHaveText(
-      "The screen will be kept awake when this tab is visible.",
+      "The screen will stay awake whenever this tab is visible.",
     );
 
     await probe(page).setVisibility("visible");
 
-    await expect(readout(page)).toHaveText("The screen is being kept awake.");
+    await expect(readout(page)).toHaveText("The screen is staying awake.");
     expect(await probe(page).requests()).toEqual(["screen", "screen"]);
   });
 
@@ -248,7 +248,7 @@ test.describe("the wake lock toggle", () => {
     await openApp(page, MID_PERIOD, { preferences: storedPreferences(true) });
     await openSettings(page, "preferences");
 
-    await expect(readout(page)).toHaveText("The screen is being kept awake.");
+    await expect(readout(page)).toHaveText("The screen is staying awake.");
 
     await probe(page).setVisibility("hidden");
     await probe(page).drop();
@@ -259,7 +259,7 @@ test.describe("the wake lock toggle", () => {
     await probe(page).setVisibility("hidden");
 
     await expect(readout(page)).toHaveText(
-      "The screen will be kept awake when this tab is visible.",
+      "The screen will stay awake whenever this tab is visible.",
     );
     expect(await probe(page).requests()).toEqual(["screen"]);
   });
@@ -275,7 +275,7 @@ test.describe("the wake lock toggle", () => {
     // but nothing on screen claims the lock was granted.
     await expect(toggle(page)).toBeChecked();
     await expect(readout(page)).toHaveText(
-      "This device refused to keep the screen awake. Battery saver is the usual reason; once that changes, a tap or a key press asks again.",
+      "Your device refused to keep the screen awake. Battery saver is the usual reason — once it’s off, tap or press any key and BellTab asks again.",
     );
   });
 
@@ -295,7 +295,7 @@ test.describe("the wake lock toggle", () => {
     await probe(page).setMode("grant");
     await page.keyboard.press("Shift");
 
-    await expect(readout(page)).toHaveText("The screen is being kept awake.");
+    await expect(readout(page)).toHaveText("The screen is staying awake.");
     expect(await probe(page).requests()).toEqual(["screen", "screen"]);
   });
 
@@ -320,7 +320,7 @@ test.describe("the wake lock toggle", () => {
     expect(await probe(page).requests()).toEqual(["screen"]);
 
     await probe(page).settle();
-    await expect(readout(page)).toHaveText("The screen is being kept awake.");
+    await expect(readout(page)).toHaveText("The screen is staying awake.");
 
     // And the one sentinel is the one released on the way out.
     await toggle(page).uncheck();
@@ -341,7 +341,7 @@ test.describe("the wake lock toggle", () => {
     await probe(page).setVisibility("hidden");
     await probe(page).drop();
     await expect(readout(page)).toHaveText(
-      "The screen will be kept awake when this tab is visible.",
+      "The screen will stay awake whenever this tab is visible.",
     );
     await expect(alert(page)).toHaveText("");
   });
@@ -356,7 +356,7 @@ test.describe("the wake lock toggle", () => {
 
     await expect(toggle(page)).toBeDisabled();
     await expect(toggle(page)).not.toBeChecked();
-    await expect(readout(page)).toHaveText("This browser cannot keep the screen awake.");
+    await expect(readout(page)).toHaveText("This browser can’t keep the screen awake.");
 
     // And nothing crashed on the way: the countdown behind the panel is still
     // the app's whole job, and an absent API must not take it down.
@@ -413,7 +413,7 @@ test.describe("the signpost from Big mode", () => {
     // never appears in - an assertion straight after openApp would pass
     // before hydration no matter what the condition said.
     await openSettings(page, "preferences");
-    await expect(readout(page)).toHaveText("The screen is being kept awake.");
+    await expect(readout(page)).toHaveText("The screen is staying awake.");
     await page.locator("#settings-toggle").click();
 
     await expect(page.locator("#view-big")).toBeVisible();
@@ -433,7 +433,7 @@ test.describe("the wake lock preference", () => {
     await openSettings(page, "preferences");
 
     await toggle(page).check();
-    await expect(readout(page)).toHaveText("The screen is being kept awake.");
+    await expect(readout(page)).toHaveText("The screen is staying awake.");
 
     const stored = await page.evaluate(
       (key) => window.localStorage.getItem(key),

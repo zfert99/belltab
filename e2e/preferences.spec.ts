@@ -470,7 +470,7 @@ test.describe("measuring the offset", () => {
     await expect(page.locator("#bell-offset-readout")).toContainText(
       "12 seconds behind this device’s clock",
     );
-    await expect(page.locator("#bell-offset-error")).toContainText("Measured");
+    await expect(page.locator("#bell-offset-error")).toContainText("Done");
 
     // And it is stored, like a typed offset would be.
     expect(

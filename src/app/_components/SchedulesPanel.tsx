@@ -109,7 +109,7 @@ export function SchedulesPanel({
     if (schedule === null) return;
 
     if (!supportsModalDialog()) {
-      if (window.confirm(`Delete "${schedule.name}"? This cannot be undone.`)) applyDelete();
+      if (window.confirm(`Delete “${schedule.name}”? This can’t be undone.`)) applyDelete();
       return;
     }
 
@@ -122,8 +122,8 @@ export function SchedulesPanel({
         Schedules
       </h2>
       <p className="panel__note">
-        Periods are kept in start order and cannot overlap. Every valid change is saved to this
-        browser as you type; the countdown keeps running on the last version that made sense.
+        Periods stay in start order and can&rsquo;t overlap. Every valid change saves to this
+        browser as you type, and the countdown keeps running on the last version that made sense.
       </p>
 
       <div className="schedpicker">
@@ -206,8 +206,8 @@ export function SchedulesPanel({
         <div className="sharelink" id="share-link">
           <p className="panel__note" id="share-link-status">
             {link.copied
-              ? "Link copied. It carries this schedule and nothing else — not your calendar, and not the rest of your library."
-              : "This browser would not let BellTab reach the clipboard. Copy the link by hand:"}
+              ? "Link copied. It carries this schedule only — not your calendar, and not your other schedules."
+              : "This browser wouldn’t let BellTab use the clipboard. Copy the link by hand:"}
           </p>
           {/*
             Always rendered, not only on failure. A user who was told "copied"
@@ -224,7 +224,7 @@ export function SchedulesPanel({
       )}
 
       {schedule === null || index === null ? (
-        <p className="panel__note">There are no schedules. New schedule above starts one.</p>
+        <p className="panel__note">No schedules yet. Use New schedule above to start one.</p>
       ) : (
         /*
           Keyed on position AND identity. Position alone would keep the same
@@ -246,12 +246,12 @@ export function SchedulesPanel({
         open={confirming}
         title="Delete this schedule?"
         body={
-          `"${schedule?.name ?? ""}" and its periods will be removed from this browser, and any day pointing at it falls back to no school.` +
+          `This removes “${schedule?.name ?? ""}” and its periods from this browser. Any day that used it will have no school.` +
           // The case the generic sentence hid: this is the schedule the
           // countdown is showing RIGHT NOW, and it goes blank the moment the
           // dialog closes. That information sat one panel away.
-          (runningToday ? " This is the schedule running today - the countdown will go blank." : "") +
-          " This cannot be undone."
+          (runningToday ? " It’s the schedule running today — the countdown will go blank." : "") +
+          " This can’t be undone."
         }
         confirmLabel="Delete"
         onCancel={() => setConfirming(false)}

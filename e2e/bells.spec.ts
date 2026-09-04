@@ -286,7 +286,7 @@ test.describe("the chime", () => {
     await expect(chime(page)).toBeDisabled();
     await expect(chime(page)).not.toBeChecked();
     await expect(page.locator("#chime-test")).toBeDisabled();
-    await expect(chimeStatus(page)).toHaveText("This browser cannot play sound.");
+    await expect(chimeStatus(page)).toHaveText("This browser can’t play sound.");
   });
 });
 
@@ -301,7 +301,7 @@ test.describe("the notification", () => {
     await expect(notify(page)).toBeChecked();
     expect(await probe(page).asks()).toBe(1);
     await expect(notifyStatus(page)).toHaveText(
-      "A notification will appear when a period starts or ends while this tab is in the background.",
+      "You’ll get a notification when a period starts or ends while this tab is in the background.",
     );
 
     await probe(page).setVisibility("hidden");
@@ -350,9 +350,9 @@ test.describe("the notification", () => {
     await expect(notify(page)).not.toBeChecked();
     await expect(notify(page)).toBeDisabled();
     await expect(notifyStatus(page)).toHaveText(
-      "The browser has blocked notifications for this site. Allow them in the browser's site settings to use this.",
+      "Notifications are blocked for this site. To turn them on, allow them in your browser’s site settings.",
     );
-    await expect(page.locator("#notify-alert")).toHaveText(/blocked notifications/);
+    await expect(page.locator("#notify-alert")).toHaveText(/blocked for this site/);
   });
 
   test("an already-denied permission is reported before the box is ever ticked", async ({
@@ -376,7 +376,7 @@ test.describe("the notification", () => {
     await openSettings(page, "preferences");
 
     await expect(notifyStatus(page)).toHaveText(
-      "The browser needs permission again. Turn this off and on to be asked.",
+      "Your browser needs to ask permission again. Turn this off and on to get the prompt.",
     );
 
     // And no notification is attempted on a permission that is not granted.
@@ -395,6 +395,6 @@ test.describe("the notification", () => {
 
     await expect(notify(page)).toBeDisabled();
     await expect(notify(page)).not.toBeChecked();
-    await expect(notifyStatus(page)).toHaveText("This browser cannot show notifications.");
+    await expect(notifyStatus(page)).toHaveText("This browser can’t show notifications.");
   });
 });

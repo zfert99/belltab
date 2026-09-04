@@ -72,7 +72,7 @@ export function BackupPanel({ library, save, now, headingRef }: BackupPanelProps
     }
 
     if (!supportsModalDialog()) {
-      if (window.confirm(`Replace all ${scheduleCount} schedules and the calendar? This cannot be undone.`)) {
+      if (window.confirm(`Replace all ${scheduleCount} schedules and the calendar? This can’t be undone.`)) {
         save(replaceLibrary(library, parsed.value));
       }
       return;
@@ -93,7 +93,7 @@ export function BackupPanel({ library, save, now, headingRef }: BackupPanelProps
       </h2>
       <p className="panel__note">
         Everything BellTab knows lives in this browser. Export it to a file you keep, and import
-        that file to put it back — on this machine or another one.
+        that file to bring it back &mdash; here, or on another device.
       </p>
 
       <section className="calsection">
@@ -112,8 +112,8 @@ export function BackupPanel({ library, save, now, headingRef }: BackupPanelProps
       <section className="calsection">
         <h3 className="calsection__title">Import</h3>
         <p className="panel__note">
-          Importing <strong>replaces everything</strong> — every schedule and the whole calendar.
-          Export first if you want to keep what is here.
+          Importing <strong>replaces everything</strong> &mdash; every schedule and the whole
+          calendar. Export first if you want to keep what&rsquo;s here.
         </p>
 
         {/*
@@ -152,7 +152,7 @@ export function BackupPanel({ library, save, now, headingRef }: BackupPanelProps
       <ConfirmDialog
         open={pending !== null}
         title="Replace everything?"
-        body={`This backup holds ${pending?.schedules.length ?? 0} schedules. Importing it discards the ${scheduleCount} currently in this browser, and the whole calendar with them. This cannot be undone.`}
+        body={`This backup holds ${pending?.schedules.length ?? 0} schedules. Importing it replaces the ${scheduleCount} in this browser, and the whole calendar with them. This can’t be undone.`}
         confirmLabel="Import"
         onCancel={() => setPending(null)}
         onConfirm={applyImport}

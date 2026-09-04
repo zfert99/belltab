@@ -349,6 +349,7 @@ development too, so the bare origin is a 404 exactly as it is in production.
 | 2026-09-03 | An empty state may carry a quieter second route, as a link-weight button under the pill | "No school today" has two honest answers — a one-off exception, or a weekday that runs school — and the pill can only be one of them. A second pill would make the screen a choice; a sentence-weight link beneath it makes it an escape hatch. It opens the same panel with focus placed by id on the section that answers it, through the same `openSettingsFrom` the signpost uses. |
 | 2026-09-04 | The calibration button measures against the NEAREST bell and refuses beyond the cap | Every period's start and end is a bell, so the nearest one is the only sensible reading of "the bell just rang". Beyond ±300 seconds the press is a mistake, not a measurement — 09:30 is twenty-five minutes from either bell — and storing five minutes of "correction" would be the exact confusion the large-offset sentence warns about. The refusal goes through the offset's existing polite region: one region, two reasons the thing you just did had no effect. |
 | 2026-09-04 | `calibrateOffset` takes the cap as an argument | The first draft imported `BELL_OFFSET_LIMIT_SEC` from `src/app/_lib/preferences` into `src/lib/`, which is the engine reaching into the app. A parameter keeps the layer rule intact and the function testable with any cap. |
+| 2026-09-04 | Settings copy speaks to a broader audience: shorter sentences, second person, contractions, plain words | The panels had been written in the build log's own voice — "honoured", "judders", "falls back to no school" — which is right for a decision record and wrong for a teacher setting up a projector. Rewritten to say the same true things more simply: every fact the sentences carried (only while the tab is open; the offset stays on this device; importing replaces everything) is still there. The status sentences keep the words the tests and the code key on — "refused", "Battery saver", "asks again", "site settings", "background" — so the wording could change without the contract changing. |
 
 ## Deviations from the plan docs
 
@@ -4806,3 +4807,28 @@ cannot, by spec, and that half stays deferred.
 **Tests:** unit 412 → 422 (nine for `calibrateOffset`, one for
 `scheduleForToday`). Playwright 666 → 675 — three per engine for the aid: a
 measured press, a refused press, and a day with nothing to measure against.
+
+### 2026-09-04 11:00 — the copy pass
+
+Asked for: settings copy that is friendlier and simpler for a broader
+audience, still useful. Done across the five panels and the two status
+modules (`describeWakeLock`, `describeChime`, `describeNotify`), the delete
+and import confirmations, and the share-link status.
+
+The rule applied: same facts, fewer words, second person, contractions, no
+jargon. "The OS's own reduce-motion setting is already honoured. This cuts
+animation here regardless of it — for a shared machine, or a projector that
+judders" became "Turns off animations here, even if your device allows them.
+Handy on a shared computer, or a projector that stutters." "A dated exception
+wins. Failing that, the weekday default decides. Failing that, there is no
+school" became "A dated exception comes first. Otherwise the weekday default
+applies. If neither says anything, there's no school that day."
+
+One drift caught on the way: the notification alert region hardcoded a copy
+of the blocked sentence — the same defect the wake lock's alert had in
+review. It now renders `describeNotify` like the readout does.
+
+**Tests:** counts unchanged (422 unit, 675 Playwright). Twenty-odd pinned
+sentences updated in the specs; the unit tests on the wording pin the words
+that matter ("refused", "asks again", "site settings", "background") and all
+still hold.
