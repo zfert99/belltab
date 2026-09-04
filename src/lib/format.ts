@@ -198,3 +198,17 @@ export function boundaryKey(state: DayState): string {
       return state.phase;
   }
 }
+
+/**
+ * A progress fraction as a whole percent for a `width` style.
+ *
+ * Rounding is not cosmetic: every fill in the app carries a 300ms width
+ * transition, and an unrounded value writes a new inline style every second
+ * and animates that transition into a permanent crawl. A whole percent changes
+ * at most once every few seconds, which is what the transition was designed
+ * for. Lived in NowView until the Day view and the strip each re-implemented
+ * it unrounded - caught in review, 2026-09-04.
+ */
+export function percentOf(progress: number): number {
+  return Math.round(Math.min(1, Math.max(0, progress)) * 100);
+}

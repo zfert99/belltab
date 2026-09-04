@@ -121,6 +121,23 @@ test.describe("the web app manifest", () => {
     expect(await response.text()).toContain("<loc>https://biscuitlab.net/bell</loc>");
   });
 
+  test("serves the notification worker at /bell/sw.js, as script, with no fetch handler", async ({
+    page,
+  }) => {
+    await openApp(page);
+
+    // The worker's whole contract is in the file: registered under /bell/,
+    // served as JavaScript, and - the promise the 2026-09-02 decision rests on
+    // - no fetch handler, so it can never serve stale HTML after a deploy.
+    const response = await page.request.get(`${BASE_PATH}/sw.js`);
+    expect(response.status()).toBe(200);
+    expect(response.headers()["content-type"]).toContain("javascript");
+
+    const source = await response.text();
+    expect(source).toContain("notificationclick");
+    expect(source).not.toMatch(/addEventListener\(\s*["']fetch["']/);
+  });
+
   test("ships a favicon and an apple-touch-icon that serve", async ({ page }) => {
     await openApp(page);
 

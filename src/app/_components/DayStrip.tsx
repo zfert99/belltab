@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { blockPositionAt, daySummaryAt, periodStatusAt } from "@/lib/engine";
-import { formatDayCaption, formatPeriodLabel } from "@/lib/format";
+import { formatDayCaption, formatPeriodLabel, percentOf } from "@/lib/format";
 import { PERIOD_KINDS, type Period, type ValidSchedule } from "@/lib/schedule";
 
 /**
@@ -28,9 +28,11 @@ import { PERIOD_KINDS, type Period, type ValidSchedule } from "@/lib/schedule";
 export function DayStrip({ schedule, nowSec }: { schedule: ValidSchedule; nowSec: number }) {
   /**
    * Hovering a square borrows the caption instead of opening a tooltip: no
-   * positioning code, no new tab stops, and it works on a touch tap. Pointer-
-   * only by design - the cells are not focusable, and the Day view carries
-   * the same labels for everyone else.
+   * positioning code, no new tab stops. MOUSE-only, and honestly so: a touch
+   * pointer is transient - enter, up and leave arrive in one tap - so on a
+   * phone the caption would flash and revert before it could be read. The
+   * cells are not focusable either. The Day view carries the same labels for
+   * everyone who is not pointing with a mouse.
    */
   const [hovered, setHovered] = useState<Period | null>(null);
 
@@ -46,7 +48,7 @@ export function DayStrip({ schedule, nowSec }: { schedule: ValidSchedule; nowSec
           const isLink = period.kind === PERIOD_KINDS.PASSING;
           const elapsed = nowSec - period.startMin * 60;
           const length = (period.endMin - period.startMin) * 60;
-          const percent = status === "past" ? 100 : status === "future" ? 0 : (elapsed / length) * 100;
+          const percent = status === "past" ? 100 : status === "future" ? 0 : percentOf(elapsed / length);
 
           return (
             <span
@@ -55,7 +57,7 @@ export function DayStrip({ schedule, nowSec }: { schedule: ValidSchedule; nowSec
               onPointerEnter={isLink ? undefined : () => setHovered(period)}
               onPointerLeave={isLink ? undefined : () => setHovered(null)}
             >
-              <span className="strip__fill" style={{ width: `${percent.toFixed(2)}%` }} />
+              <span className="strip__fill" style={{ width: `${percent}%` }} />
             </span>
           );
         })}

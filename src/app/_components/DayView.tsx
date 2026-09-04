@@ -2,7 +2,13 @@
 
 import { useEffect, useRef, useState } from "react";
 import { blockPositionAt, daySummaryAt, periodStatusAt } from "@/lib/engine";
-import { formatClock, formatDayCaption, formatDuration, formatRemaining } from "@/lib/format";
+import {
+  formatClock,
+  formatDayCaption,
+  formatDuration,
+  formatRemaining,
+  percentOf,
+} from "@/lib/format";
 import type { ValidSchedule } from "@/lib/schedule";
 
 /**
@@ -84,7 +90,7 @@ export function DayView({ schedule, nowSec }: { schedule: ValidSchedule; nowSec:
       </div>
 
       <div className="progress" aria-hidden="true">
-        <div className="progress__fill" style={{ width: `${(day.progress * 100).toFixed(2)}%` }} />
+        <div className="progress__fill" style={{ width: `${percentOf(day.progress)}%` }} />
       </div>
 
       {pastCount > 0 && !dayOver && (
@@ -134,10 +140,7 @@ export function DayView({ schedule, nowSec }: { schedule: ValidSchedule; nowSec:
               </div>
               {status === "current" && (
                 <div className="period__track" aria-hidden="true">
-                  <div
-                    className="period__fill"
-                    style={{ width: `${((elapsed / length) * 100).toFixed(2)}%` }}
-                  />
+                  <div className="period__fill" style={{ width: `${percentOf(elapsed / length)}%` }} />
                 </div>
               )}
             </li>

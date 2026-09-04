@@ -3,7 +3,7 @@
 import { useState } from "react";
 
 import type { DayState } from "@/lib/engine";
-import { boundaryKey, formatClock, splitCountdown } from "@/lib/format";
+import { boundaryKey, formatClock, percentOf, splitCountdown } from "@/lib/format";
 import type { TodayView } from "@/app/_lib/today";
 import type { PanelId } from "@/app/_components/SettingsView";
 import { DayStrip } from "@/app/_components/DayStrip";
@@ -287,14 +287,3 @@ function nextLineFor(state: DayState): string {
   return "Last period of the day";
 }
 
-/**
- * A fraction to a bar width, rounded to a whole percent.
- *
- * Rounding is not cosmetic: an unrounded value writes a new inline style string
- * every second and animates a 300ms width transition into a permanent crawl.
- * A whole percent changes at most once every few seconds, which is what the
- * transition was designed for.
- */
-function percentOf(progress: number): number {
-  return Math.round(Math.min(1, Math.max(0, progress)) * 100);
-}
