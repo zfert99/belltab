@@ -65,7 +65,7 @@ test.describe("a link out and a link in", () => {
     await recipient.close();
   });
 
-  test("adding a shared schedule appends it and changes nothing else", async ({ page }) => {
+  test("adding a shared schedule appends it and makes it today's", async ({ page }) => {
     await openApp(page, MID_PERIOD);
     await openSettings(page, "schedules");
 
@@ -78,14 +78,22 @@ test.describe("a link out and a link in", () => {
     await expect(page.locator("#share-offer")).toBeVisible();
     await page.locator("#share-add").click();
 
-    // It lands in the picker, which the offer opens on the user's behalf.
-    await expect(page.locator("#panel-schedules")).toBeVisible();
+    // The countdown is now running it - the reason somebody clicked a link to
+    // a schedule was to see that schedule, and until 2026-09-04 they saw the
+    // regular day instead, with the new one filed away in the picker.
+    await expect(page.locator("#share-offer")).toHaveCount(0);
+    await expect(page.locator("#schedule-name")).toHaveText("Sent to you");
+
+    await openSettings(page, "schedules");
     const chips = page.locator("#schedule-list .schedchip");
     await expect(chips).toHaveCount(5);
     await expect(chips.last()).toHaveText("Sent to you");
 
-    // And the calendar is untouched: a schedule somebody sent runs on no day.
+    // Today's, as a dated exception - the weekday default is untouched, so
+    // next Wednesday is still the regular day.
     await page.locator("#tab-calendar").click();
+    await expect(page.locator("#calendar-today")).toContainText("Sent to you");
+    await expect(page.locator("#overrides li")).toContainText("2026-09-02");
     await expect(page.locator("#weekday-map select").nth(3)).toHaveValue("regular");
   });
 

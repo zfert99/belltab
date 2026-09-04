@@ -190,9 +190,18 @@ function ScheduleFocus({
         the numbers stated in text beside it over a `<progress>` carrying a
         name that would be read out on every change.
       */}
-      <div className="progress" aria-hidden="true">
-        <div className="progress__fill" style={{ width: `${percentOf(state.progress)}%` }} />
-      </div>
+      {/*
+        The period's progress bar - or, with the blocks preference on, the day's
+        strip in its place: the same bar broken into the day's blocks, the
+        running one filling in, so the two never show at once.
+      */}
+      {strip !== null ? (
+        <DayStrip schedule={strip.schedule} nowSec={strip.nowSec} />
+      ) : (
+        <div className="progress" aria-hidden="true">
+          <div className="progress__fill" style={{ width: `${percentOf(state.progress)}%` }} />
+        </div>
+      )}
 
       <div className="bounds">
         {state.phase === "during" && (
@@ -203,8 +212,6 @@ function ScheduleFocus({
         )}
         <p className="bounds__next">{nextLineFor(state)}</p>
       </div>
-
-      {strip !== null && <DayStrip schedule={strip.schedule} nowSec={strip.nowSec} />}
     </>
   );
 }

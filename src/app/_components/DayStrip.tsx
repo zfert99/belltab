@@ -9,11 +9,12 @@ import { PERIOD_KINDS, type Period, type ValidSchedule } from "@/lib/schedule";
  * The day as a row of blocks under the countdown: one square per real block,
  * a thin link per passing period, each filling as its time passes.
  *
- * Equal squares deliberately misrepresent duration. A five-minute passing and
- * a fifty-five-minute class are not the same size in reality, but the strip
- * answers "how many left", not "how long left" - the big number above it
- * already answers that - and proportional cells would be an accurate timeline
- * in which every passing period is an unreadable sliver.
+ * It stands IN PLACE of the period progress bar, edge to edge, and each block
+ * is as wide as it is long: the strip is the day's timeline with the running
+ * block filling in. The retired build drew equal squares instead, arguing that
+ * a proportional strip made every passing period an unreadable sliver -
+ * which is true, and is why a passing period is drawn as a dash between the
+ * blocks it joins rather than as a cell of its own.
  *
  * `aria-hidden`, because it is a redundant visual rendering: the caption
  * beneath states the same position in words ("2 of 7"), and the Day view is
@@ -54,6 +55,9 @@ export function DayStrip({ schedule, nowSec }: { schedule: ValidSchedule; nowSec
             <span
               key={`${period.startMin}-${period.endMin}`}
               className={`strip__cell strip__cell--${isLink ? "link" : "block"} strip__cell--${status}`}
+              // Blocks grow in proportion to their length, so the strip reads
+              // as the day's timeline; a dash is a dash whatever it joins.
+              style={isLink ? undefined : { flexGrow: period.endMin - period.startMin }}
               onPointerEnter={isLink ? undefined : () => setHovered(period)}
               onPointerLeave={isLink ? undefined : () => setHovered(null)}
             >
