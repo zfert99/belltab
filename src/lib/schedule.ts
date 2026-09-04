@@ -21,13 +21,13 @@ const hm = (hours: number, minutes: number): number => hours * 60 + minutes;
 /**
  * What a period *is*, as opposed to what it is called.
  *
- * Descriptive, and nothing more: a category the schedule's author gives each
- * block, shown in the editor and carried in share links and backups. The
- * engine no longer reads it. It once did - the retired Day view's "3 of 7"
- * counter skipped Passing periods as the seams between blocks - and that
- * counter was deleted on 2026-09-03 along with the rest of that view's
- * residue, so "is this Passing?" is a question nothing asks any more. If a
- * strip or a counter is ever rebuilt, this is where the semantic would return.
+ * The Day view's "3 of 7" counter needs to know which blocks are the day's
+ * real units and which are the seams between them, and it cannot learn that
+ * from the label - a school might call passing "Transition", or name a class
+ * "Passing Period Prep". `kind` is the schedule's own answer, set by whoever
+ * authored it, and "is this Passing?" is the one question the engine asks of
+ * it (`blockPositionAt`). The counter went with the retired Day view's residue
+ * on 2026-09-03 and came back with the rebuilt view on 2026-09-04.
  *
  * **Free text since 2026-09-03**, with these as suggestions rather than the
  * whole menu. A closed list of three could not say "Planning", "Advisory" or

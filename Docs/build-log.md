@@ -350,6 +350,9 @@ development too, so the bare origin is a 404 exactly as it is in production.
 | 2026-09-04 | The calibration button measures against the NEAREST bell and refuses beyond the cap | Every period's start and end is a bell, so the nearest one is the only sensible reading of "the bell just rang". Beyond ±300 seconds the press is a mistake, not a measurement — 09:30 is twenty-five minutes from either bell — and storing five minutes of "correction" would be the exact confusion the large-offset sentence warns about. The refusal goes through the offset's existing polite region: one region, two reasons the thing you just did had no effect. |
 | 2026-09-04 | `calibrateOffset` takes the cap as an argument | The first draft imported `BELL_OFFSET_LIMIT_SEC` from `src/app/_lib/preferences` into `src/lib/`, which is the engine reaching into the app. A parameter keeps the layer rule intact and the function testable with any cap. |
 | 2026-09-04 | Settings copy speaks to a broader audience: shorter sentences, second person, contractions, plain words | The panels had been written in the build log's own voice — "honoured", "judders", "falls back to no school" — which is right for a decision record and wrong for a teacher setting up a projector. Rewritten to say the same true things more simply: every fact the sentences carried (only while the tab is open; the offset stays on this device; importing replaces everything) is still there. The status sentences keep the words the tests and the code key on — "refused", "Battery saver", "asks again", "site settings", "background" — so the wording could change without the contract changing. |
+| 2026-09-04 | The Day view's summary is one caption line, not the retired build's big number | The retired build put a second large countdown at the top of the list, with its units and a label beside it. The Now view already owns the big number, and a second one a tap away is two clocks to disagree. `formatDayCaption` — "2 of 7 · 5h 00m until dismissal" — carries the unit in words so "5h 00m" cannot be read as 5:00, and says the one thing the countdown does not: how far through the day this is. |
+| 2026-09-04 | Now/Day is a pressed pair; Big mode stays one button in and one out | The 2026-09-02 decision refused a two-state switcher whose second state was "normal". Day is a real second destination, so the pair earns its `aria-pressed`. Big mode is still a MODE over the countdown - entering it shows the Now view whatever the pair says, and leaving it comes back to whichever screen was up. |
+| 2026-09-04 | Finished periods collapse by default, and the collapse is off once the day is over | So the running row sits at the top of the list, which is where a glance lands. The retired build did the same. A finished day with every row behind a toggle would be a list of nothing, so after the last bell every row shows and reads "done". |
 
 ## Deviations from the plan docs
 
@@ -585,6 +588,20 @@ per-deployment URLs locked, origin public, canonical carrying the duplicate
 address. Owed and delivered in the same change: the canonical shipped in PR #34
 before the origin ever served.
 
+### The Day view was owed by the port and never delivered — rebuilt 2026-09-04
+
+The 2026-08-27 retirement note said the plain build's behaviour — "three views,
+the editor, the calendar, preferences" — was owed back by Phases 2–4. Two of
+the three views came back; the Day view did not, because no phase in the
+roadmap named it and the roadmap is what the phases were built from. On
+2026-09-01 its parked tests were deleted "because no phase named them", which
+turned an unkept promise into a non-decision, and on 2026-09-03 the residue
+went with it as dead code. The user asked where it had gone; this is the
+answer, and the view is back as Phase 8. The lesson is one the log had already
+half-recorded on 2026-09-02 about Big mode: **a parked block has to name the
+phase that revives it, AND the phase has to name the block back** — and when
+neither does, the block is not "deferred", it is lost.
+
 ## Open gaps
 
 | Opened | Item | Notes |
@@ -735,6 +752,29 @@ that this change repeated anyway: **when a component lives inside a capped
 container, the viewport is the wrong thing to measure.** The old note said the
 settings layout "was sized for the editor's width"; it was, and then the editor
 grew, and only a query on the actual width could have followed it.
+
+### 2026-09-04 — the Day view's CSS carried two contrast failures under a comment that said it did not
+
+Found by the axe sweep the moment the rebuilt Day view joined it - the first
+time this list had ever been scanned, because the plain build predated the
+gate.
+
+Two rules, both restored verbatim from the retired build, both wrong: past
+rows dimmed with `opacity: 0.55` under a comment reading "never below the
+4.5:1 contrast floor" (0.55 of `--fg-soft` on the card is well under), and the
+running row's time painted `--accent`, which is butterscotch-dark and measures
+under 3:1 as text on the card - fine for the progress fill it was chosen for,
+not for a number. Seven and one violations respectively, on every engine.
+
+The fixes are token-shaped: past rows dim by colour (`--fg-soft`, 5.7:1) and
+weight, not opacity; the running row's time goes bold in ink and the accent
+stays on the track's fill. Both comments now say what the old ones got wrong.
+
+**The lesson:** a comment asserting a contrast ratio is a measurement claim,
+and it was never measured. The retired build's CSS was carried over on the
+strength of its comments twice today - the wrap rules that turned out to be
+live, and these that turned out to be wrong - and in both cases a gate, not a
+reader, was what caught it. Restored code is new code.
 
 ### 2026-09-03 — the crossfade started at opacity 0 on first paint, and WebKit's axe read a period name with no contrast
 
@@ -4832,3 +4872,47 @@ review. It now renders `describeNotify` like the readout does.
 sentences updated in the specs; the unit tests on the wording pin the words
 that matter ("refused", "asks again", "site settings", "background") and all
 still hold.
+
+### 2026-09-04 13:20 — Phase 8: the Day view, back
+
+"What happened to the full day view?" The honest trail is under Deviations:
+built in the plain build, retired with a note that it was owed, named by no
+phase, its tests deleted for that reason and its residue deleted as dead code
+the day before yesterday - by me, treating an unkept promise as a decision.
+The user wanted it back. It is back, as a phase of its own.
+
+**What it is.** The whole schedule as an `<ol>` under a one-line summary -
+"2 of 7 · 5h 00m until dismissal" - and the day's progress bar. Each row
+carries its start time, its name and one of three asides: "55m" for what is
+coming, "done" for what is over, and for the running row its own remaining
+time spelled out ("35m 00s", because a bare colon form beneath "1h" reads as
+one minute twenty) with a progress track. The running row is
+`aria-current="time"` and scrolls into view at a bell and on entry, never on
+a tick, jumping rather than gliding under either reduced-motion path.
+Finished periods collapse behind "2 earlier periods" (`aria-expanded`) so the
+running row sits at the top; the collapse is off once the day is over.
+
+**What came back from git.** `daySummaryAt`, `blockPositionAt` and
+`formatDayCaption` with their tests, restored from the commit before #40 -
+with `kind`'s one engine meaning ("Passing is a seam") restored alongside and
+the model's comment rewritten a second time in two days. The period-row and
+disclosure CSS came back too; the retired summary trio did not, because the
+rebuilt summary is one caption (Decisions has the argument), and the strip
+stayed deleted.
+
+**What the gates found, again.** The first axe sweep ever to scan this list
+failed it twice: past rows dimmed with `opacity: 0.55` under a comment
+claiming that stayed above 4.5:1, and the running row's time painted in the
+accent, which is under 3:1 as text. Both restored verbatim from the retired
+build on the strength of their comments; both under Bugs found. Restored
+code is new code.
+
+**The switcher.** Now and Day are a pressed pair beside Big mode; the
+2026-09-02 decision that refused a two-state switcher stands, because it
+refused one whose second state was "normal", and Day is a real destination.
+Big mode stays a mode over the countdown and returns to whichever screen was
+up.
+
+**Tests:** unit 422 → 436 (the restored fourteen). Playwright 675 → 702 -
+eight Day view tests and one axe journey per engine, and the reflow gate now
+walks Now, Day (past rows shown) and Big at every width.

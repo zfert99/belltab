@@ -104,6 +104,17 @@ test.describe("the countdown", () => {
     });
   }
 
+  test("has no serious violations (the Day view)", async ({ page }) => {
+    // Eleven rows, one `aria-current="time"`, a disclosure with
+    // `aria-expanded`, and a decorative track - the list's whole accessible
+    // contract, scanned in one pass with the past rows revealed.
+    await openApp(page, MID_PERIOD);
+    await page.locator("#view-day").click();
+    await expect(page.locator("#day-view")).toBeVisible();
+    await page.locator("#past-toggle").click();
+    await expectNoSeriousViolations(page, "the Day view");
+  });
+
   test("has none on the onboarding screen either", async ({ page }) => {
     await openApp(page, MID_PERIOD, {
       storage: '{"schedules":[],"calendar":{"weekdays":[],"overrides":[]}}',

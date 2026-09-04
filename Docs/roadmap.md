@@ -112,10 +112,10 @@ An older note, kept for the same reason:
 > yet. The UI is rebuilt on the engine phase by phase from here, starting with
 > the countdown.
 
-**Testing:** 422 Vitest tests over the pure engine, the parser, the formatters,
+**Testing:** 436 Vitest tests over the pure engine, the parser, the formatters,
 the clock reader, the day resolver, the editor's draft model, the storage
 boundary, the library mutators, the share codec, the preferences boundary and
-the wake lock's and the bells' wording, plus **675 Playwright tests across
+the wake lock's and the bells' wording, plus **702 Playwright tests across
 three engines** —
 Chrome, WebKit and Firefox — **none of them parked**, which is true for the first
 time in the project. The last parked block was Big mode's, and Phase 6 built it.
@@ -179,6 +179,7 @@ retires it, since a browser cannot load a `.ts` module directly.
 | **5** | Sharing — versioned hash encoding, export/import | ⚙️ | ✅ Done |
 | **6** | Comfort — theme, bell offset, Big mode, wake lock, bells, PWA | 🎨 | ✅ Done |
 | **7** | Cutover — hub rewrite, origin host, project card, sitemap | 🔀 | ✅ Done |
+| **8** | The Day view — the whole day as a list, owed since the port | 🎨 | ✅ Done |
 
 ---
 
@@ -574,6 +575,36 @@ tab. See **Bugs found** in `Docs/build-log.md`.
 
 **Gate for part 2b, kept throughout:** nothing in it promises background
 behaviour the web cannot deliver.
+
+## Phase 8 — The Day view 🎨
+
+The one piece of the plain build that never crossed the port. Built there on
+2026-08-26, retired with it on 2026-08-27 under a note that it was "owed back
+by Phases 2–4", named by no phase, its parked tests deleted on 2026-09-01 and
+its residue on 2026-09-03 — and rebuilt on 2026-09-04 when the user asked
+where it went. See **Deviations** in `Docs/build-log.md`.
+
+- ✅ The whole schedule as an `<ol>`: every period with its start time, its
+  length, "done" once over, and — on the running row — its own remaining time
+  spelled out ("35m 00s", because the rows around it read "55m" and "1h") with
+  a progress track. `aria-current="time"` on that row; no live region.
+- ✅ A one-line summary, "2 of 7 · 5h 00m until dismissal", from the restored
+  `daySummaryAt`, `blockPositionAt` and `formatDayCaption`. `kind` gets its one
+  engine meaning back: Passing is a seam, not a block.
+- ✅ Finished periods collapse behind a disclosure ("2 earlier periods",
+  `aria-expanded`) so the running row sits at the top; the collapse is off
+  once the day is over.
+- ✅ The running row scrolls into view at a bell and on entry, never on a
+  tick, and jumps rather than glides under either reduced-motion path.
+- ✅ A real Now/Day switcher — the pressed pair the 2026-09-02 decision said a
+  switcher needs before it earns one — beside Big mode, which stays a mode
+  over the countdown and comes back to whichever screen was up.
+- ✅ Recompute, never decrement: a bell moves the running row, the caption and
+  the disclosure count on the next paint after a `visibilitychange`.
+
+**Gate: met.** `e2e/day-view.spec.ts` on three engines; the reflow gate runs
+the Day view (past rows shown) at all five widths; the axe sweep scans it with
+the disclosure open; and the live-region enumeration proves it adds none.
 
 ## Phase 7 — Cutover 🔀
 

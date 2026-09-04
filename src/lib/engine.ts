@@ -1,4 +1,4 @@
-import type { Period, ValidSchedule } from "./schedule";
+import { PERIOD_KINDS, type Period, type ValidSchedule } from "./schedule";
 
 /**
  * The schedule engine: what is true at a given moment.
@@ -36,7 +36,20 @@ export type DayState =
   | { phase: "gap"; current: null; next: Period; remainingSec: number; progress: number }
   | { phase: "after"; current: null; next: null; remainingSec: number; progress: number };
 
+/** The whole day as one bar. No `current`/`next` - it is not asking that question. */
+export interface DaySummary {
+  phase: "empty" | "before" | "during" | "after";
+  remainingSec: number;
+  progress: number;
+}
+
 export type PeriodStatus = "past" | "current" | "future";
+
+/** "3 of 7" - which countable block of the day this is. */
+export interface BlockPosition {
+  index: number;
+  total: number;
+}
 
 /**
  * Where the school day stands at a given moment.
@@ -109,6 +122,35 @@ export function stateAt(schedule: ValidSchedule, nowSec: number): DayState {
 
 
 /**
+ * The whole day as one bar: first bell to last bell, gaps included.
+ *
+ * Kept separate from stateAt rather than bolted onto its return value, because
+ * the two answer different questions and the Day view needs this without
+ * caring which period is running. Deleted on 2026-09-03 with the retired Day
+ * view's residue; restored on 2026-09-04 when the view was rebuilt.
+ */
+export function daySummaryAt(schedule: ValidSchedule, nowSec: number): DaySummary {
+  const periods = schedule.periods;
+
+  if (periods.length === 0) return { phase: "empty", remainingSec: 0, progress: 0 };
+
+  const dayStartSec = periods[0].startMin * 60;
+  const dayEndSec = periods[periods.length - 1].endMin * 60;
+
+  if (nowSec < dayStartSec) {
+    return { phase: "before", remainingSec: dayStartSec - nowSec, progress: 0 };
+  }
+  if (nowSec >= dayEndSec) {
+    return { phase: "after", remainingSec: 0, progress: 1 };
+  }
+  return {
+    phase: "during",
+    remainingSec: dayEndSec - nowSec,
+    progress: (nowSec - dayStartSec) / (dayEndSec - dayStartSec),
+  };
+}
+
+/**
  * One period's status. Uses the same half-open rule as stateAt, so a period
  * cannot read as "current" in the list while the countdown has moved on.
  */
@@ -118,3 +160,19 @@ export function periodStatusAt(period: Period, nowSec: number): PeriodStatus {
   return "current";
 }
 
+/**
+ * "3 of 7" - which countable block of the day this is.
+ *
+ * Passing periods are excluded because they are the seams, not the units. A
+ * student counting down their day counts classes and lunch, not the ninety
+ * seconds of hallway between them. This is the one thing the engine asks of a
+ * period's `kind`, and the reason "Passing" has a canonical spelling.
+ *
+ * Counts blocks that have STARTED, so mid-passing the number holds at the
+ * block just finished rather than jumping ahead to one that has not begun.
+ */
+export function blockPositionAt(schedule: ValidSchedule, nowSec: number): BlockPosition {
+  const blocks = schedule.periods.filter((p) => p.kind !== PERIOD_KINDS.PASSING);
+  const started = blocks.filter((p) => nowSec >= p.startMin * 60).length;
+  return { index: started, total: blocks.length };
+}
