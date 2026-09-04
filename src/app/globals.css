@@ -797,7 +797,11 @@ body {
 .strip {
   display: flex;
   align-items: center;
-  justify-content: center;
+  /* Edge to edge, in the progress bar's place. Redesigned 2026-09-04 from the
+     retired build's centred row of capped squares to what was asked for: the
+     period progress bar, broken into the day's blocks, spanning the card left
+     to right, with dashes where a passing period joins two blocks. */
+  width: 100%;
   /* A gap rather than letting connectors do the spacing: two blocks can sit
      back to back with no passing between them (Period 3 into A Lunch), and
      without this they would fuse into one long rectangle. */
@@ -821,23 +825,35 @@ body {
 /* --- Squares: the day's countable units --- */
 
 .strip__cell--block {
-  /* Shrinks to fit on a narrow screen, caps out so it does not become a slab
-     on a projector. aspect-ratio keeps it square at every size in between. */
+  /* Bars, not squares, and PROPORTIONAL: each block's flex-grow is its length
+     in minutes (set inline by DayStrip), so a thirty-minute lunch is half a
+     class. The retired build argued for equal squares because proportional
+     cells made every passing period an unreadable sliver; with passing drawn
+     as a dash instead of a cell, that objection is gone and the strip becomes
+     what it replaced - a progress bar for the day. The floor keeps a
+     five-minute block tappable at 320px. */
   flex: 1 1 0;
-  min-width: 18px;
-  max-width: 56px;
-  aspect-ratio: 1;
+  min-width: 14px;
+  height: 14px;
   border: var(--border-passive);
-  border-radius: var(--r-sm);
+  border-radius: 999px;
 }
 
 /* --- Connectors: the seams between them --- */
 
+/* A passing period is a dash between the blocks it joins - fixed, not
+   proportional, because it is a seam and not a unit. Its fill still runs,
+   so the hallway minute is visible for what it is. */
 .strip__cell--link {
-  flex: 0 1 28px;
-  min-width: 8px;
-  height: 4px;
+  flex: 0 0 12px;
+  height: 3px;
   border-radius: 999px;
+  background: var(--fg-soft);
+  opacity: 0.6;
+}
+
+.strip__cell--link.strip__cell--future {
+  opacity: 0.3;
 }
 
 /* --- State ---
@@ -873,7 +889,6 @@ body {
   display: flex;
   flex-direction: column;
   gap: var(--s-2);
-  margin-top: var(--s-4);
 }
 
 .strip__caption {
@@ -984,13 +999,13 @@ body.is-big {
 }
 
 .is-big .strip__cell--block {
-  max-width: 96px;
+  height: 22px;
   border-width: 2px;
 }
 
 .is-big .strip__cell--link {
-  flex-basis: 48px;
-  height: 6px;
+  flex-basis: 20px;
+  height: 5px;
 }
 
 .is-big .strip__caption {

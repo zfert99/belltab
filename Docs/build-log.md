@@ -358,6 +358,8 @@ development too, so the bare origin is a 404 exactly as it is in production.
 | 2026-09-04 | Settings copy, second pass, in the user's own words | "Periods stay in start order and can't overlap. Changes save automatically. The countdown runs on the most recent valid version of the schedule." "Each weekday uses its default schedule unless a dated exception says otherwise. If neither is set, there's no school that day." The bell offset stops asking a question and says what it does. The first pass had made the sentences friendlier; the user wanted them plainer still, and supplied the shape. |
 | 2026-09-04 | A service worker after all — with no fetch handler, registered only after a grant | The 2026-09-02 decision refused a service worker because of what one does to caching: serve last week's HTML after a deploy. That reasoning was about the FETCH handler, and this worker has none — it exists for the one thing with no other route, `showNotification` on Android, where `new Notification()` throws from a page. Registered only once notifications are on and granted, so a user who never asked carries no worker. Not a reversal; a narrowing, and the earlier row is left standing because its reason still holds. |
 | 2026-09-04 | Open gaps holds work; Known limits holds facts | Eight rows had sat in Open gaps that no action could close — an upstream peer range, a spec limit, a platform behaviour — beside rows that were an afternoon's work. A reader could not tell which was which, and the table's job is to say what is owed. The facts moved to their own section with their original dates and text, each with what would change it. |
+| 2026-09-04 | The strip is the period progress bar broken into blocks - edge to edge, proportional, dashes for passing | Superseding the retired build's equal, capped, centred squares and the "how many left, not how long left" reasoning behind them. The user's memory of the strip was a bar spanning the card left to right with dashes where the block type changed, and that is the better design: it takes the progress bar's place rather than adding a second thing under it, each block is as wide as it is long so lunch reads as half a class, and a passing period is a dash between the blocks it joins. The old objection - proportional cells make passing an unreadable sliver - was right, and the dash is what answers it. |
+| 2026-09-04 | Accepting a shared schedule makes it today's, as a dated exception | The first version added it to the library and opened the editor, leaving the countdown on the regular day - so the person who clicked a link to see a schedule saw a different one. The link is about today, so today gets an exception pointing at it and the countdown swaps at once; the weekday default is untouched, so next week is still the regular day. The offer's sentence now says so. |
 
 ## Deviations from the plan docs
 
@@ -5040,3 +5042,31 @@ the strip stop re-resolving the calendar and discharging the result with `!`.
 The strip's "works on a touch tap" claim is withdrawn rather than implemented.
 The stub models the activation lifecycle, and one Chrome test registers the
 real worker. Playwright 738 → 747.
+
+### 2026-09-04 19:50 — the strip as the user remembered it, and shared links that run today
+
+**The strip, redesigned.** "It replaced the period progress bar and took up
+the whole left to right, with dashes when it changed type of block." So it
+does now: the strip stands in the progress bar's place under the countdown,
+spans the card, and each block grows in proportion to its length - lunch
+reads as half a class - with a passing period drawn as a fixed dash between
+the blocks it joins. The retired build's equal capped squares, and their
+reasoning, are superseded in Decisions; the objection they answered
+(proportional cells make passing a sliver) is what the dash answers instead.
+Big mode's scaling follows. The reflow gate walks it at every width; a test
+pins the edge-to-edge width and the lunch-to-class ratio.
+
+**Shared links run today.** Accepting a shared schedule now writes a dated
+exception for today pointing at it, so the countdown swaps the moment the
+button is pressed; the weekday default is untouched. The offer says "Add it
+and it runs today; your other days aren't changed." Add also CLOSES settings
+rather than opening the editor: a link pasted into a tab that is already on
+BellTab is a same-document navigation, so an open panel stays open under the
+offer, and "add" should end on the countdown. (Found the slow way - a test
+that clicked the settings toggle after Add closed the panel it assumed it was
+opening, and an hour of probes chased a click that was never swallowed.) The
+test that used to assert the calendar was untouched now asserts the exception
+and that the weekday is still the regular day.
+
+**Tests:** unit unchanged at 441. Playwright 747 → 750 - one strip test per
+engine; the share test changed shape rather than count.

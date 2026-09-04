@@ -18,16 +18,38 @@ const prefs = (showStrip: boolean) =>
   JSON.stringify({ theme: "system", bellOffsetSec: 0, showStrip });
 
 test.describe("the blocks strip", () => {
-  test("is off by default, and appears under the countdown when ticked", async ({ page }) => {
+  test("is off by default, and takes the progress bar's place when ticked", async ({ page }) => {
     await openApp(page, MID_PERIOD);
     await expect(strip(page)).toHaveCount(0);
+    await expect(page.locator(".progress")).toHaveCount(1);
 
     await openSettings(page, "preferences");
     await page.locator("#show-strip").check();
     await page.locator("#settings-toggle").click();
 
+    // In place of the period's progress bar, not beneath it: the strip IS
+    // that bar, broken into the day's blocks, and the two never show at once.
     await expect(strip(page)).toBeVisible();
+    await expect(page.locator(".progress")).toHaveCount(0);
     await expect(page.locator("#countdown-minutes")).toHaveText("35");
+  });
+
+  test("spans the card edge to edge, blocks as wide as they are long", async ({ page }) => {
+    await openApp(page, MID_PERIOD, { preferences: prefs(true) });
+
+    const widths = await page.locator("#strip").evaluate((el) => ({
+      strip: el.getBoundingClientRect().width,
+      parent: el.parentElement!.getBoundingClientRect().width,
+      blocks: [...el.querySelectorAll(".strip__cell--block")].map((b) =>
+        Math.round(b.getBoundingClientRect().width),
+      ),
+    }));
+    expect(widths.strip).toBeGreaterThanOrEqual(widths.parent - 1);
+
+    // Period 1 is 55 minutes, A Lunch 30: the lunch block is about half.
+    const [period1, , , lunch] = widths.blocks;
+    expect(lunch / period1).toBeGreaterThan(0.45);
+    expect(lunch / period1).toBeLessThan(0.65);
   });
 
   test("draws one cell per period - squares for blocks, links for passing", async ({ page }) => {

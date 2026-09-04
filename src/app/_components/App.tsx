@@ -7,7 +7,7 @@ import { savePreferences, usePreferences } from "@/app/_lib/preferencesStore";
 import { applyMotion, applyTheme } from "@/app/_lib/theme";
 import { useWakeLock, wantsSignpost } from "@/app/_lib/wakeLock";
 import { useBells } from "@/app/_lib/bells";
-import { addSchedule } from "@/app/_lib/library";
+import { addSchedule, setOverride } from "@/app/_lib/library";
 import { clearShareFragment, incomingSchedule } from "@/app/_lib/shareLink";
 import type { ValidSchedule } from "@/lib/schedule";
 import { tabTitleFor, viewForNow } from "@/app/_lib/today";
@@ -194,8 +194,23 @@ export function App() {
 
   const resolveOffer = (accept: boolean) => {
     if (accept && offer?.kind === "schedule") {
-      saveLibrary(addSchedule(library, offer.schedule));
-      setOpenPanel("schedules");
+      // Added, AND made today's. The first version added it to the library and
+      // opened the editor, which left the countdown running the regular day -
+      // so the person who clicked a link to see a schedule saw a different
+      // one, which the user called confusing on 2026-09-04. A dated exception
+      // for today, never a weekday default: the link is about today.
+      const withSchedule = addSchedule(library, offer.schedule);
+      const added = withSchedule.schedules[withSchedule.schedules.length - 1];
+      saveLibrary(
+        shifted === null || added.id === null
+          ? withSchedule
+          : setOverride(withSchedule, shifted.isoDate, added.id),
+      );
+      // And show it running. A link can arrive over an open settings panel -
+      // pasting it into a tab that is already on BellTab is a same-document
+      // navigation, so whatever was open stays open - and "add" should end on
+      // the countdown, not in the editor.
+      setOpenPanel(null);
     }
 
     setOffer(null);
