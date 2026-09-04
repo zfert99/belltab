@@ -362,6 +362,7 @@ development too, so the bare origin is a 404 exactly as it is in production.
 | 2026-09-04 | Accepting a shared schedule makes it today's, as a dated exception | The first version added it to the library and opened the editor, leaving the countdown on the regular day - so the person who clicked a link to see a schedule saw a different one. The link is about today, so today gets an exception pointing at it and the countdown swaps at once; the weekday default is untouched, so next week is still the regular day. The offer's sentence now says so. |
 | 2026-09-04 | A shared schedule is SHOWN the moment its link opens; "Keep it" writes it, "No thanks" puts the regular day back | The first two versions offered it in a banner over the regular day and swapped only after Add - and the user opened a link, saw the regular day and called it confusing, twice. The link is the schedule; the page should be running it before anybody is asked anything. So while an offer is pending the countdown, the title, the Day view and the strip all compute from the offered schedule on the same clock, and nothing is written until they choose. |
 | 2026-09-04 | A seam between back-to-back blocks of different kinds | Period 3 runs straight into A Lunch with no passing between them, and without a mark the two read as one long block. A seam - shorter and fainter than a passing dash, because it marks a change of kind rather than a hallway - draws the boundary. Asked for as "dashes to separate by type"; "not necessary", and cheap. |
+| 2026-09-04 | The strip draws a dash only where the KIND changes; passing periods are the gaps | Superseding the same-day decision above (a dash per passing, a seam per kind change) - two vocabularies for one line. The user's rule is simpler and reads better: Planning, dash, a run of classes, dash, Lunch. A passing period is not drawn at all; the gap between two blocks is the hallway. Seven blocks for eleven periods on the seeded day, and exactly two dashes. |
 
 ## Deviations from the plan docs
 
@@ -5092,3 +5093,11 @@ no passing between them.
 
 **Tests:** Playwright 750 → 756 - the preview-and-revert test and the seam
 test, per engine. Unit unchanged at 441.
+
+**Addendum, 2026-09-04 22:40.** The strip's punctuation simplified on request:
+a dash only where the kind changes, and no cell for a passing period at all.
+The version an hour earlier drew a dash per passing AND a seam per kind
+change; the rule "planning, dash, classes, dash, lunch" is one vocabulary and
+the better one. Decisions has the superseding row. Test counts unchanged; the
+three strip assertions changed shape (seven blocks, not eleven cells; two
+dashes; one past block at 09:30, not two).

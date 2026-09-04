@@ -52,15 +52,16 @@ test.describe("the blocks strip", () => {
     expect(lunch / period1).toBeLessThan(0.65);
   });
 
-  test("draws one cell per period - squares for blocks, links for passing", async ({ page }) => {
+  test("draws one block per real period, and no cell at all for passing", async ({ page }) => {
     await openApp(page, MID_PERIOD, { preferences: prefs(true) });
 
-    await expect(cells(page)).toHaveCount(11);
+    // Seven blocks for eleven periods: the four passing periods are the gaps
+    // between blocks, not cells of their own.
+    await expect(cells(page)).toHaveCount(7);
     await expect(page.locator("#strip .strip__cell--block")).toHaveCount(7);
-    await expect(page.locator("#strip .strip__cell--link")).toHaveCount(4);
 
-    // Past, current, future - and the current square is the second block.
-    await expect(page.locator("#strip .strip__cell--past")).toHaveCount(2);
+    // Past, current, future - and the current block is the second.
+    await expect(page.locator("#strip .strip__cell--past")).toHaveCount(1);
     await expect(page.locator("#strip .strip__cell--current")).toHaveCount(1);
     await expect(page.locator("#strip .strip__cell--block").nth(1)).toHaveClass(/--current/);
 
@@ -90,20 +91,20 @@ test.describe("the blocks strip", () => {
     await page.clock.setSystemTime(new Date("2026-09-02T10:36:00-04:00"));
     await page.evaluate(() => document.dispatchEvent(new Event("visibilitychange")));
 
-    // Period 3 is the third square; Period 2 and its Passing joined the past.
+    // Period 3 is the third block; Period 2 joined the past.
     await expect(page.locator("#strip .strip__cell--block").nth(2)).toHaveClass(/--current/);
-    await expect(page.locator("#strip .strip__cell--past")).toHaveCount(4);
+    await expect(page.locator("#strip .strip__cell--past")).toHaveCount(2);
     await expect(caption(page)).toHaveText("3 of 7 · 3h 54m until dismissal");
   });
 
-  test("marks a change of kind between back-to-back blocks with a seam", async ({ page }) => {
+  test("dashes only where the kind changes", async ({ page }) => {
     await openApp(page, MID_PERIOD, { preferences: prefs(true) });
 
-    // Period 3 runs straight into A Lunch and A Lunch straight into Period 4,
-    // with no passing period either side: two seams, and no others - every
-    // other kind change in the seeded day has a passing dash between it.
+    // Six classes and one lunch: the only changes of kind are Period 3 into
+    // A Lunch and A Lunch into Period 4. Two dashes; the runs of classes on
+    // either side, passing periods and all, read as runs.
     await expect(page.locator("#strip .strip__seam")).toHaveCount(2);
-    await expect(page.locator("#strip .strip__cell--link")).toHaveCount(4);
+    await expect(page.locator("#strip .strip__cell--link")).toHaveCount(0);
   });
 
   test("hovering a square borrows the caption for that period", async ({ page }) => {
