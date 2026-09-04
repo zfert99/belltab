@@ -149,7 +149,14 @@ export function CalendarPanel({ library, save, now, headingRef }: CalendarPanelP
       </section>
 
       <section className="calsection">
-        <h3 className="calsection__title">Weekday defaults</h3>
+        {/*
+          Focusable, so the countdown's "No school today" screen can land a
+          keyboard user HERE rather than at the top of a panel whose first
+          section writes one-off exceptions.
+        */}
+        <h3 className="calsection__title" id="weekday-defaults" tabIndex={-1}>
+          Weekday defaults
+        </h3>
         <div className="weekdays" id="weekday-map">
           {WEEKDAY_NAMES.map((dayName, day) => {
             const current = library.calendar.weekdays[day];

@@ -426,3 +426,22 @@ test.describe("past exceptions", () => {
     await expect(page.locator("#past-overrides")).toHaveCount(0);
   });
 });
+
+test.describe("the weekend's second way out", () => {
+  test("lands a keyboard user on the weekday defaults, not the top of the panel", async ({
+    page,
+  }) => {
+    // The primary action writes a one-off exception, which is right for a
+    // snow day and wrong for somebody whose Saturday genuinely runs school.
+    // The second route opens the same panel with focus on the section that
+    // answers that - so the next Tab is the first weekday select.
+    await openApp(page, WEEKEND);
+
+    await page.locator("#message-secondary").click();
+
+    await expect(page.locator("#panel-calendar")).toBeVisible();
+    await expect(page.locator("#weekday-defaults")).toBeFocused();
+    await page.keyboard.press("Tab");
+    await expect(page.locator("#weekday-map select").first()).toBeFocused();
+  });
+});
