@@ -8,6 +8,19 @@ evidence behind the technical decisions is
 **Status legend:** ✅ Done · 🚧 In progress · 📋 Planned · ⛔ Blocked (prereq)
 **Tracks:** 🏗️ Setup · ⚙️ Engine · 🎨 UI · 🔀 Infra · 🔗 Integration
 
+**Status (2026-09-05): every phase is done, and BellTab has had two days of
+post-roadmap work.** Since the cutover: custom period kinds and an end-time
+column in the editor; the open-gaps table taken from thirty-three rows to
+one, with the facts split out into Known limits; the Day view rebuilt as
+Phase 8 and the day-as-blocks strip back as a preference; shared links that
+show the schedule on arrival; notifications on Android through a worker with
+no fetch handler; the bell offset measurable at a real bell; and the settings
+copy rewritten for a broader audience. The hub carries a build-log post about
+it. What remains is undo, declined for now, and a week of real use.
+
+> **Superseded 2026-09-05.** The paragraph below described `main` at the
+> cutover and is kept because the post-roadmap work was planned against it.
+
 **Status (2026-09-02, Phase 7 complete): BellTab is live at
 `biscuitlab.net/bell`.** The cutover ran the hub runbook's recipe minus
 everything auth-shaped: canonical and sitemap first, a dormant `BELL_ORIGIN`
