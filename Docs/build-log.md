@@ -373,6 +373,7 @@ development too, so the bare origin is a 404 exactly as it is in production.
 | 2026-09-04 | A shared schedule is SHOWN the moment its link opens; "Keep it" writes it, "No thanks" puts the regular day back | The first two versions offered it in a banner over the regular day and swapped only after Add - and the user opened a link, saw the regular day and called it confusing, twice. The link is the schedule; the page should be running it before anybody is asked anything. So while an offer is pending the countdown, the title, the Day view and the strip all compute from the offered schedule on the same clock, and nothing is written until they choose. |
 | 2026-09-04 | A seam between back-to-back blocks of different kinds | Period 3 runs straight into A Lunch with no passing between them, and without a mark the two read as one long block. A seam - shorter and fainter than a passing dash, because it marks a change of kind rather than a hallway - draws the boundary. Asked for as "dashes to separate by type"; "not necessary", and cheap. |
 | 2026-09-04 | The strip draws a dash only where the KIND changes; passing periods are the gaps | Superseding the same-day decision above (a dash per passing, a seam per kind change) - two vocabularies for one line. The user's rule is simpler and reads better: Planning, dash, a run of classes, dash, Lunch. A passing period is not drawn at all; the gap between two blocks is the hallway. Seven blocks for eleven periods on the seeded day, and exactly two dashes. |
+| 2026-09-08 | Scope the E2E job by ENGINE, not by test priority: Chrome alone on pull requests, all three engines on every push to `main` and nightly; workers at 100% on CI as a measured experiment | Audit S8 wanted the 7m53s job shorter, and the owner's first idea was high/medium/low tiers. The research in `Docs/research/e2e-ci-runtime.md` argues the tiers away: a cut on "which tests are low-risk" is a judgement that drifts and nobody revisits, while a cut on the engine axis is exact - a PR knows precisely what it did not check - and self-correcting, because the full run has a fixed cadence. One job under the one required name, never a matrix: per-engine job names would never report to `E2E (reflow gate)` and every PR would hang, which this repo has met once already. Build reuse and sharding wait until the Chrome-only run is measured, in the research's own order. |
 
 ## Deviations from the plan docs
 
@@ -5413,3 +5414,43 @@ S10, the half the owner asked for: `Docs/archive/` exists at last, the five
 completed reviews are in it, and every path that named them - twelve, in
 eight files, three of them source comments - points at the new place. The
 build log stays in one piece; "just do one archive move" was the whole ask.
+
+### 2026-09-08 — the E2E job, scoped on the engine axis, with the research that says why
+
+Audit finding S8, resolved by research rather than by guessing: the owner
+brought an outside document on shortening the E2E job, and it lives in
+`Docs/research/e2e-ci-runtime.md` verbatim under a caveat block that resolves
+every item it could not read - it had no access to `playwright.config.ts`,
+`ci.yml` or `e2e/` - against what the repo actually has. Three of its
+unknowns mattered: `main` is three-engine (its README read was stale), CI
+workers were Playwright's default of 2 on a 4-vCPU runner rather than the 1
+it feared, and the tests are independent (no `describe.serial`, no
+`storageState`), which is what makes raising workers safe to try.
+
+The owner's first idea was high / medium / low priority tiers, and the
+research argues against it convincingly enough that the tiers are in the
+roadmap's Deferred table with the reason: cutting coverage on "which tests
+are low-risk" is a judgement that drifts and nobody revisits, while cutting it
+on the ENGINE axis is exact - a PR knows precisely what it did not check - and
+self-correcting, because the full run happens on every merge and every night.
+
+So: `PW_ENGINES` decides the projects, Chrome alone by default and all three
+for `all`; `ci.yml` sets it to `chrome` on a pull request and `all` on a push
+to `main` and on a new nightly schedule at 06:00 UTC; and `workers` is `100%`
+on CI. The job keeps its exact required-check name and stays one job - a
+matrix would have hung every PR on a check that never reports again, which
+this repo has already been bitten by once. A PR run is 283 tests on Chrome;
+the full run is 849.
+
+The worker count is an experiment with a measurement attached, and the config
+says so: this file already records that too many workers made the suite
+intermittently red on a laptop, and "an intermittently red suite is worse than
+a slow one" still holds. The PR that carries this change is the measurement.
+One boot-wait failure at 100% is the signal to drop back, and the row below
+will say which way it went.
+
+Not done, on purpose: reusing the `Next build` job's output in the E2E job
+(the research's Stage 1.3, worth ~40-60s) and sharding (its Stage 3) wait
+until the Chrome-only run is measured, per its own ordering. The one slice of
+the tiering idea it endorses - a tiny local smoke set for a pre-push signal,
+never the PR gate - is an offer, not a change.

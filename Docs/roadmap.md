@@ -679,6 +679,8 @@ shipped before the origin ever served. See Deviations in `Docs/build-log.md`.
 | am/pm on the 12-hour clock | Matches the mockups; a school day is unambiguous without it, and the `<time>` element carries the 24-hour value for machines | A schedule that crosses noon ambiguously — an evening programme, say |
 | Big mode surviving a reload | It is component state on purpose: a mode you cannot see the way out of is worse than one you re-enter, and a projector is set up once per session by somebody at the machine | A room wanting a permanent display — which would be a preference, not a change to this state |
 | Big mode requesting fullscreen | It fills the viewport; the Fullscreen API would take the browser chrome too, but adds an exit path the app does not control (the browser's own Escape races the mode's) and deserves designing rather than adding | Somebody asking for it after using Big mode on a real projector |
+| Priority-tiered E2E runs (high / medium / low) | The E2E job is scoped on the *engine* axis instead - Chrome on PRs, all three on merge and nightly - because "which tests are low-risk" is a judgement that drifts and nobody revisits, while "which engines did this PR not check" is exact and is checked on a fixed cadence. `Docs/research/e2e-ci-runtime.md`, 2026-09-08 | A test that cannot be made independent of the others, so that engine-scoping and parallelism stop being enough |
+| Sharding the E2E job across runners | Free on a public repo, but YAML: a matrix plus an aggregate job that reuses the required check's exact name. Not worth it until the Chrome-only PR run is measured and still over three or four minutes | The Chrome-only PR run, at 100% workers, measured at more than ~4 minutes |
 
 ## Open questions
 
