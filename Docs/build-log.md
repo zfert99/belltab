@@ -5449,6 +5449,15 @@ a slow one" still holds. The PR that carries this change is the measurement.
 One boot-wait failure at 100% is the signal to drop back, and the row below
 will say which way it went.
 
+**Measured, first run (PR #58, run 34241659825):** the E2E job took **3m24s**
+against 7m53s on the last three-engine run - Playwright itself 2.6 minutes
+for 283 tests on Chrome, all passed, no retries, no boot-wait failure. The
+other six jobs were unchanged at 19-27s. So the two changes together took
+about 4½ minutes off every pull request, and the worker experiment survived
+its first run. **Second sample**, the rebased re-run: **3m32s**, 288 passed
+in 2.7 minutes, again no retries. Two clean runs is the bar the config
+comment set; the merges to `main` and the nightly keep measuring.
+
 Not done, on purpose: reusing the `Next build` job's output in the E2E job
 (the research's Stage 1.3, worth ~40-60s) and sharding (its Stage 3) wait
 until the Chrome-only run is measured, per its own ordering. The one slice of
