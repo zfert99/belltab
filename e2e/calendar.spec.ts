@@ -445,3 +445,37 @@ test.describe("the weekend's second way out", () => {
     await expect(page.locator("#weekday-map select").first()).toBeFocused();
   });
 });
+
+/**
+ * A typed impossible date is told apart from an emptied box.
+ *
+ * Every engine turns a typed "February 30th" into `value === ""`, which is
+ * also what an empty box reports - so the panel used to see "cleared", show
+ * no error, and leave the user with a disabled Add button and no reason. The
+ * control's `validity.badInput` is what separates the two, and it is true for
+ * a TYPED impossible date on Chrome, Firefox and WebKit alike - measured with
+ * real key events on 2026-09-08, after a programmatic set had reported false.
+ * That measurement is why this test types rather than fills.
+ */
+test.describe("an impossible typed date", () => {
+  test("is named as one, with the field marked invalid, until a real date replaces it", async ({ page }) => {
+    await openApp(page, MID_PERIOD);
+    await openSettings(page, "calendar");
+
+    const input = page.locator("#override-date");
+    await input.click();
+    await page.keyboard.type("02302026");
+    await page.keyboard.press("Tab");
+
+    await expect(page.locator("#override-date-error")).toContainText("date that exists");
+    await expect(input).toHaveAttribute("aria-invalid", "true");
+    await expect(page.locator("#override-add")).toBeDisabled();
+
+    // A date that exists clears it and re-enables Add.
+    await input.fill("2026-09-14");
+    await expect(page.locator("#override-date-error")).toHaveCount(0);
+    await expect(input).not.toHaveAttribute("aria-invalid", "true");
+    await expect(page.locator("#override-add")).toBeEnabled();
+  });
+});
+
