@@ -16,6 +16,40 @@ import { defineConfig, devices } from "@playwright/test";
 const PORT = 3111;
 
 /**
+ * Three engines, which `AGENTS.md` has asked for from the start.
+ *
+ * "Playwright, not Cypress for E2E - real WebKit coverage and free
+ * parallelization" was the reason this repo chose Playwright, and for four
+ * phases it ran one engine anyway. WebKit is where the things this app leans
+ * on differ most: `<dialog>`, `:modal`, `inert`, and the native date and time
+ * inputs the editor and the calendar are built out of.
+ *
+ * It earned its keep on the first run - two real defects, both fixed on
+ * `main` before these projects landed. See Bugs found, 2026-09-01.
+ */
+const ALL_ENGINES = [
+  {
+    // The Chrome already on the machine, via `channel`, rather than a
+    // downloaded Chromium: it is the engine the original review measured in,
+    // and it costs no browser binary.
+    name: "chrome",
+    use: { ...devices["Desktop Chrome"], channel: "chrome" },
+  },
+  {
+    // Playwright's WebKit build, and NOT Safari - a distinction this repo
+    // learned the hard way. The build here and the one on the Linux CI runner
+    // disagree about whether `<input type="time">` exists at all, and neither
+    // is what ships on a Mac. A real Safari tab is still an open gap.
+    name: "webkit",
+    use: { ...devices["Desktop Safari"] },
+  },
+  {
+    name: "firefox",
+    use: { ...devices["Desktop Firefox"] },
+  },
+];
+
+/**
  * `basePath: '/bell'` in next.config.ts means the app does not live at the
  * origin root: `/` is a 404 and every route and asset carries the prefix.
  *
@@ -53,10 +87,17 @@ export default defineConfig({
    * An intermittently red suite is worse than a slow one, because the first
    * thing it costs is the habit of believing it.
    *
-   * CI keeps the default. Its runners have fewer cores and therefore already get
-   * fewer workers, and pinning a number here would raise it on a 2-core box.
+   * CI used to keep the default - half the cores, so 2 on the public 4-vCPU
+   * runner. Since 2026-09-08 it asks for all of them. This is an EXPERIMENT
+   * with a measurement attached, not a setting copied from a guide: the
+   * research in Docs/research/e2e-ci-runtime.md names the worker count as the
+   * likeliest lever, and the paragraph above names the risk - a starved
+   * worker looks like an app that will not hydrate. The bar for keeping it is
+   * the same one that set the local number: green across repeated runs. A
+   * single boot-wait failure on CI at 100% is the signal to drop back to the
+   * default, and the build log will say which it was.
    */
-  workers: process.env.CI ? undefined : 2,
+  workers: process.env.CI ? "100%" : 2,
 
   forbidOnly: Boolean(process.env.CI),
   retries: process.env.CI ? 1 : 0,
@@ -78,38 +119,27 @@ export default defineConfig({
   },
 
   /**
-   * Three engines, which `AGENTS.md` has asked for from the start.
+   * Which of the three engines run is decided by `PW_ENGINES`, and the default
+   * is Chrome alone.
    *
-   * "Playwright, not Cypress for E2E - real WebKit coverage and free
-   * parallelization" was the reason this repo chose Playwright, and for four
-   * phases it ran one engine anyway. WebKit is where the things this app leans
-   * on differ most: `<dialog>`, `:modal`, `inert`, and the native date and time
-   * inputs the editor and the calendar are built out of.
+   * Every one of the 274 tests ran on all three engines on every push, and
+   * the E2E job was 7m53s against 20-28s for each of the other six. The
+   * research in Docs/research/e2e-ci-runtime.md makes the case this file
+   * adopts: the cost is `tests × engines`, and cutting it on the ENGINE axis
+   * is legible (you know exactly what a PR did not check: non-Blink
+   * rendering) and self-correcting (the full three-engine run happens on
+   * every merge to `main` and every night, on a fixed cadence). Cutting it
+   * on a "priority" axis - which was the first idea - is neither: which
+   * tests are low-risk is a judgement that drifts and nobody revisits.
    *
-   * It earned its keep on the first run - two real defects, both fixed on
-   * `main` before these projects landed. See Bugs found, 2026-09-01.
+   * `all` is what `ci.yml` sets for pushes to `main` and for the nightly
+   * schedule; a PR gets the default. Locally, `PW_ENGINES=all npm run e2e`
+   * is the full run, and the WebKit-specific specs still expect it before
+   * a WebKit-shaped change is called done.
    */
-  projects: [
-    {
-      // The Chrome already on the machine, via `channel`, rather than a
-      // downloaded Chromium: it is the engine the original review measured in,
-      // and it costs no browser binary.
-      name: "chrome",
-      use: { ...devices["Desktop Chrome"], channel: "chrome" },
-    },
-    {
-      // Playwright's WebKit build, and NOT Safari - a distinction this repo
-      // learned the hard way. The build here and the one on the Linux CI runner
-      // disagree about whether `<input type="time">` exists at all, and neither
-      // is what ships on a Mac. A real Safari tab is still an open gap.
-      name: "webkit",
-      use: { ...devices["Desktop Safari"] },
-    },
-    {
-      name: "firefox",
-      use: { ...devices["Desktop Firefox"] },
-    },
-  ],
+  projects: ALL_ENGINES.filter(
+    (project) => process.env.PW_ENGINES === "all" || project.name === "chrome",
+  ),
 
   webServer: {
     /**

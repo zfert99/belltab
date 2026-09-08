@@ -7,6 +7,12 @@ on:
   push:
     branches: [main]
   pull_request:
+  # The full three-engine run, once a night, so the bet a PR makes - that the
+  # tests it ran on Chrome alone cannot differ on WebKit or Firefox - is
+  # checked on a fixed cadence and not only when somebody merges. See
+  # Docs/research/e2e-ci-runtime.md.
+  schedule:
+    - cron: "0 6 * * *"
 
 # A second push supersedes the first: the older run's answer is about code
 # nobody will merge.
@@ -109,6 +115,14 @@ jobs:
     # (Discovered on `test/three-engines`, where renaming this to match what it
     # does would have removed the gate silently rather than failing loudly.)
     runs-on: ubuntu-latest
+    # Chrome alone on a pull request; all three engines on a push to `main`
+    # and on the nightly schedule. The ONE job, under the ONE required name -
+    # not a matrix, whose per-engine job names would never report to a
+    # required check called "E2E (reflow gate)" and would hang every PR. What a
+    # PR gives up is non-Blink rendering, and it gets it back at merge and
+    # overnight. Docs/research/e2e-ci-runtime.md, adopted 2026-09-08.
+    env:
+      PW_ENGINES: ${{ github.event_name == 'pull_request' && 'chrome' || 'all' }}
     steps:
       - uses: actions/checkout@v7
 
@@ -126,7 +140,14 @@ jobs:
       # on a bare Ubuntu runner, and without it the browser installs and then
       # fails to launch.
       - name: Install browsers
-        run: npx playwright install --with-deps chrome webkit firefox
+        # Only what this run will drive. On a PR that is Chrome, which the
+        # runner already has - `install chrome` is a no-op that confirms it.
+        run: |
+          if [ "$PW_ENGINES" = "all" ]; then
+            npx playwright install --with-deps chrome webkit firefox
+          else
+            npx playwright install --with-deps chrome
+          fi
 
       # Three things AGENTS.md calls blocking, in one job.
       #
