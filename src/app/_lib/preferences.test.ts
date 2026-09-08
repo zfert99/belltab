@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import {
   BELL_OFFSET_LIMIT_SEC,
@@ -189,6 +190,28 @@ describe("the pre-paint theme script", () => {
     // whole of it down.
     expect(THEME_SCRIPT).toContain("try{");
     expect(THEME_SCRIPT).toContain("catch");
+  });
+
+  /**
+   * The script's other half lives in layout.tsx, and this is the same kind of
+   * pin as the key above: two places that have to agree and cannot import each
+   * other. The script writes `data-theme` on <html> before React hydrates, so
+   * React's first sight of that element differs from the server's HTML - and
+   * unless <html> carries `suppressHydrationWarning`, every development load
+   * with an explicit theme logs a mismatch. Read from source because layout.tsx
+   * imports `next/font/google`, which only resolves under Next's own compiler;
+   * rendering it here is not an option. Dev-only, measured: the production
+   * build logs nothing either way. See Bugs found, 2026-09-05.
+   */
+  it("is matched by suppressHydrationWarning on <html> in the layout", () => {
+    const layout = readFileSync(new URL("../layout.tsx", import.meta.url), "utf8");
+    // The ELEMENT, not the word: the comment above it in layout.tsx mentions
+    // `<html>` in prose, and `lang=` is what the JSX tag has that prose does not.
+    const htmlTag = /<html\s+lang=[^>]*>/.exec(layout)?.[0] ?? "";
+
+    expect(htmlTag).not.toBe("");
+    expect(htmlTag).toContain("suppressHydrationWarning");
+    expect(layout).toContain("THEME_SCRIPT");
   });
 });
 

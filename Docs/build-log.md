@@ -646,7 +646,6 @@ it. None is a task.
 | Opened | Item | Notes |
 | --- | --- | --- |
 | 2026-09-05 | An unreadable saved library is discarded without a word | `loadLibrary` degrades a library it cannot parse to the seeded defaults and shows nothing, so a user sees their schedules apparently wiped; the originals stay in `localStorage` only until the next write overwrites them. The degrade is right and argued for in `library.ts` - a tab that will not open is worse. The gap is the notice: `parseLibrary` already produces a specific sentence for the same input on the import path, and the load path throws it away. The fix is to say so and to defer the overwrite until the user has acknowledged it. Found 2026-09-05, see `Docs/code-review-2026-09-04-full-audit.md` B3. |
-| 2026-09-05 | A themed load logs a hydration mismatch | `THEME_SCRIPT` sets `data-theme` before React hydrates, so React reports the `<html>` attribute as a mismatch on every load for anyone who chose Light or Dark. The script is correct and stays; `<html>` needs `suppressHydrationWarning`. Verified: with `theme: "system"` the error is absent. See B2. |
 | 2026-08-27 | There is no undo | Deleting a *period* is still immediate and unconfirmed, and the only way back is to retype it. Deliberate for a four-field row whose result is visible behind the editor. Deleting a whole *schedule* now goes through a modal confirmation, which is the half of this gap Phase 4 closed; a real undo is still owed and would remove the need for the dialog. |
 | 2026-09-01 | An import cannot be undone | It replaces every schedule and the whole calendar, behind a confirmation that says so. Exporting first is the answer the panel gives, and it puts the export above the import for that reason. A real undo would be better and is the same gap as the one open for deleting a period. |
 
@@ -654,6 +653,7 @@ it. None is a task.
 
 | Opened | Closed | Item |
 | --- | --- | --- |
+| 2026-09-05 | 2026-09-05 | The themed-load hydration mismatch is gone: `suppressHydrationWarning` on `<html>` in `layout.tsx`, the standard other half of a pre-paint theme script. **Downgraded while fixing** - the gap was opened as if users saw it, and they do not: React 19 checks attribute mismatches in development builds only, and a themed load of the production build logged zero console lines of any type. Dev-only noise, fixed because a console that always carries one error hides the next real one. Pinned by a source test in `preferences.test.ts` (negative control: removing the attribute fails it); a prod E2E test asserts a themed load logs nothing at all. |
 | 2026-09-05 | 2026-09-05 | The Backup panel reflows at 320px, and the suite can no longer miss a panel. `width: 100%` + `min-width: 0` on `.backup__file` and `#backup-import` - the recipe the calendar's selects already carried - takes the page from 345px to 320px inside a 320px viewport. The panel list moved to `src/app/_lib/panels.ts`, and both `reflow.spec.ts` and `a11y.spec.ts` now loop over `PANEL_IDS` instead of a hand-written three, with a guard test asserting the tabs the app RENDERS equal the ids the suite ITERATES. Negative control run: with the CSS reverted, exactly one test fails and its message names the panel. |
 | 2026-09-02 | 2026-09-04 | Notifications work on Android Chrome — a service worker with NO fetch handler (`public/sw.js`) is registered the moment notifications are granted, never before, and every bell goes through `registration.showNotification` wherever a worker exists, falling back to `new Notification` where none can. The 2026-09-02 decision against a caching worker stands; this one caches nothing. Verified against a stubbed worker on three engines; the real Android device is the user's, who asked for this. |
 | 2026-09-02 | 2026-09-04 | The bell offset has a calibration aid: "The bell just rang", pressed as the real bell sounds, measures the offset from the nearest bell in today's schedule (`calibrateOffset`, pure, cap as an argument). Refuses with a sentence when nothing is within the cap; disabled with a reason when today has no schedule. Whether it has been pressed at a REAL bell is still a report to collect; the mechanism is built. |
@@ -753,6 +753,34 @@ it. None is a task.
 ---
 
 ## Bugs found
+
+### 2026-09-05 — the audit called a dev-only warning a user-facing error
+
+Not a bug in the app. A bug in the review of it, which is the kind this file
+is also for.
+
+`Docs/code-review-2026-09-04-full-audit.md` rated B2 - the hydration mismatch
+on a themed load - **High**, on the sentence "puts a permanent error in the
+console of every themed user". That sentence was an inference from the dev
+overlay's red badge, written in the register of a measurement. When the fix
+was being verified, the regression test written for it PASSED against the
+production build with the fix still absent - which is not what a High-severity
+defect does. Capturing every console message type on a themed production load,
+listener attached before navigation, gave a count of zero. React 19 checks
+attribute mismatches in development only. Users never saw anything.
+
+The fix is unchanged and still right: `suppressHydrationWarning` on `<html>`,
+one attribute, dev-only benefit, zero prod cost. What changed is the label
+(Low) and the audit doc, which now carries the correction beside the original
+text rather than instead of it.
+
+**The lesson is one this repo already states about browser claims, applied to
+its own review:** a severity is a claim about what users experience, and it
+needs a citation or a test the same way a throttling threshold does. The tell
+was available before the doc was written - the E2E suite runs the production
+build, and one themed load with a console listener would have answered it in
+fifteen seconds. Write the guard test *before* the severity, and let it fail
+first.
 
 ### 2026-09-05 — the reflow gate enumerated three panels out of four, and the fourth was broken
 
@@ -5258,3 +5286,23 @@ negative control: reverting the CSS turns exactly one test red.
 Still open from the same audit: the hydration mismatch on every themed load
 (B2, a one-attribute fix that is verified but not applied), and the silent
 library wipe (B3), which wants a design rather than a patch.
+
+### 2026-09-05 — B2: the mismatch, the correction, and the pin
+
+`suppressHydrationWarning` on `<html>` in `layout.tsx` - THEME_SCRIPT's other
+half, with a comment saying so. On `fix/theme-hydration-warning`, stacked on
+PR #53 because the audit's Open gaps rows live there.
+
+The finding was downgraded from High to Low while being fixed, and the way that
+happened is the entry above in Bugs found: the guard test passed before the fix
+against the production build, which sent me to measure, and the measurement
+was zero. Two tests came out of it. A source pin in `preferences.test.ts`
+beside the existing THEME_SCRIPT pins - `layout.tsx` is read as text because it
+imports `next/font/google`, which only resolves under Next's compiler - and it
+goes red the moment the attribute is removed. And a production E2E test that a
+themed load logs no console errors at all, written to be honest about what it
+can see: not the dev warning, but every real failure production does report.
+
+Verified in the dev preview with `theme: "light"` stored: attribute on <html>
+before paint, no Issues badge, no hydration error. 442 unit tests, lint,
+typecheck, markdownlint green.

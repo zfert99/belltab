@@ -249,6 +249,34 @@ test.describe("the theme", () => {
     expect(await themeAttribute(page)).toBe("dark");
   });
 
+  test("a themed load logs no errors at all", async ({ page }) => {
+    // The pre-paint script puts `data-theme` on <html> before React hydrates,
+    // so React's first sight of the element differs from what the server sent.
+    // In DEVELOPMENT that logs a hydration mismatch unless <html> carries
+    // `suppressHydrationWarning` - which it does, and `preferences.test.ts`
+    // pins. This suite runs the PRODUCTION build, where React does not check
+    // attributes at all, so this test cannot see that warning and does not
+    // claim to. What it guards is the class of thing production DOES report:
+    // a real hydration failure, a thrown effect, a script that dies before
+    // paint. A themed load produced zero console lines of any type when this
+    // was written (2026-09-05); anything above zero here is news.
+    //
+    // Listeners go on before navigation - hydration errors fire during load,
+    // and a listener added after `goto` has already missed them.
+    const problems: string[] = [];
+    page.on("console", (message) => {
+      if (message.type() === "error") problems.push(message.text());
+    });
+    page.on("pageerror", (error) => problems.push(error.message));
+
+    await openApp(page, MID_PERIOD, {
+      preferences: JSON.stringify({ theme: "dark", bellOffsetSec: 0 }),
+    });
+
+    expect(await themeAttribute(page)).toBe("dark");
+    expect(problems).toEqual([]);
+  });
+
   test("is ABSENT for system, so the OS media query decides", async ({ page }) => {
     await openApp(page, MID_PERIOD, {
       preferences: JSON.stringify({ theme: "system", bellOffsetSec: 0 }),

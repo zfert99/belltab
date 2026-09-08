@@ -102,7 +102,28 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={`${fredoka.variable} ${manrope.variable} ${spaceMono.variable}`}>
+    /*
+      `suppressHydrationWarning` is the other half of THEME_SCRIPT.
+
+      The script below writes `data-theme` on this element BEFORE React
+      hydrates - that is the whole point of it - so React's first sight of
+      <html> carries an attribute the server never rendered. Without this prop
+      every load with an explicit Light or Dark theme logs a hydration
+      mismatch, and a console that always has one error in it is a console
+      where a real hydration bug goes unnoticed.
+
+      Development only, and measured rather than assumed: React 19 checks
+      attribute mismatches in dev builds alone, and a themed load of the
+      production build logs nothing at all (captured every console line in
+      review, 2026-09-05 - count was zero). So this costs users nothing and
+      buys developers a clean console. It suppresses ONE level - this element's
+      own attributes - and nothing beneath it.
+    */
+    <html
+      lang="en"
+      className={`${fredoka.variable} ${manrope.variable} ${spaceMono.variable}`}
+      suppressHydrationWarning
+    >
       <body>
         {/*
           The theme, applied before anything is drawn.

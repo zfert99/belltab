@@ -32,8 +32,11 @@ small. Pass 1 found no bugs at all — only documentation drift, dead code and
 duplication, which is what that pass was asked for.
 
 > **Status.** The findings below are recorded as they were written, before any
-> fix. **B1 and B5 were fixed on `fix/backup-panel-reflow`** — see *What was
-> changed* at the bottom. Everything else is still open.
+> fix. **B1 and B5 were fixed on `fix/backup-panel-reflow`** (#53) and **B2 on
+> `fix/theme-hydration-warning`** — see *What was changed* at the bottom.
+> B2's severity was **corrected from High to Low** while fixing it; the
+> original text is kept below with the correction beside it. Everything else
+> is still open.
 
 ---
 
@@ -44,7 +47,7 @@ duplication, which is what that pass was asked for.
 | # | Where | Severity | Finding |
 | --- | --- | --- | --- |
 | B1 | `src/app/globals.css:2020` | **High** | The Backup panel scrolls horizontally at 320px — a WCAG 2.2 SC 1.4.10 failure that `AGENTS.md` calls a blocking check |
-| B2 | `src/app/layout.tsx:105` | **High** | Every load with an explicit Light or Dark theme logs a React hydration mismatch |
+| B2 | `src/app/layout.tsx:105` | Low *(was High — see the correction in §B2)* | Every **development** load with an explicit Light or Dark theme logs a React hydration mismatch; production logs nothing |
 | B3 | `src/app/_lib/library.ts:97` | **Medium** | One unreadable byte silently replaces the whole library with the seeded defaults, and the next write destroys the original |
 | B4 | `src/app/_components/App.tsx:461` | Medium | The Day button reports `aria-pressed="true"` while the Now view is on screen |
 | B5 | `e2e/reflow.spec.ts:238`, `e2e/a11y.spec.ts:254` | Medium | Both test loops hardcode 3 of the 4 settings panels — the gap that let B1 ship |
@@ -328,7 +331,18 @@ only ever got `max-width: 100%`.
 }
 ```
 
-#### B2 — A hydration mismatch on every themed load · **High**
+#### B2 — A hydration mismatch on every themed load · ~~High~~ **Low**
+
+> **Correction, 2026-09-05.** The paragraph headed *Impact* below is wrong in
+> one load-bearing sentence. It claims a "permanent error in the console of
+> every themed user". Measured while fixing it: React 19 checks attribute
+> mismatches **only in development builds**. A themed load of the production
+> build was captured with a listener on every console message type before
+> navigation — **zero lines**. So this is developer noise, not a user-facing
+> defect. The fix stands, because a dev console that always has one error in
+> it is where a real hydration bug goes unnoticed; but it is Low, not High,
+> and the original claim was an inference presented as a measurement. The
+> rest of the section is accurate as written.
 
 **Where:** `src/app/layout.tsx:105`.
 
@@ -540,5 +554,21 @@ one test fails, and its message is
 elements named. Sixteen others pass. A test that is green with and without the
 fix is not a test.
 
-Still open: **B2** (one verified attribute, not applied), **B3** (wants a design
-rather than a patch), **B4**, **B6**, **B7**, **B8**, and all of **S1–S10**.
+**B2**, on `fix/theme-hydration-warning`, stacked on #53:
+
+- `src/app/layout.tsx` — `suppressHydrationWarning` on `<html>`, with the
+  comment explaining it is THEME_SCRIPT's other half and dev-only.
+- `src/app/_lib/preferences.test.ts` — a source pin in the same spirit as the
+  existing `THEME_SCRIPT` pins: reads `layout.tsx` and asserts the `<html>`
+  element carries the attribute. Read from source because the layout imports
+  `next/font/google`, which only resolves under Next's compiler. Negative
+  control: removing the attribute turns exactly this test red.
+- `e2e/preferences.spec.ts` — a themed **production** load must log zero
+  console errors. Honest about what it is: it cannot see the dev-only warning
+  (it passed before the fix, which is how the severity correction above was
+  found) and does not claim to; it guards the things production *does* report.
+- Dev preview with `theme: "light"`: attribute applied pre-paint, no Issues
+  badge, no hydration error. Verified before and after.
+
+Still open: **B3** (wants a design rather than a patch), **B4**, **B6**, **B7**,
+**B8**, and all of **S1–S10**.
