@@ -139,7 +139,7 @@ test.describe("the period announcer", () => {
 /**
  * The regression that started all of this, revived by Phase 3.
  *
- * Finding 2 of `Docs/code-review-2026-08-26.md`. The review measured the bug
+ * Finding 2 of `Docs/archive/code-review-2026-08-26.md`. The review measured the bug
  * rather than reasoning about it, because it needs a period to actually be
  * running: typing "Chem" into the running period's name wrote four successive
  * announcements, one per keystroke.

@@ -1960,7 +1960,7 @@ anywhere in `src/`, which is a project rule rather than an accident.
 
 ### 2026-09-01 — a cap that discarded the wrong end, and a date the type system waved through
 
-Three findings from the Phase 4 review (`Docs/code-review-2026-09-01.md`), two of
+Three findings from the Phase 4 review (`Docs/archive/code-review-2026-09-01.md`), two of
 which were the same species: a user action that appeared to succeed and did
 nothing.
 
@@ -2718,7 +2718,7 @@ addition, and cheap to guard now.
 ### 2026-08-26 14:40 — code review of `437ef54`
 
 A `/code-review` pass over the previous commit, written up in full as
-`Docs/code-review-2026-08-26.md`. Five findings, all open; each has a row in
+`Docs/archive/code-review-2026-08-26.md`. Five findings, all open; each has a row in
 **Open gaps** above, and the two closed-gap rows the review contradicts are
 marked superseded rather than deleted.
 
@@ -2748,7 +2748,7 @@ accessible names, and the `els`-staleness invariant is genuinely true.
 
 ### 2026-08-26 15:10 — closing the five code-review findings
 
-Branch `fix/code-review-437ef54`. Everything in `Docs/code-review-2026-08-26.md`
+Branch `fix/code-review-437ef54`. Everything in `Docs/archive/code-review-2026-08-26.md`
 is fixed; that document gained a **What was changed** section and its status
 line now says so. Tests 120 → 153.
 
@@ -3409,7 +3409,7 @@ that has ever run it.
 ### 2026-08-27 11:20 — code review of the Phase 1 port
 
 A `/code-review high` pass over the staged working tree against `ff64e4c`,
-written up in full as `Docs/code-review-2026-08-27.md`. Three findings, all
+written up in full as `Docs/archive/code-review-2026-08-27.md`. Three findings, all
 open; each has a row in **Open gaps** above, and the closed-gap row the review
 contradicts is marked superseded rather than deleted.
 
@@ -3723,7 +3723,7 @@ only gate that applies to them.
 ### 2026-08-27 15:17 — code review of `3f709dc`, and the eight fixes
 
 Reviewed the research-library commit at effort `high` and wrote it up as
-`Docs/code-review-2026-08-27-research-index.md`. Seven findings, plus an eighth
+`Docs/archive/code-review-2026-08-27-research-index.md`. Seven findings, plus an eighth
 found while fixing. All eight fixed in this session; nothing left open from the
 review itself.
 
@@ -3881,7 +3881,7 @@ test` (108 passed, 10 parked) and `npx markdownlint-cli` all pass.
 
 ### 2026-09-01 12:20 — code review of the Phase 4 tree, and the three fixes
 
-`Docs/code-review-2026-09-01.md`, effort `high`, on the uncommitted Phase 4 work.
+`Docs/archive/code-review-2026-09-01.md`, effort `high`, on the uncommitted Phase 4 work.
 Three findings, all three fixed in the same session.
 
 The phase's load-bearing parts cleared: `withUniqueIds`' two-pass claim-then-mint,
@@ -5362,3 +5362,54 @@ B7 - Chrome blanking an impossible typed date so Add disables with no reason -
 is left open, and the gap says why: the fix wants `validity.badInput`, which
 could not be measured with a programmatic set, and a guessed fix on a
 Low-severity finding is worse than an honest row in this table.
+
+### 2026-09-05 — S1 to S5: the comments say what the code does again
+
+The audit's first five quality items, on `chore/audit-quality-s1-s5`: no
+behaviour change, forty-four fewer lines.
+
+Three doc comments had been separated from what they documented by a later
+insertion and were sitting on the wrong declaration - `tabTitleFor`'s on
+`scheduleForToday`, `describeOffset`'s on `LARGE_OFFSET_SEC`, `.strip__seam`'s
+on `.strip__pair`. Section 13 of `globals.css` still argued for the equal
+squares the strip stopped drawing on 2026-09-04, forty lines above a comment
+that superseded it. Both are fixed by moving words, not code.
+
+Dead CSS out: `.shiftall*` (no markup anywhere, including tests) and every
+`.strip__cell--link` rule (the connector cells that stopped rendering when
+passing periods stopped being drawn). `DayView` now reads `MOTION_ATTRIBUTE`
+rather than repeating `"data-motion"` - the one duplicated literal
+`theme.ts`'s own header forbids. Five symbols with no importer are no longer
+exported, and two of their doc comments no longer claim a caller.
+
+One of the audit's S5 claims was wrong, and the build did not hide it:
+un-exporting `formatPeriodLabel`'s `ClockOptions` parameter broke
+`format.test.ts`, which pins the 24-hour form for exactly that function. "No
+caller in the app" was true; "no caller" was not. The parameter stays, with a
+comment that says why, and the audit doc carries the correction beside the
+original. Same lesson as the B2 downgrade: a claim about the code is checked
+against the code, and the test suite is part of the code.
+
+Then the three condensations that were safe to fold in. `today.ts` resolved
+the calendar and looked the answer up in the library four separate times; it
+is one `scheduleOn` now, returning `IdentifiedSchedule` because that is what
+the library holds - the first draft said `ValidSchedule` and `indexOf` refused
+it, which is the brand doing its job. `bells.ts` carried two byte-identical
+`subscribe` functions and two `return null` server snapshots over one
+listener set; one of each. And the trailing `.env*` in `.gitignore` that had
+defeated `!.env.example` since the file was written is gone, checked with
+`git check-ignore` in both directions.
+
+S8 was measured instead of built. All seven CI job names are required status
+checks on `main` - so "fold three jobs into one" would silently drop three
+required checks, the trap this repo already fell into once with the E2E job's
+name. And the timings say the folding was never worth it: the small jobs are
+20-28 seconds each in parallel, the E2E job is 7m53s. The one change that
+would move wall-clock - WebKit and Firefox on a tagged subset - reduces
+cross-engine coverage on purpose, which is a decision for the owner, not a
+cleanup for a reviewer.
+
+S10, the half the owner asked for: `Docs/archive/` exists at last, the five
+completed reviews are in it, and every path that named them - twelve, in
+eight files, three of them source comments - points at the new place. The
+build log stays in one piece; "just do one archive move" was the whole ask.

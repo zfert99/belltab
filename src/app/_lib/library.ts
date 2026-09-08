@@ -342,7 +342,7 @@ export function setWeekday(
  *
  * **Two guards, both of which refuse rather than appear to succeed.** Between
  * this shipping and the Phase 4 review, neither was here and both failure modes
- * were silent - see `Docs/code-review-2026-09-01.md`, findings 1 and 2.
+ * were silent - see `Docs/archive/code-review-2026-09-01.md`, findings 1 and 2.
  *
  * `IsoDate` is a bare `string` alias, so a date that is not one reaches this
  * function typed correctly and is dropped later by `parseCalendar`, leaving a

@@ -105,7 +105,7 @@ const config = [
    *     is a rule that stopped applying and a comment that now lies.
    *
    * Found by probing rather than by reading: no line of the diff that removed
-   * them said so. See Docs/code-review-2026-08-27.md, finding 2.
+   * them said so. See Docs/archive/code-review-2026-08-27.md, finding 2.
    */
   {
     files: ["src/**/*.{ts,tsx}", "e2e/**/*.ts"],

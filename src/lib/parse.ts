@@ -328,7 +328,7 @@ function withUniqueIds(input: readonly unknown[]): unknown[] {
  * one cap in that object with no code applying it: its only caller was the
  * collection loader in the retired `src/store.js`, and it was deleted with the
  * plain build, leaving a documented boundary that silently was not one. See
- * Docs/code-review-2026-08-27.md, finding 3.
+ * Docs/archive/code-review-2026-08-27.md, finding 3.
  *
  * The cap REFUSES rather than truncates, matching `periods` above. Silently
  * dropping schedule 51 from a link someone was sent is a worse answer than

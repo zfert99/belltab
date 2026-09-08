@@ -52,7 +52,7 @@ export const SHARE_LIMITS = {
    * exists because the version segment is sliced from whatever precedes the
    * first dot and lands verbatim in a user-facing message, so without a bound
    * a 200,000-character fragment produced a 200,082-character error - measured,
-   * see `Docs/code-review-2026-09-01-share.md`.
+   * see `Docs/archive/code-review-2026-09-01-share.md`.
    */
   versionChars: 8,
   /** Bytes of JSON after decompression. */

@@ -394,7 +394,7 @@ the dated-exception form and all fixed in the same session:
 `setOverride` discarded the entry being added once the calendar hit its
 400-override cap, the date input's value reached the mutator unparsed, and the
 inactive tab's `aria-controls` named an id that was not in the DOM. See
-`Docs/code-review-2026-09-01.md`.
+`Docs/archive/code-review-2026-09-01.md`.
 
 Carried forward as open gaps rather than done: Safari (still), no automated axe
 scan, no month view for dated exceptions and no weekday name beside them,
