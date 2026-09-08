@@ -32,8 +32,9 @@ small. Pass 1 found no bugs at all — only documentation drift, dead code and
 duplication, which is what that pass was asked for.
 
 > **Status.** The findings below are recorded as they were written, before any
-> fix. **B1 and B5** landed in #53, **B2** in #55, and **B3** is on
-> `fix/unreadable-library-notice` — see *What was changed* at the bottom.
+> fix. **B1 and B5** landed in #53, **B2** in #55, **B3** in #56, and **B4, B6
+> and B8** are on `fix/small-audit-items` — see *What was changed* at the
+> bottom. **B7** stays open, with the reason recorded there.
 > B2's severity was **corrected from High to Low** while fixing it; the
 > original text is kept below with the correction beside it. Everything else
 > is still open.
@@ -593,4 +594,30 @@ block.
   download read back from disk, dismiss, and 320px reflow.
 - Verified in the dev preview end to end before the tests were run.
 
-Still open: **B4**, **B6**, **B7**, **B8**, and all of **S1–S10**.
+**B4, B6 and B8**, on `fix/small-audit-items`. Each a few lines; none touches
+an invariant.
+
+- **B4** — `src/app/_components/App.tsx`: one predicate, `dayViewShown`, now
+  drives both the `DayView` render and the two buttons' `aria-pressed`, so
+  they cannot disagree. The `screen` intent is kept; the list comes back the
+  next day it can. The weekend test in `day-view.spec.ts` had asserted the
+  old behaviour and now asserts the new; two switcher tests cover both
+  directions.
+- **B8** — `App.tsx`: `scheduleLabelFor` says "No school" / "No schedule" in
+  the header, in the words the headline beneath already uses. `--` is now
+  only ever the pre-mount placeholder. Two header tests in `countdown.spec.ts`.
+- **B6** — `src/app/_components/BackupPanel.tsx`: one `pluralSchedules` owner
+  for the export summary, the dialog body and the `window.confirm` fallback —
+  which had the same bug and was not in the audit. One test in `share.spec.ts`.
+- All three verified in the dev preview before the tests were written.
+
+**B7 stays open, deliberately.** Chrome blanks an impossible typed date to
+`""`, so the app cannot distinguish "cleared" from "typed nonsense" from the
+value alone. The candidate signal is `validity.badInput` on the date control,
+which my measurement could not exercise: setting the value programmatically
+reported `badInput: false`, and a *typed* impossible date needs a real
+segmented-control keystroke sequence per engine. Low severity — a date picker
+makes these hard to type in the first place — and not worth a fix that is
+guessed rather than measured. Recorded in Open gaps.
+
+Still open: **B7**, and all of **S1–S10**.

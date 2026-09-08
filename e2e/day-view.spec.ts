@@ -103,7 +103,10 @@ test.describe("the Day view", () => {
 
     await expect(page.locator("#day-view")).toHaveCount(0);
     await expect(page.locator("#period-name")).toHaveText("No school today");
-    await expect(page.locator("#view-day")).toHaveAttribute("aria-pressed", "true");
+    // Day was pressed, but the Day view is not what rendered - so since
+    // 2026-09-05 the button says "not pressed" rather than describing the
+    // intent. The dedicated switcher tests below cover both directions.
+    await expect(page.locator("#view-day")).toHaveAttribute("aria-pressed", "false");
   });
 
   test("Big mode is a mode over the countdown, and comes back to the Day view", async ({
@@ -133,3 +136,36 @@ test.describe("the Day view", () => {
     expect(regions.sort()).toEqual(["div#__next-route-announcer__", "p#period-announcer"].sort());
   });
 });
+
+/**
+ * The switcher reports what is ON SCREEN, not what was pressed.
+ *
+ * Until 2026-09-05 `#view-day` carried `aria-pressed="true"` whenever Day had
+ * been chosen - including on a day with no schedule, where the Day view has
+ * nothing to list and the Now view's empty state renders instead. A
+ * screen-reader user was told "Day, pressed" while looking at "No school
+ * today". Every weekend, for anyone who last used the Day view.
+ */
+test.describe("the view switcher on a day with nothing to list", () => {
+  test("does not claim the Day view is up when the Now view is what rendered", async ({ page }) => {
+    await openApp(page, WEEKEND);
+    await page.locator("#view-day").click();
+
+    // The Now view's empty state is what is on screen...
+    await expect(page.locator("#day-view")).toHaveCount(0);
+    await expect(page.locator("#period-name")).toHaveText("No school today");
+    // ...so that is what the two buttons say.
+    await expect(page.locator("#view-day")).toHaveAttribute("aria-pressed", "false");
+    await expect(page.locator("#view-now")).toHaveAttribute("aria-pressed", "true");
+  });
+
+  test("still reports Day as pressed when the Day view genuinely rendered", async ({ page }) => {
+    await openApp(page, MID_PERIOD);
+    await page.locator("#view-day").click();
+
+    await expect(page.locator("#day-view")).toBeVisible();
+    await expect(page.locator("#view-day")).toHaveAttribute("aria-pressed", "true");
+    await expect(page.locator("#view-now")).toHaveAttribute("aria-pressed", "false");
+  });
+});
+

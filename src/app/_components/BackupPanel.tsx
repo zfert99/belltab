@@ -32,6 +32,10 @@ export interface BackupPanelProps {
   headingRef: RefObject<HTMLHeadingElement | null>;
 }
 
+/** "1 schedule", "4 schedules" - one owner, because the panel said both in one breath. */
+const pluralSchedules = (count: number): string =>
+  `${count} ${count === 1 ? "schedule" : "schedules"}`;
+
 export function BackupPanel({ library, save, now, headingRef }: BackupPanelProps) {
   const fileRef = useRef<HTMLInputElement | null>(null);
   const [pending, setPending] = useState<Library | null>(null);
@@ -72,7 +76,7 @@ export function BackupPanel({ library, save, now, headingRef }: BackupPanelProps
     }
 
     if (!supportsModalDialog()) {
-      if (window.confirm(`Replace all ${scheduleCount} schedules and the calendar? This can’t be undone.`)) {
+      if (window.confirm(`Replace all ${pluralSchedules(scheduleCount)} and the calendar? This can’t be undone.`)) {
         save(replaceLibrary(library, parsed.value));
       }
       return;
@@ -99,7 +103,7 @@ export function BackupPanel({ library, save, now, headingRef }: BackupPanelProps
       <section className="calsection">
         <h3 className="calsection__title">Export</h3>
         <p className="panel__note" id="backup-summary">
-          {scheduleCount} {scheduleCount === 1 ? "schedule" : "schedules"} and {exceptionCount}{" "}
+          {pluralSchedules(scheduleCount)} and {exceptionCount}{" "}
           dated {exceptionCount === 1 ? "exception" : "exceptions"}, as plain JSON you can read.
         </p>
         <div className="editor__actions">
@@ -152,7 +156,9 @@ export function BackupPanel({ library, save, now, headingRef }: BackupPanelProps
       <ConfirmDialog
         open={pending !== null}
         title="Replace everything?"
-        body={`This backup holds ${pending?.schedules.length ?? 0} schedules. Importing it replaces the ${scheduleCount} in this browser, and the whole calendar with them. This can’t be undone.`}
+        // Counted the same way the export summary above counts, so the panel
+        // cannot say "1 schedules" in one sentence and "1 schedule" in the next.
+        body={`This backup holds ${pluralSchedules(pending?.schedules.length ?? 0)}. Importing it replaces the ${pluralSchedules(scheduleCount)} in this browser, and the whole calendar with them. This can’t be undone.`}
         confirmLabel="Import"
         onCancel={() => setPending(null)}
         onConfirm={applyImport}

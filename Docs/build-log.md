@@ -645,6 +645,7 @@ it. None is a task.
 
 | Opened | Item | Notes |
 | --- | --- | --- |
+| 2026-09-05 | An impossible typed date disables Add with no explanation, on Chrome only | Chrome sanitises `2026-02-30` in a date control to `""`, so `CalendarPanel` sees an empty box - correctly mid-edit, not an error - and the user gets a dead button and no reason. WebKit renders a text box, keeps the value, and the error shows. The candidate signal is the control's `validity.badInput`, which could not be measured: a programmatic set reports `false`, and a typed impossible date needs a real keystroke sequence per engine. Low severity; left open rather than fixed by guesswork. Audit finding B7. |
 | 2026-08-27 | There is no undo | Deleting a *period* is still immediate and unconfirmed, and the only way back is to retype it. Deliberate for a four-field row whose result is visible behind the editor. Deleting a whole *schedule* now goes through a modal confirmation, which is the half of this gap Phase 4 closed; a real undo is still owed and would remove the need for the dialog. |
 | 2026-09-01 | An import cannot be undone | It replaces every schedule and the whole calendar, behind a confirmation that says so. Exporting first is the answer the panel gives, and it puts the export above the import for that reason. A real undo would be better and is the same gap as the one open for deleting a period. |
 
@@ -5334,3 +5335,30 @@ One thing left deliberately imperfect: after the first save the banner still
 offers "kept aside the first time you save a change", which has by then
 happened. Clearing it at that moment would take the Download button away
 mid-read; the next load clears it, and the E2E asserts that.
+
+### 2026-09-05 — B4, B6 and B8: three small ones, and one left open on purpose
+
+The audit's remaining small defects, on `fix/small-audit-items`, each a few
+lines and none touching an invariant.
+
+The Day/Now switcher reported what was PRESSED rather than what RENDERED, so
+on a weekend a screen-reader user was told "Day, pressed" over the Now view's
+"No school today". One predicate, `dayViewShown`, now drives both the render
+and the two `aria-pressed` values; the `screen` intent is kept, and the list
+comes back the next day it can. The weekend test had encoded the old
+behaviour - that is what a test does when it is written from the code rather
+than from the contract - and now encodes the new one, with two switcher tests
+covering both directions.
+
+The header's `--` meant three things. It now means one - the clock has not
+been read - and the two empty states say "No school" and "No schedule" in the
+words the headline beneath already uses.
+
+"This backup holds 1 schedules" had a twin the audit missed: the
+`window.confirm` fallback said "Replace all 1 schedules". One
+`pluralSchedules` owner for the summary, the dialog and the fallback.
+
+B7 - Chrome blanking an impossible typed date so Add disables with no reason -
+is left open, and the gap says why: the fix wants `validity.badInput`, which
+could not be measured with a programmatic set, and a guessed fix on a
+Low-severity finding is worse than an honest row in this table.

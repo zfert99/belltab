@@ -239,3 +239,31 @@ test.describe("the period-change crossfade", () => {
     ).toBe("none");
   });
 });
+
+/**
+ * The header's schedule slot says which empty state it is in.
+ *
+ * `--` is the placeholder for "the clock has not been read yet". Until
+ * 2026-09-05 it also stood in for "no school" and "no schedules", so a weekend
+ * header read `-- 10:05`: a loading placeholder beside a live clock, meaning
+ * "nothing today". The two empty states now say so, in the words the headline
+ * beneath them already uses.
+ */
+test.describe("the header on an empty day", () => {
+  test("says No school, not --, on a weekend", async ({ page }) => {
+    await openApp(page, WEEKEND);
+
+    await expect(page.locator("#schedule-name")).toHaveText("No school");
+    await expect(page.locator("#period-name")).toHaveText("No school today");
+  });
+
+  test("says No schedule, not --, with an empty library", async ({ page }) => {
+    await openApp(page, MID_PERIOD, {
+      storage: JSON.stringify({ schedules: [], calendar: { weekdays: [null, null, null, null, null, null, null], overrides: [] } }),
+    });
+
+    await expect(page.locator("#schedule-name")).toHaveText("No schedule");
+    await expect(page.locator("#period-name")).toHaveText("No schedule yet");
+  });
+});
+
