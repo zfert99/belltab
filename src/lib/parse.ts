@@ -277,11 +277,11 @@ export const isIdentified = (schedule: ValidSchedule): schedule is IdentifiedSch
  *
  * Opaque and sequential rather than derived from the name: a schedule's name is
  * user input and changes, and an id that changed with it would silently orphan
- * every weekday and override pointing at that schedule. Exported because
- * creating and duplicating a schedule needs the same guarantee the boundary
- * gives an imported one.
+ * every weekday and override pointing at that schedule. Not exported: creating
+ * and duplicating a schedule get the same guarantee by going through
+ * `parseScheduleCollection`, which is the only caller.
  */
-export function unusedScheduleId(taken: Iterable<ScheduleId>): ScheduleId {
+function unusedScheduleId(taken: Iterable<ScheduleId>): ScheduleId {
   const used = new Set(taken);
   let n = 1;
   while (used.has(`s${n}`)) n++;
@@ -328,7 +328,7 @@ function withUniqueIds(input: readonly unknown[]): unknown[] {
  * one cap in that object with no code applying it: its only caller was the
  * collection loader in the retired `src/store.js`, and it was deleted with the
  * plain build, leaving a documented boundary that silently was not one. See
- * Docs/code-review-2026-08-27.md, finding 3.
+ * Docs/archive/code-review-2026-08-27.md, finding 3.
  *
  * The cap REFUSES rather than truncates, matching `periods` above. Silently
  * dropping schedule 51 from a link someone was sent is a worse answer than

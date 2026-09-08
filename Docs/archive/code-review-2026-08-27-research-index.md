@@ -114,7 +114,7 @@ over ceremony, AI review — is what this repo actually adopted.
 **Where:** `Docs/research/multi-zone-migration-safety-review.md:46`.
 
 ```markdown
-Full method and numbers in [`rate-limit.md`](../../src/lib/rate-limit.md).
+Full method and numbers in [`rate-limit.md`](../src/lib/rate-limit.md).
 ```
 
 From `Docs/research/`, `../../src/lib/rate-limit.md` resolves to

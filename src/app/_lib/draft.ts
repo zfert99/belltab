@@ -85,7 +85,7 @@ export function minutesToClock(totalMinutes: number): string {
  * Blank rather than a guess: an end box showing yesterday's value beside a
  * half-typed start would be a number the user did not enter and might commit.
  */
-export function endOf(start: string, length: string): string {
+function endOf(start: string, length: string): string {
   const startMin = clockToMinutes(start);
   const minutes = length.trim() === "" ? null : Number(length);
   if (startMin === null || minutes === null || !Number.isFinite(minutes)) return "";
@@ -131,7 +131,7 @@ export function toDraft(schedule: Schedule): Draft {
  * would be the second half of "parse, don't validate" done twice, and the two
  * copies would drift.
  */
-export function draftToInput(draft: Draft): unknown {
+function draftToInput(draft: Draft): unknown {
   return {
     id: draft.id,
     name: draft.name,

@@ -17,7 +17,7 @@ import { openApp, openSettings, MID_PERIOD } from "./helpers";
  * render, so "settings is still standing" is now `#settings-view` and its panel
  * being visible.
  *
- * Findings 1 and 3 of `Docs/code-review-2026-08-26.md`, in the browser they
+ * Findings 1 and 3 of `Docs/archive/code-review-2026-08-26.md`, in the browser they
  * were originally measured in. Neither is visible to the unit suite: jsdom 30
  * implements <dialog>'s `open` attribute but neither showModal nor close, so it
  * takes the app's unsupported-browser path on every run - which is how finding 3

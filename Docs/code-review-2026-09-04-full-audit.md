@@ -34,7 +34,8 @@ duplication, which is what that pass was asked for.
 > **Status.** The findings below are recorded as they were written, before any
 > fix. **B1 and B5** landed in #53, **B2** in #55, **B3** in #56, and **B4, B6
 > and B8** are on `fix/small-audit-items` — see *What was changed* at the
-> bottom. **B7** stays open, with the reason recorded there.
+> bottom. **B7** stays open, with the reason recorded there. **S1–S7 and S9**
+> are on `chore/audit-quality-s1-s5`, with one correction to S5 noted there.
 > B2's severity was **corrected from High to Low** while fixing it; the
 > original text is kept below with the correction beside it. Everything else
 > is still open.
@@ -620,4 +621,61 @@ segmented-control keystroke sequence per engine. Low severity — a date picker
 makes these hard to type in the first place — and not worth a fix that is
 guessed rather than measured. Recorded in Open gaps.
 
-Still open: **B7**, and all of **S1–S10**.
+**S1–S5**, on `chore/audit-quality-s1-s5`. Comments and dead code; no
+behaviour change. Net −44 lines across eight files.
+
+- **S1** — the three orphaned doc comments are back on the declarations they
+  describe: `tabTitleFor` in `today.ts`, `describeOffset` in
+  `PreferencesPanel.tsx`, `.strip__seam` in `globals.css`.
+- **S2** — section 13's header and the `.strip` comment now describe the
+  proportional, seamed strip that ships, not the equal squares it replaced;
+  `unusedScheduleId` and `COUNTDOWN_UNITS` say why they are *not* exported
+  instead of claiming a caller that does not exist.
+- **S3** — `DayView` reads `MOTION_ATTRIBUTE` from `theme.ts` instead of
+  repeating the literal.
+- **S4** — `.shiftall*`, every `.strip__cell--link` rule, and the two stray
+  `/* ====` openers are gone.
+- **S5** — `ringChime`, `endOf`, `draftToInput`, `unusedScheduleId` and
+  `COUNTDOWN_UNITS` are no longer exported. **One item in the S5 list was
+  wrong** and is not applied: `formatPeriodLabel`'s `ClockOptions` parameter
+  *has* a caller — `format.test.ts` pins that the 24-hour form comes out right
+  there too. "No caller in the app" is not "no caller", and a tested contract
+  is not dead flexibility. It stays, with a comment saying so. `BackupPanel`'s
+  unused `fileRef` is deferred to avoid touching a file #57 changed.
+- **S6** — `today.ts` has one `scheduleOn(library, isoDate, weekday)`; the four
+  copies of resolve-then-`find` read from it. It returns `IdentifiedSchedule`,
+  which is what the library holds and what `indexOf` needs.
+- **S7** — `bells.ts` has one `subscribeToBells` and one `serverSnapshotNull`
+  where two byte-identical pairs were.
+- **S9** — the trailing `.env*` in `.gitignore` is gone; `git check-ignore`
+  now reports `.env.example` against the `!.env.example` negation, and
+  `.env.local` is still ignored by `.env.*`.
+- Verified: the strip renders 7 blocks and 2 seams with zero `--link` cells,
+  the Day view reads the motion attribute through the constant; strip,
+  day-view, calendar, countdown and bells specs and the axe sweep green on
+  chrome.
+
+**S8, measured and deliberately not built.** Two facts changed the
+recommendation. First, all seven CI job names — Lint, Typecheck, Unit tests,
+Next build, npm audit, E2E (reflow gate), Analyze JavaScript — are **required
+status checks** on `main`, so folding lint + typecheck + unit into one job
+would silently remove three required checks: the exact trap `ci.yml` already
+documents for the E2E job. It needs the protection rule changed in the same
+motion, which is a settings change and the owner's call. Second, the small
+jobs cost 20–28 s each on the last `main` run, mostly `npm ci`, running in
+parallel; the E2E job is **7m53s**. The five installs are ~2 minutes of runner
+time and ~0 of wall-clock. The only S8 change that moves the needle is running
+WebKit and Firefox on a tagged subset — and that *reduces* cross-engine
+coverage on purpose, which is a product decision, not a cleanup. Recommended:
+leave the jobs alone; decide the tagging question explicitly.
+
+**S10, the archive half.** `Docs/archive/` now exists, as `AGENTS.md` has
+specified since the start, and the five completed review documents
+(2026-08-26, both of 2026-08-27, both of 2026-09-01) live in it. Twelve
+references across eight files — the build log, the roadmap, two E2E specs,
+`eslint.config.js`, and comments in `library.ts`, `parse.ts` and `share.ts` —
+repointed. This document stays in the root while it is still being worked.
+The build log is left whole: the owner's call on 2026-09-05 was one archive
+move, not a split.
+
+Still open: **B7**, **S8** (as above — a decision, not a task).

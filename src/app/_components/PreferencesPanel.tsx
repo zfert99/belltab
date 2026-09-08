@@ -622,13 +622,13 @@ function BellOffsetField({
   );
 }
 
+/** Where a correction starts to look like an edit. */
+const LARGE_OFFSET_SEC = 60;
+
 /**
  * The committed offset in words, because a signed integer is not an answer to
  * "which way does this go".
  */
-/** Where a correction starts to look like an edit. */
-const LARGE_OFFSET_SEC = 60;
-
 function describeOffset(offsetSec: number): string {
   if (offsetSec === 0) return "in step with this device’s clock";
 

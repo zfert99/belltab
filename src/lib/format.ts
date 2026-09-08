@@ -46,11 +46,11 @@ export function formatDuration(totalMinutes: number): string {
 /**
  * The two scales a countdown can be on, spelled the way the UI captions them.
  *
- * Exported so nothing has to compare against the literal string: splitCountdown
- * decides the scale, and every caller that needs to know which one it got reads
- * the answer from here.
+ * `splitCountdown` decides the scale and `formatRemaining` reads it back from
+ * here rather than comparing against a literal. Nothing outside this file has
+ * needed to, so it is not exported; the `CountdownUnit` type is.
  */
-export const COUNTDOWN_UNITS = {
+const COUNTDOWN_UNITS = {
   hoursMinutes: "hr : min",
   minutesSeconds: "min : sec",
 } as const;
@@ -111,7 +111,14 @@ export function formatDayCaption(day: DaySummary, position: BlockPosition): stri
   return `${position.index} of ${position.total} · ${formatRemaining(day.remainingSec)} ${target}`;
 }
 
-/** One period, spelled out: "Period 3 - 10:10 to 11:05". */
+/**
+ * One period, spelled out: "Period 3 · 10:10–11:05".
+ *
+ * The clock option is forwarded even though no caller in the app passes it
+ * yet: `format.test.ts` pins that the 24-hour form comes out right here too,
+ * and a formatter that silently dropped the preference for one surface would
+ * be the inconsistency, not the parameter.
+ */
 export function formatPeriodLabel(period: Period, options?: ClockOptions): string {
   return `${period.name} · ${formatClock(period.startMin, options)}–${formatClock(period.endMin, options)}`;
 }
