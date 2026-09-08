@@ -645,7 +645,6 @@ it. None is a task.
 
 | Opened | Item | Notes |
 | --- | --- | --- |
-| 2026-09-05 | An unreadable saved library is discarded without a word | `loadLibrary` degrades a library it cannot parse to the seeded defaults and shows nothing, so a user sees their schedules apparently wiped; the originals stay in `localStorage` only until the next write overwrites them. The degrade is right and argued for in `library.ts` - a tab that will not open is worse. The gap is the notice: `parseLibrary` already produces a specific sentence for the same input on the import path, and the load path throws it away. The fix is to say so and to defer the overwrite until the user has acknowledged it. Found 2026-09-05, see `Docs/code-review-2026-09-04-full-audit.md` B3. |
 | 2026-08-27 | There is no undo | Deleting a *period* is still immediate and unconfirmed, and the only way back is to retype it. Deliberate for a four-field row whose result is visible behind the editor. Deleting a whole *schedule* now goes through a modal confirmation, which is the half of this gap Phase 4 closed; a real undo is still owed and would remove the need for the dialog. |
 | 2026-09-01 | An import cannot be undone | It replaces every schedule and the whole calendar, behind a confirmation that says so. Exporting first is the answer the panel gives, and it puts the export above the import for that reason. A real undo would be better and is the same gap as the one open for deleting a period. |
 
@@ -653,6 +652,7 @@ it. None is a task.
 
 | Opened | Closed | Item |
 | --- | --- | --- |
+| 2026-09-05 | 2026-09-05 | An unreadable saved library is now SAID, KEPT and RETURNABLE. The degrade to the seeded defaults is unchanged; what changed is that `loadLibraryReport` reports which of three ways the value failed, in storage's voice; `libraryStore` records it, and the first `saveLibrary` copies the unreadable bytes to `belltab.v1.unreadable` BEFORE overwriting - so one keystroke no longer destroys the only copy; and `LibraryNotice`, in the share offer's slot, says so and hands the bytes back as a file. Nothing blocks. Verified live: planted one bad period, saw the banner with the reason, renamed a schedule, and read the planted string back from the quarantine key with the live key readable again. Six unit tests, an E2E spec with a real download read back from disk, and a 320px reflow check. |
 | 2026-09-05 | 2026-09-05 | The themed-load hydration mismatch is gone: `suppressHydrationWarning` on `<html>` in `layout.tsx`, the standard other half of a pre-paint theme script. **Downgraded while fixing** - the gap was opened as if users saw it, and they do not: React 19 checks attribute mismatches in development builds only, and a themed load of the production build logged zero console lines of any type. Dev-only noise, fixed because a console that always carries one error hides the next real one. Pinned by a source test in `preferences.test.ts` (negative control: removing the attribute fails it); a prod E2E test asserts a themed load logs nothing at all. |
 | 2026-09-05 | 2026-09-05 | The Backup panel reflows at 320px, and the suite can no longer miss a panel. `width: 100%` + `min-width: 0` on `.backup__file` and `#backup-import` - the recipe the calendar's selects already carried - takes the page from 345px to 320px inside a 320px viewport. The panel list moved to `src/app/_lib/panels.ts`, and both `reflow.spec.ts` and `a11y.spec.ts` now loop over `PANEL_IDS` instead of a hand-written three, with a guard test asserting the tabs the app RENDERS equal the ids the suite ITERATES. Negative control run: with the CSS reverted, exactly one test fails and its message names the panel. |
 | 2026-09-02 | 2026-09-04 | Notifications work on Android Chrome — a service worker with NO fetch handler (`public/sw.js`) is registered the moment notifications are granted, never before, and every bell goes through `registration.showNotification` wherever a worker exists, falling back to `new Notification` where none can. The 2026-09-02 decision against a caching worker stands; this one caches nothing. Verified against a stubbed worker on three engines; the real Android device is the user's, who asked for this. |
@@ -5306,3 +5306,31 @@ can see: not the dev warning, but every real failure production does report.
 Verified in the dev preview with `theme: "light"` stored: attribute on <html>
 before paint, no Issues badge, no hydration error. 442 unit tests, lint,
 typecheck, markdownlint green.
+
+### 2026-09-05 — B3: the library that could not be read now says so, and keeps its bytes
+
+The last of the audit's three defects worth fixing before the next deploy,
+and the only one that needed a decision rather than a patch. The decision:
+keep the degrade, add three things it was missing - the sentence, the reason
+and a way back - and never block. No server, no new dependency, hundreds of
+bytes.
+
+`loadLibraryReport` is `loadLibrary` plus the one fact it used to discard:
+whether a value was there at all. `null` for a fresh install AND for a
+readable value - a new browser is not a problem. `parseLibrary`'s errors now
+carry a `field` (`json` / `shape` / `schedules`) so the loader can say the
+same thing in storage's voice instead of reusing sentences about "that file"
+and the Export button. `libraryStore` sets the problem inside `load` and never
+emits there - the same assign-don't-notify discipline `localStore` already
+uses for its own cache, because `load` runs during render. The quarantine
+happens in `saveLibrary`, in the event handler, before `store.save`: order is
+the whole fix. Dismiss hides the banner and leaves the quarantine armed.
+
+`LibraryNotice` reuses `.offer`, so no CSS moved. Download uses Export's
+object-URL pattern and writes the bytes exactly as they were - a future
+BellTab, or a person with an editor, may read what this one could not.
+
+One thing left deliberately imperfect: after the first save the banner still
+offers "kept aside the first time you save a change", which has by then
+happened. Clearing it at that moment would take the Download button away
+mid-read; the next load clears it, and the E2E asserts that.

@@ -19,6 +19,7 @@ import { DayView } from "@/app/_components/DayView";
 import { SettingsView, type PanelId } from "@/app/_components/SettingsView";
 import { PeriodAnnouncer } from "@/app/_components/PeriodAnnouncer";
 import { ShareOffer } from "@/app/_components/ShareOffer";
+import { LibraryNotice } from "@/app/_components/LibraryNotice";
 import { BackIcon, GearIcon } from "@/app/_components/icons";
 
 /**
@@ -373,6 +374,13 @@ export function App() {
         stopped just because it is not on screen.
       */}
       <title>{shown === null ? "BellTab" : tabTitleFor(shown)}</title>
+
+      {/*
+        Above the share offer, and above everything: a library this browser
+        could not read is the one thing worth hearing before the countdown.
+        Renders nothing on a fresh install or a readable value.
+      */}
+      <LibraryNotice now={now} />
 
       {offer !== null && (
         <ShareOffer

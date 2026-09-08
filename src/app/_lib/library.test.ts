@@ -7,6 +7,7 @@ import {
   deleteSchedule,
   duplicateSchedule,
   loadLibrary,
+  loadLibraryReport,
   parseLibrary,
   removeOverride,
   replaceLibrary,
@@ -531,5 +532,48 @@ describe("past exceptions", () => {
 
   it("is a no-op on a calendar with nothing in the past", () => {
     expect(removePastOverrides(DEFAULT_LIBRARY, today)).toEqual(DEFAULT_LIBRARY);
+  });
+});
+
+describe("loadLibraryReport", () => {
+  /**
+   * `loadLibrary` with the one fact it used to discard: WHETHER the value it
+   * degraded from was there at all. The store needs that to tell a fresh
+   * install (nothing to say) from an unreadable library (say so, and keep the
+   * bytes) - the case the 2026-09-05 review found handled in silence.
+   */
+  const good = serializeLibrary(DEFAULT_LIBRARY);
+
+  it("reports no problem for an absent value - a fresh install is not a problem", () => {
+    expect(loadLibraryReport(null)).toEqual({ library: DEFAULT_LIBRARY, problem: null });
+  });
+
+  it("reports no problem for a readable value, and returns it", () => {
+    const report = loadLibraryReport(good);
+    expect(report.problem).toBeNull();
+    expect(report.library).toEqual(loadLibrary(good));
+  });
+
+  it("agrees with loadLibrary about the library in every case", () => {
+    for (const raw of [null, good, "{nope", "[]", '{"schedules":[{"id":"s1","name":"X","periods":[]}]}']) {
+      expect(loadLibraryReport(raw).library).toEqual(loadLibrary(raw));
+    }
+  });
+
+  it.each([
+    ["not JSON", "{nope", "isn\u2019t JSON"],
+    ["JSON of the wrong shape", "[]", "isn\u2019t a BellTab library"],
+    [
+      "a library with one bad schedule",
+      '{"schedules":[{"id":"s1","name":"X","periods":[{"name":"P","kind":"Class","startMin":600,"endMin":540}]}],"calendar":{}}',
+      "One of the saved schedules can\u2019t be read: A period has to end after it starts.",
+    ],
+  ])("degrades %s to the defaults AND says why, in storage's voice", (_label, raw, expected) => {
+    const report = loadLibraryReport(raw);
+    expect(report.library).toEqual(DEFAULT_LIBRARY);
+    expect(report.problem).toContain(expected);
+    // The import path's wording is about "that file" and the Export button;
+    // none of that belongs in a sentence about this browser's storage.
+    expect(report.problem).not.toMatch(/that file|Export button|backup/i);
   });
 });
