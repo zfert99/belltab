@@ -2018,12 +2018,28 @@ body.is-big {
   flex-direction: column;
   gap: var(--s-1);
   align-items: flex-start;
+  /* Same pair, same reason as the control below - the label is the box the
+     input is measured against, so it has to be shrinkable too. */
+  width: 100%;
+  min-width: 0;
 }
 
 /* A native file input is ugly and honest. Styling it means hiding it behind a
    label, which costs the keyboard and screen-reader behaviour the real control
-   already has - so it keeps its own appearance and only its box is tamed. */
+   already has - so it keeps its own appearance and only its box is tamed.
+
+   `width: 100%` and `min-width: 0`, for exactly the reason the calendar's
+   selects carry them: a file input's INTRINSIC width is its button plus its
+   "no file chosen" text - measured at 311.5px in Chrome - and while an
+   ancestor is being sized to its content, `max-width: 100%` resolves against a
+   box that is itself still growing, so it never binds. `min-width: 0` only
+   permits shrinking; `width: 100%` is what actually reduces what the control
+   asks for. Without both, this one element pushed the page to 345px inside a
+   320px viewport - a WCAG 2.2 SC 1.4.10 failure, measured in review on
+   2026-09-05, and the one settings panel the reflow suite did not open. */
 #backup-import {
+  width: 100%;
+  min-width: 0;
   max-width: 100%;
   font-family: var(--font-body);
   font-size: 0.9375rem;

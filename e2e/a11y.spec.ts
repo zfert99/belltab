@@ -8,6 +8,7 @@ import {
   MID_PERIOD,
   WEEKEND,
 } from "./helpers";
+import { PANEL_IDS } from "../src/app/_lib/panels";
 
 /**
  * The automated accessibility scan, owed since 2026-08-27.
@@ -239,19 +240,28 @@ test.describe("settings", () => {
 });
 
 /**
- * The three densest panels again, at the reflow floor.
+ * Every settings panel again, at the reflow floor.
  *
  * The sweep above runs at the default viewport because small-screen LAYOUT is
  * the reflow gate's job - but layout and accessibility are not the same check.
  * The editor stacks into a different DOM shape below 34rem, labels that were
  * visually hidden become visible, and touch targets shrink with the columns;
- * none of that is exercised by a 1280px axe run. Three journeys at 320px is
- * the cheapest honest answer to "is it still clean when it has reflowed".
+ * none of that is exercised by a 1280px axe run.
+ *
+ * It said "the three densest panels" until 2026-09-05, and the panel it left
+ * out was the one that turned out to be broken. Enumerating by hand is what
+ * went wrong; the loop below enumerates the app's own list instead.
  */
 test.describe("at 320 CSS px", () => {
   test.use({ viewport: { width: 320, height: 800 } });
 
-  for (const panel of ["schedules", "calendar", "preferences"] as const) {
+  /**
+   * Every panel, from the app's own list rather than a copy of it. The copy
+   * that used to be here named three of four, and the one it left out - Backup
+   * - was also the one panel `reflow.spec.ts` never opened. See
+   * `_lib/panels.ts` and Bugs found, 2026-09-05.
+   */
+  for (const panel of PANEL_IDS) {
     test(`the ${panel} panel has no serious violations`, async ({ page }) => {
       await openApp(page, MID_PERIOD);
       await openSettings(page, panel);

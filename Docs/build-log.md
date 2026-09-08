@@ -645,6 +645,8 @@ it. None is a task.
 
 | Opened | Item | Notes |
 | --- | --- | --- |
+| 2026-09-05 | An unreadable saved library is discarded without a word | `loadLibrary` degrades a library it cannot parse to the seeded defaults and shows nothing, so a user sees their schedules apparently wiped; the originals stay in `localStorage` only until the next write overwrites them. The degrade is right and argued for in `library.ts` - a tab that will not open is worse. The gap is the notice: `parseLibrary` already produces a specific sentence for the same input on the import path, and the load path throws it away. The fix is to say so and to defer the overwrite until the user has acknowledged it. Found 2026-09-05, see `Docs/code-review-2026-09-04-full-audit.md` B3. |
+| 2026-09-05 | A themed load logs a hydration mismatch | `THEME_SCRIPT` sets `data-theme` before React hydrates, so React reports the `<html>` attribute as a mismatch on every load for anyone who chose Light or Dark. The script is correct and stays; `<html>` needs `suppressHydrationWarning`. Verified: with `theme: "system"` the error is absent. See B2. |
 | 2026-08-27 | There is no undo | Deleting a *period* is still immediate and unconfirmed, and the only way back is to retype it. Deliberate for a four-field row whose result is visible behind the editor. Deleting a whole *schedule* now goes through a modal confirmation, which is the half of this gap Phase 4 closed; a real undo is still owed and would remove the need for the dialog. |
 | 2026-09-01 | An import cannot be undone | It replaces every schedule and the whole calendar, behind a confirmation that says so. Exporting first is the answer the panel gives, and it puts the export above the import for that reason. A real undo would be better and is the same gap as the one open for deleting a period. |
 
@@ -652,6 +654,7 @@ it. None is a task.
 
 | Opened | Closed | Item |
 | --- | --- | --- |
+| 2026-09-05 | 2026-09-05 | The Backup panel reflows at 320px, and the suite can no longer miss a panel. `width: 100%` + `min-width: 0` on `.backup__file` and `#backup-import` - the recipe the calendar's selects already carried - takes the page from 345px to 320px inside a 320px viewport. The panel list moved to `src/app/_lib/panels.ts`, and both `reflow.spec.ts` and `a11y.spec.ts` now loop over `PANEL_IDS` instead of a hand-written three, with a guard test asserting the tabs the app RENDERS equal the ids the suite ITERATES. Negative control run: with the CSS reverted, exactly one test fails and its message names the panel. |
 | 2026-09-02 | 2026-09-04 | Notifications work on Android Chrome — a service worker with NO fetch handler (`public/sw.js`) is registered the moment notifications are granted, never before, and every bell goes through `registration.showNotification` wherever a worker exists, falling back to `new Notification` where none can. The 2026-09-02 decision against a caching worker stands; this one caches nothing. Verified against a stubbed worker on three engines; the real Android device is the user's, who asked for this. |
 | 2026-09-02 | 2026-09-04 | The bell offset has a calibration aid: "The bell just rang", pressed as the real bell sounds, measures the offset from the nearest bell in today's schedule (`calibrateOffset`, pure, cap as an argument). Refuses with a sentence when nothing is within the cap; disabled with a reason when today has no schedule. Whether it has been pressed at a REAL bell is still a report to collect; the mechanism is built. |
 | 2026-09-02 | 2026-09-04 | The macOS WebKit Tab quirk is handled, not annotated: Option+Tab is macOS's "tab to everything" and Playwright's WebKit honours it — measured with a probe (Tab: body, body, body; Option+Tab: the buttons in order). `tabTo` uses it on `webkit` + `darwin` only. The editor spec passes on WebKit locally for the first time. |
@@ -750,6 +753,52 @@ it. None is a task.
 ---
 
 ## Bugs found
+
+### 2026-09-05 — the reflow gate enumerated three panels out of four, and the fourth was broken
+
+Found by opening the app rather than by reading it. At 320px the Backup panel
+scrolls the page sideways: `scrollWidth` 345 against a `clientWidth` of 320.
+That is a WCAG 2.2 SC 1.4.10 failure, on the check `AGENTS.md` calls blocking,
+on `main`, shipped.
+
+The cause is one element. A native file input's INTRINSIC width is its button
+plus its "no file chosen" text — 311.5px in Chrome — and `#backup-import`
+carried only `max-width: 100%`. A percentage max-width resolves against a box
+that is itself still being sized to its content, so it never binds; setting
+`display: none` on that one input dropped the document from 345px to exactly
+320px, which is how it was isolated.
+
+**This stylesheet already knew the answer.** The calendar's `<select>`s carry
+`width: 100%; min-width: 0; max-width: 100%` under a long comment explaining
+that "`min-width` alone only permits shrinking; it does not reduce what the
+control asks for". The same sentence applies verbatim to a file input. The fix
+is that pair, on the input and on the label that measures it.
+
+The part worth keeping is why it was never caught. `reflow.spec.ts` had a
+hand-written test per panel and `a11y.spec.ts` looped over
+`["schedules", "calendar", "preferences"]`. `SettingsView`'s `PANELS` has four
+entries. **Backup was the only panel with neither a reflow test nor a 320px axe
+test, and Backup was the panel that failed** — the coverage hole and the defect
+were the same hole, because the thing that decides what gets tested was a
+different list from the thing that decides what gets rendered.
+
+So the fix is not "add Backup to two arrays", which is the same mistake with a
+longer list. The panel list moved to `src/app/_lib/panels.ts` — no React, so a
+Node spec can import it — both suites loop over `PANEL_IDS`, and a guard test
+compares the tab ids the app renders against the ids the suite iterates. A
+fifth panel is covered the moment it is added in one place.
+
+Verified as a negative control rather than assumed: with the CSS reverted,
+exactly one test failed, and its message was
+`320px settings/backup: page scrolls horizontally (345 > 320)` with the widest
+elements listed. A test that passes with and without the fix is not a test.
+
+**The lesson is the one the 8px name column already recorded, moved up a
+level:** that bug was a gate measuring the wrong thing, this one is a gate not
+measuring at all. Any list that decides what gets checked should be derived
+from the list that decides what exists, or the two drift and the gap is
+invisible — a green run over three of four panels looks exactly like a green
+run over four.
 
 ### 2026-09-03 — the name column was 8px wide on every engine, and Chrome's axe missed it by two pixels
 
@@ -5128,3 +5177,84 @@ at the top of this file caught up with two days of work.
 
 Nothing is in flight. The next thing that happens to this project should be
 a week of real use.
+
+### 2026-09-05 — a full audit: static review, then the app in a browser
+
+An independent pass over the whole repository, then the same app driven through
+a real Chrome. Written up in `Docs/code-review-2026-09-04-full-audit.md`;
+nothing was fixed, so the findings live there rather than here.
+
+The static half found no bugs — only drift: three doc comments that a later
+insertion left sitting on the wrong declaration, four comments that now
+contradict their code (section 13 of `globals.css` still argues for the equal
+squares the strip stopped drawing), ~45 lines of unreachable CSS, six exports
+with no importer, and `DayView` hardcoding `"data-motion"` beside an unused
+`MOTION_ATTRIBUTE`.
+
+The browser half found eight defects, two of them worth fixing first.
+
+**The Backup panel scrolls sideways at 320px** — `scrollWidth` 345 against a
+320 viewport, which is the WCAG 2.2 SC 1.4.10 failure `AGENTS.md` calls
+blocking. The cause is the native file input's 311.5px intrinsic width in a
+container sized to its content, so `max-width: 100%` never binds: exactly the
+`<select>` problem this stylesheet already documents, missing the `min-width: 0`
+half of the answer. It shipped because `reflow.spec.ts` and `a11y.spec.ts` both
+loop over `["schedules", "calendar", "preferences"]` while `PANELS` has four
+entries — Backup is the one panel with neither test.
+
+**Every themed load logs a hydration mismatch.** `THEME_SCRIPT` sets
+`data-theme` on `<html>` before React hydrates, so React compares server HTML
+without the attribute against a DOM with it. The script is right and should
+stay; `<html>` needs `suppressHydrationWarning`. Verified both ways: with
+`theme: "system"` the script sets nothing and the error is absent.
+
+The rest are smaller — the Day button reporting `aria-pressed="true"` while the
+Now view is rendered, "1 schedules" in the import dialog, Chrome blanking an
+impossible date so Add disables with no reason, and `--` meaning both "clock not
+read" and "no schedule today".
+
+What did NOT break is worth recording. A 764:1 deflate bomb inside the
+`encodedChars` cap was stopped mid-stream. `toString` and `valueOf` as version
+markers came back "newer version" rather than being invoked — the `Map` dispatch
+fix, confirmed against a live page for the first time. An `<img onerror>` period
+name stored verbatim and rendered as text. An invalid draft never reached
+storage. And replacing `window.Date` at runtime — telling nothing that time had
+moved — left the countdown, the title, the fill, the strip and the announcer all
+correct on the next tick, which only works if every one of them is recomputed.
+
+One open gap is owed regardless of what gets fixed: `loadLibrary` degrades a
+library it cannot parse to the seeded defaults **silently**, and the next write
+overwrites the original. The degrade is right; `parseLibrary` already produces
+the sentence that should be shown, and the load path throws it away.
+
+`.claude/launch.json` gained `"autoPort": true` — port 3000 was held by another
+dev server. That is the only change to the tree.
+
+### 2026-09-05 — B1 and B5: the panel the gate never opened
+
+The first two findings from `Docs/code-review-2026-09-04-full-audit.md`, fixed
+together because they are one problem seen from two sides: the Backup panel
+overflowed at 320px, and the reason nobody knew is that neither the reflow
+suite nor the 320px axe sweep ever opened it.
+
+The CSS half is two declarations, and the stylesheet had already written the
+argument for them beside the calendar's `<select>`s. The suite half is the one
+that mattered more: `src/app/_lib/panels.ts` now holds `PANELS` and
+`PANEL_IDS`, `SettingsView` renders from it, and both specs loop over it. The
+module is deliberately React-free so a Node spec can import it without dragging
+four panel components and a `"use client"` boundary along.
+
+A guard test in `reflow.spec.ts` compares the tab ids the app renders against
+the ids the suite iterates, so a fifth panel that is added to the app but not
+to the manifest fails loudly instead of quietly going untested. It sits outside
+the width loop on purpose — the set of panels does not change with the
+viewport, and inside the loop it would be forty-five copies of one answer
+across five widths and three engines.
+
+Coverage went from three panels to four in the axe sweep, and from
+hand-written-per-panel to every-panel in the reflow suite. Confirmed by
+negative control: reverting the CSS turns exactly one test red.
+
+Still open from the same audit: the hydration mismatch on every themed load
+(B2, a one-attribute fix that is verified but not applied), and the silent
+library wipe (B3), which wants a design rather than a patch.

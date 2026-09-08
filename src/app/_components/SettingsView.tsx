@@ -7,6 +7,7 @@ import type { Preferences } from "@/app/_lib/preferences";
 import type { WakeLockStatus } from "@/app/_lib/wakeLock";
 import type { BellStatuses } from "@/app/_lib/bells";
 import { scheduleForToday, scheduleIndexToEdit } from "@/app/_lib/today";
+import { PANELS, type PanelId } from "@/app/_lib/panels";
 import { SchedulesPanel } from "@/app/_components/SchedulesPanel";
 import { CalendarPanel } from "@/app/_components/CalendarPanel";
 import { BackupPanel } from "@/app/_components/BackupPanel";
@@ -37,19 +38,12 @@ import { PreferencesPanel } from "@/app/_components/PreferencesPanel";
  * editor at a different schedule.
  */
 
-export type PanelId = "schedules" | "calendar" | "backup" | "preferences";
-
 /**
- * Ordered by how much of the app each one changes: the schedules, then the days
- * pointing at them, then the whole library at once, then the two settings that
- * change nothing about the school day at all.
+ * The panel list moved to `_lib/panels.ts` so the E2E suite can loop over the
+ * same one. Re-exported here because every caller already imports `PanelId`
+ * from this file, and the move is not their business.
  */
-const PANELS: readonly { id: PanelId; label: string }[] = [
-  { id: "schedules", label: "Schedules" },
-  { id: "calendar", label: "Calendar" },
-  { id: "backup", label: "Backup" },
-  { id: "preferences", label: "Preferences" },
-];
+export type { PanelId };
 
 export interface SettingsViewProps {
   library: Library;
