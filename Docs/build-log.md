@@ -646,7 +646,6 @@ it. None is a task.
 
 | Opened | Item | Notes |
 | --- | --- | --- |
-| 2026-09-05 | An impossible typed date disables Add with no explanation, on Chrome only | Chrome sanitises `2026-02-30` in a date control to `""`, so `CalendarPanel` sees an empty box - correctly mid-edit, not an error - and the user gets a dead button and no reason. WebKit renders a text box, keeps the value, and the error shows. The candidate signal is the control's `validity.badInput`, which could not be measured: a programmatic set reports `false`, and a typed impossible date needs a real keystroke sequence per engine. Low severity; left open rather than fixed by guesswork. Audit finding B7. |
 | 2026-08-27 | There is no undo | Deleting a *period* is still immediate and unconfirmed, and the only way back is to retype it. Deliberate for a four-field row whose result is visible behind the editor. Deleting a whole *schedule* now goes through a modal confirmation, which is the half of this gap Phase 4 closed; a real undo is still owed and would remove the need for the dialog. |
 | 2026-09-01 | An import cannot be undone | It replaces every schedule and the whole calendar, behind a confirmation that says so. Exporting first is the answer the panel gives, and it puts the export above the import for that reason. A real undo would be better and is the same gap as the one open for deleting a period. |
 
@@ -654,6 +653,7 @@ it. None is a task.
 
 | Opened | Closed | Item |
 | --- | --- | --- |
+| 2026-09-05 | 2026-09-08 | A typed impossible date is told apart from an emptied box. The row said the fix wanted `validity.badInput` on a TYPED date and that automation could not measure it; Playwright's `keyboard.type` could, and on all three engines a typed February 30th leaves `value` at "" with `badInput` true. Read on change, key-up and blur - change never fires because "" to "" is no change, and Tab does not leave Chrome's segmented control - so the panel says "That isn't a date that exists", marks the field invalid, and keeps Add disabled until a real date replaces it. One test that types; negative control red with the reads disabled. |
 | 2026-09-05 | 2026-09-05 | An unreadable saved library is now SAID, KEPT and RETURNABLE. The degrade to the seeded defaults is unchanged; what changed is that `loadLibraryReport` reports which of three ways the value failed, in storage's voice; `libraryStore` records it, and the first `saveLibrary` copies the unreadable bytes to `belltab.v1.unreadable` BEFORE overwriting - so one keystroke no longer destroys the only copy; and `LibraryNotice`, in the share offer's slot, says so and hands the bytes back as a file. Nothing blocks. Verified live: planted one bad period, saw the banner with the reason, renamed a schedule, and read the planted string back from the quarantine key with the live key readable again. Six unit tests, an E2E spec with a real download read back from disk, and a 320px reflow check. |
 | 2026-09-05 | 2026-09-05 | The themed-load hydration mismatch is gone: `suppressHydrationWarning` on `<html>` in `layout.tsx`, the standard other half of a pre-paint theme script. **Downgraded while fixing** - the gap was opened as if users saw it, and they do not: React 19 checks attribute mismatches in development builds only, and a themed load of the production build logged zero console lines of any type. Dev-only noise, fixed because a console that always carries one error hides the next real one. Pinned by a source test in `preferences.test.ts` (negative control: removing the attribute fails it); a prod E2E test asserts a themed load logs nothing at all. |
 | 2026-09-05 | 2026-09-05 | The Backup panel reflows at 320px, and the suite can no longer miss a panel. `width: 100%` + `min-width: 0` on `.backup__file` and `#backup-import` - the recipe the calendar's selects already carried - takes the page from 345px to 320px inside a 320px viewport. The panel list moved to `src/app/_lib/panels.ts`, and both `reflow.spec.ts` and `a11y.spec.ts` now loop over `PANEL_IDS` instead of a hand-written three, with a guard test asserting the tabs the app RENDERS equal the ids the suite ITERATES. Negative control run: with the CSS reverted, exactly one test fails and its message names the panel. |
@@ -5463,3 +5463,39 @@ Not done, on purpose: reusing the `Next build` job's output in the E2E job
 until the Chrome-only run is measured, per its own ordering. The one slice of
 the tiering idea it endorses - a tiny local smoke set for a pre-push signal,
 never the PR gate - is an offer, not a change.
+
+### 2026-09-08 — B7 after all: the measurement was makeable, and two events that do not fire
+
+The one audit defect left open was open because "a typed impossible date
+needs a real keystroke sequence per engine, which automation cannot make".
+Playwright's `keyboard.type` drives a date control through real key events,
+and a probe on all three engines settled it in half a minute: a typed February
+30th leaves `value` at "" with `validity.badInput` true, on Chrome, Firefox and
+WebKit alike. The programmatic set that had reported `false` was the wrong
+instrument, not evidence of a missing one - the same lesson as the S5 claim
+and the B2 severity, from the other direction: this time the measurement said
+the fix WAS possible.
+
+The fix is a state flag read from the control's validity, and the interesting
+part is where it can be read. Not on change: the value goes from "" to "", so
+React sees nothing. Not on blur alone: Chrome's segmented control swallows Tab
+to move between month, day and year, so the probe's Tab left focus exactly
+where it was - `activeElement` was still the field. Key-up fires per keystroke
+into a segment on every engine, so the panel reads validity there, on blur for
+a pointer leaving, and on change for completeness. A typed impossible date now
+gets "That isn't a date that exists. Check the day and the month.", the field
+is `aria-invalid`, and Add stays disabled until a real date replaces it.
+
+One E2E test that types rather than fills - the measurement is the reason it
+types - green on all three engines; with the validity reads disabled it fails
+on its first assertion. The a11y sweep is unchanged: the error element is the
+one that already existed, with a different sentence.
+
+Also folded in: `BackupPanel`'s unused `fileRef`, the S5 leftover deferred
+while #57 owned that file. And the number the last entry promised: the first
+push to `main` under the engine-scoped CI ran all three engines at 100%
+workers in 8m5s, green. The full run is not faster and was never going to
+be: three engines and `next start` on four cores are CPU-bound. The ~4½
+minutes came off pull requests, which is where the research said they would.
+
+Nothing from the 2026-09-04 audit is still open.

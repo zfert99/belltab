@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, type RefObject } from "react";
+import { useState, type RefObject } from "react";
 import type { LocalNow } from "@/lib/clock";
 import {
   parseLibrary,
@@ -37,7 +37,6 @@ const pluralSchedules = (count: number): string =>
   `${count} ${count === 1 ? "schedule" : "schedules"}`;
 
 export function BackupPanel({ library, save, now, headingRef }: BackupPanelProps) {
-  const fileRef = useRef<HTMLInputElement | null>(null);
   const [pending, setPending] = useState<Library | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -131,7 +130,6 @@ export function BackupPanel({ library, save, now, headingRef }: BackupPanelProps
           <input
             type="file"
             id="backup-import"
-            ref={fileRef}
             accept="application/json,.json"
             aria-describedby={error === null ? undefined : "backup-error"}
             aria-invalid={error === null ? undefined : true}

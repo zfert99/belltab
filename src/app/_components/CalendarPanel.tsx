@@ -69,6 +69,18 @@ export interface CalendarPanelProps {
 
 export function CalendarPanel({ library, save, now, headingRef }: CalendarPanelProps) {
   const [newDate, setNewDate] = useState("");
+  /**
+   * Whether the date control is holding something it could not turn into a
+   * date - February 30th, typed. Every engine then reports `value` as "", and
+   * "" is also what an empty box reports, so the value alone cannot tell
+   * "cleared" from "typed nonsense": the user got a dead Add button and no
+   * reason. `validity.badInput` is the signal that tells them apart, and it is
+   * true for a typed impossible date on Chrome, Firefox AND WebKit - measured
+   * with real key events on 2026-09-08, after a programmatic set had reported
+   * false and left this as an open gap. Read on change, key-up AND blur - see
+   * the note on the control for why change alone is not enough.
+   */
+  const [dateBadInput, setDateBadInput] = useState(false);
   const [newScheduleId, setNewScheduleId] = useState<string>(NO_SCHOOL);
 
   const { overrides } = library.calendar;
@@ -90,7 +102,7 @@ export function CalendarPanel({ library, save, now, headingRef }: CalendarPanelP
     genuinely new date is refused.
   */
   const parsedNewDate = parseIsoDate(newDate);
-  const dateIsUnusable = newDate !== "" && parsedNewDate === null;
+  const dateIsUnusable = dateBadInput || (newDate !== "" && parsedNewDate === null);
   const calendarIsFull = overrides.length >= SCHEDULE_LIMITS.overrides;
   const past = now === null ? [] : pastOverrides(library, now.isoDate);
   const hasOverrideOn = (date: IsoDate) => overrides.some((entry) => entry.date === date);
@@ -227,7 +239,19 @@ export function CalendarPanel({ library, save, now, headingRef }: CalendarPanelP
               value={newDate}
               aria-invalid={dateIsUnusable || undefined}
               aria-describedby={dateIsUnusable ? "override-date-error" : undefined}
-              onChange={(event) => setNewDate(event.target.value)}
+              onChange={(event) => {
+                setNewDate(event.target.value);
+                setDateBadInput(event.target.validity.badInput);
+              }}
+              // ALSO on key-up and on blur, and those are the ones that matter:
+              // a typed impossible date leaves `value` at "" - the same "" an
+              // empty box has - so no change event fires and the read above
+              // never runs. Nor can blur be relied on alone: Chrome's segmented
+              // control swallows Tab to move between month, day and year, so
+              // focus stays put. Key-up fires per keystroke into a segment on
+              // every engine; blur covers a pointer leaving the field.
+              onKeyUp={(event) => setDateBadInput(event.currentTarget.validity.badInput)}
+              onBlur={(event) => setDateBadInput(event.target.validity.badInput)}
             />
           </label>
           <label className="addoverride__field">
@@ -258,6 +282,7 @@ export function CalendarPanel({ library, save, now, headingRef }: CalendarPanelP
               if (parsedNewDate === null) return;
               save(setOverride(library, parsedNewDate, newScheduleId || null));
               setNewDate("");
+              setDateBadInput(false);
             }}
           >
             Add exception
@@ -272,7 +297,9 @@ export function CalendarPanel({ library, save, now, headingRef }: CalendarPanelP
         */}
         {dateIsUnusable && (
           <p className="editrow__error" id="override-date-error">
-            That is not a date BellTab can store. Use YYYY-MM-DD, with a four-digit year.
+            {dateBadInput
+              ? "That isn\u2019t a date that exists. Check the day and the month."
+              : "That is not a date BellTab can store. Use YYYY-MM-DD, with a four-digit year."}
           </p>
         )}
         {cannotAdd && (

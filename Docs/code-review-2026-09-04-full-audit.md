@@ -34,8 +34,9 @@ duplication, which is what that pass was asked for.
 > **Status.** The findings below are recorded as they were written, before any
 > fix. **B1 and B5** landed in #53, **B2** in #55, **B3** in #56, and **B4, B6
 > and B8** are on `fix/small-audit-items` — see *What was changed* at the
-> bottom. **B7** stays open, with the reason recorded there. **S1–S7 and S9**
-> are on `chore/audit-quality-s1-s5`, with one correction to S5 noted there.
+> bottom. **S1–S7, S9 and S10** landed in #59, **S8** in #58, and **B7** — open
+> "by design" for three days — is on `fix/impossible-date-feedback`, because the
+> measurement it was waiting for turned out to be makeable.
 > B2's severity was **corrected from High to Low** while fixing it; the
 > original text is kept below with the correction beside it. Everything else
 > is still open.
@@ -678,4 +679,32 @@ repointed. This document stays in the root while it is still being worked.
 The build log is left whole: the owner's call on 2026-09-05 was one archive
 move, not a split.
 
-Still open: **B7**, **S8** (as above — a decision, not a task).
+**B7**, on `fix/impossible-date-feedback`, after all. The doc above says the
+fix wanted `validity.badInput` on a *typed* impossible date and that automation
+could not measure it. It could: Playwright's `keyboard.type` drives the date
+control through real key events, and on **Chrome, Firefox and WebKit alike** a
+typed February 30th leaves `value === ""` with `validity.badInput === true`.
+The programmatic set that reported `false` was the wrong instrument, not a
+missing one.
+
+Two traps in the fix, both measured rather than reasoned:
+
+- `onChange` never fires. The value goes from `""` to `""`, so React sees no
+  change and a read of `validity` there never runs.
+- `onBlur` cannot be relied on either. Chrome's segmented control swallows Tab
+  to move between month, day and year, so focus stays in the field.
+
+`onKeyUp` fires per keystroke into a segment on every engine, so the panel reads
+`validity.badInput` there, on blur, and on change. A typed impossible date now
+gets *"That isn't a date that exists. Check the day and the month."*, the
+field is `aria-invalid`, and Add stays disabled until a real date replaces it.
+One E2E test that **types** rather than fills, green on all three engines;
+negative control: with the validity reads disabled, it fails on its first
+assertion. Also folds in the S5 leftover — `BackupPanel`'s unused `fileRef` —
+deferred earlier to keep off a file another PR owned.
+
+**S8, measured on `main`:** the first push under the new config ran all three
+engines at 100% workers in **8m5s**, green — the full run is not faster, and
+was never expected to be; the ~4½ minutes came off pull requests.
+
+Nothing from this audit is still open.
