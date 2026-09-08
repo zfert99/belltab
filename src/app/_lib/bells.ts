@@ -86,18 +86,25 @@ function ensureAudioContext(): AudioContext | null {
   return sharedContext;
 }
 
-function subscribeToAudio(onChange: () => void): () => void {
+/**
+ * One subscription for both external facts this file exposes - the audio
+ * context's state and the notification permission - because both are pushed
+ * through the same `listeners` set and `emit`. Two byte-identical copies of
+ * this lived here until 2026-09-05.
+ */
+function subscribeToBells(onChange: () => void): () => void {
   listeners.add(onChange);
   return () => listeners.delete(onChange);
+}
+
+/** The server has neither an AudioContext nor a Notification; both snapshots start `null`. */
+function serverSnapshotNull(): null {
+  return null;
 }
 
 /** `null` means "no context yet" - distinct from suspended. */
 function audioSnapshot(): AudioContextState | null {
   return sharedContext?.state ?? null;
-}
-
-function audioServerSnapshot(): null {
-  return null;
 }
 
 /**
@@ -179,11 +186,6 @@ function notificationsSupported(): boolean {
   return typeof Notification !== "undefined";
 }
 
-function subscribeToPermission(onChange: () => void): () => void {
-  listeners.add(onChange);
-  return () => listeners.delete(onChange);
-}
-
 /**
  * Snapshot of `Notification.permission`.
  *
@@ -196,10 +198,6 @@ function subscribeToPermission(onChange: () => void): () => void {
  */
 function permissionSnapshot(): NotificationPermission | null {
   return notificationsSupported() ? Notification.permission : null;
-}
-
-function permissionServerSnapshot(): null {
-  return null;
 }
 
 /**
@@ -320,12 +318,8 @@ export interface BellStatuses {
  * the settings panel unmounting must not silence it.
  */
 export function useBells(state: DayState | null, preferences: Preferences): BellStatuses {
-  const audioState = useSyncExternalStore(subscribeToAudio, audioSnapshot, audioServerSnapshot);
-  const permission = useSyncExternalStore(
-    subscribeToPermission,
-    permissionSnapshot,
-    permissionServerSnapshot,
-  );
+  const audioState = useSyncExternalStore(subscribeToBells, audioSnapshot, serverSnapshotNull);
+  const permission = useSyncExternalStore(subscribeToBells, permissionSnapshot, serverSnapshotNull);
 
   /**
    * A restored preference wants a context to exist so its status is `locked`

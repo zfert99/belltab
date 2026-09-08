@@ -1,7 +1,7 @@
 import type { LocalNow } from "@/lib/clock";
 import { stateAt, type DayState } from "@/lib/engine";
 import { formatTabTitle } from "@/lib/format";
-import { resolveScheduleId } from "@/lib/parse";
+import { resolveScheduleId, type IdentifiedSchedule } from "@/lib/parse";
 import type { IsoDate, ValidSchedule } from "@/lib/schedule";
 import type { Library } from "@/app/_lib/library";
 
@@ -31,15 +31,32 @@ export type TodayView =
  * @param library - the schedules that exist and the calendar pointing at them
  * @param now - one reading of the device clock, already reduced to integers
  */
+/**
+ * The schedule a given day resolves to, or `null` for no school.
+ *
+ * The one place the calendar is asked and the answer looked up in the library.
+ * It was written out four times below - resolve, then `find` by id - and the
+ * 2026-09-05 review counted them; a weekday pointing at nothing, an explicit
+ * closure, and an id that no longer exists all come back `null` here, which is
+ * the same answer every caller wanted.
+ */
+function scheduleOn(
+  library: Library,
+  isoDate: IsoDate,
+  weekday: number,
+): IdentifiedSchedule | null {
+  const id = resolveScheduleId(library.calendar, isoDate, weekday);
+  return library.schedules.find((candidate) => candidate.id === id) ?? null;
+}
+
 export function viewForNow(library: Library, now: LocalNow): TodayView {
   if (library.schedules.length === 0) return { kind: "no-schedules" };
 
-  const id = resolveScheduleId(library.calendar, now.isoDate, now.weekday);
-  const schedule = library.schedules.find((candidate) => candidate.id === id);
+  const schedule = scheduleOn(library, now.isoDate, now.weekday);
 
   // A weekday the calendar points at nothing, an explicit closure, or an id
   // that no longer resolves - all three are the same screen to the user.
-  if (id === null || schedule === undefined) return { kind: "no-school" };
+  if (schedule === null) return { kind: "no-school" };
 
   // The schedule rides along for the Day view and the strip, which need
   // every period rather than the state's running one - so they read it here
@@ -59,8 +76,7 @@ export function viewForNow(library: Library, now: LocalNow): TodayView {
  * period's bells.
  */
 export function scheduleForToday(library: Library, now: LocalNow): ValidSchedule | null {
-  const id = resolveScheduleId(library.calendar, now.isoDate, now.weekday);
-  return library.schedules.find((candidate) => candidate.id === id) ?? null;
+  return scheduleOn(library, now.isoDate, now.weekday);
 }
 
 /**
@@ -91,8 +107,8 @@ export function scheduleIndexToEdit(library: Library, now: LocalNow | null): num
   if (library.schedules.length === 0) return null;
   if (now === null) return 0;
 
-  const id = resolveScheduleId(library.calendar, now.isoDate, now.weekday);
-  const index = library.schedules.findIndex((candidate) => candidate.id === id);
+  const today = scheduleOn(library, now.isoDate, now.weekday);
+  const index = today === null ? -1 : library.schedules.indexOf(today);
 
   return index === -1 ? 0 : index;
 }
@@ -113,6 +129,5 @@ export function scheduleNameOn(
   isoDate: IsoDate,
   weekday: number,
 ): string | null {
-  const id = resolveScheduleId(library.calendar, isoDate, weekday);
-  return library.schedules.find((candidate) => candidate.id === id)?.name ?? null;
+  return scheduleOn(library, isoDate, weekday)?.name ?? null;
 }
