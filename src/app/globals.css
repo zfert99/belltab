@@ -743,7 +743,6 @@ body {
 }
 
 /* ============================================================
-/* ============================================================
    12. THE DAY VIEW - DISCLOSURE (collapsed past periods)
    ============================================================ */
 
@@ -780,18 +779,15 @@ body {
 }
 
 /* ============================================================
-
-
-
-/* ============================================================
    13. THE PERIOD STRIP (an option under the countdown)
 
-   Equal-width squares for the day's real blocks, thin connectors for passing
-   periods. Equal squares deliberately misrepresent duration: a 5-minute
-   passing and a 55-minute class are not the same size in reality, but the
-   strip is answering "how many left", not "how long left" - the big number
-   above it already answers that. Proportional cells would be an accurate
-   timeline in which every passing period is an unreadable sliver.
+   The day as a timeline: one bar per real block, each as wide as it is
+   long, filling as its time passes. Passing periods are not drawn - the gap
+   between two bars is the hallway - and a short seam marks only a change of
+   KIND, so a run of classes reads as one run and lunch reads as a boundary.
+   The retired build drew equal squares with a connector per passing, arguing
+   that a proportional strip made passing an unreadable sliver; not drawing
+   passing at all is what answers that. Redesigned 2026-09-04.
    ============================================================ */
 
 .strip {
@@ -800,7 +796,7 @@ body {
   /* Edge to edge, in the progress bar's place. Redesigned 2026-09-04 from the
      retired build's centred row of capped squares to what was asked for: the
      period progress bar, broken into the day's blocks, spanning the card left
-     to right, with dashes where a passing period joins two blocks. */
+     to right, with a seam only where the kind changes. */
   width: 100%;
   /* A gap rather than letting connectors do the spacing: two blocks can sit
      back to back with no passing between them (Period 3 into A Lunch), and
@@ -841,27 +837,8 @@ body {
   border-radius: 999px;
 }
 
-/* --- Connectors: the seams between them --- */
+/* --- Seams --- */
 
-/* A passing period is a dash between the blocks it joins - fixed, not
-   proportional, because it is a seam and not a unit. Its fill still runs,
-   so the hallway minute is visible for what it is. */
-.strip__cell--link {
-  flex: 0 0 12px;
-  height: 3px;
-  border-radius: 999px;
-  background: var(--fg-soft);
-  opacity: 0.6;
-}
-
-.strip__cell--link.strip__cell--future {
-  opacity: 0.3;
-}
-
-/* A seam between two blocks of DIFFERENT kinds that sit back to back with no
-   passing period between them - Period 3 straight into A Lunch. Shorter and
-   fainter than a passing dash, because it marks a change of kind rather than
-   a hallway; without it the two would read as one long block. */
 /* A block and any seam before it, as one flex item that grows by the block's
    length; `display: contents` would lose the grow, so it is a real box. */
 .strip__pair {
@@ -875,14 +852,13 @@ body {
   flex: 1 1 0;
 }
 
-.strip__pair:has(.strip__cell--link) {
-  flex: 0 0 auto;
-}
-
 .strip__pair .strip__cell--block {
   flex: 1 1 0;
 }
 
+/* A seam between two blocks of DIFFERENT kinds that sit back to back - Period
+   3 straight into A Lunch. Short and faint, because it marks a change of kind
+   rather than a hallway; without it the two would read as one long block. */
 .strip__seam {
   flex: 0 0 6px;
   height: 3px;
@@ -1036,11 +1012,6 @@ body.is-big {
 .is-big .strip__cell--block {
   height: 30px;
   border-width: 2px;
-}
-
-.is-big .strip__cell--link {
-  flex-basis: 20px;
-  height: 5px;
 }
 
 .is-big .strip__caption {
@@ -1452,29 +1423,6 @@ body.is-big {
 .editor__actions {
   display: flex;
   gap: var(--s-2);
-}
-
-.shiftall {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--s-2);
-}
-
-.shiftall__field {
-  display: flex;
-  align-items: center;
-  gap: var(--s-2);
-}
-
-.shiftall__label,
-.shiftall__unit {
-  font-size: 0.875rem;
-  color: var(--fg-soft);
-}
-
-.shiftall__field input {
-  width: 5.5rem;
 }
 
 .editor__error {

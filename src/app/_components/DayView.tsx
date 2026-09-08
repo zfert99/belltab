@@ -10,6 +10,7 @@ import {
   percentOf,
 } from "@/lib/format";
 import type { ValidSchedule } from "@/lib/schedule";
+import { MOTION_ATTRIBUTE } from "@/app/_lib/theme";
 
 /**
  * The whole day as a list: every period, where the day stands, what is left.
@@ -63,7 +64,7 @@ export function DayView({ schedule, nowSec }: { schedule: ValidSchedule; nowSec:
 
     const reduced =
       window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ||
-      document.documentElement.getAttribute("data-motion") === "reduce";
+      document.documentElement.getAttribute(MOTION_ATTRIBUTE) === "reduce";
     row.scrollIntoView({ block: "nearest", behavior: reduced ? "auto" : "smooth" });
   }, [currentStart]);
 

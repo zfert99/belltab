@@ -53,14 +53,6 @@ export function viewForNow(library: Library, now: LocalNow): TodayView {
 }
 
 /**
- * The tab title for the whole view, not just for a running period.
- *
- * `formatTabTitle` only knows about `DayState`, which cannot express "the
- * calendar says there is no school". Number first is preserved where there is a
- * number; where there is not, the string still has to say something useful in
- * the ~12 characters a tab shows.
- */
-/**
  * The schedule today resolves to, or `null` - the same resolution
  * `viewForNow` performs, for the one caller that wants the schedule itself
  * rather than its state: the bell-offset calibration, which needs every
@@ -71,6 +63,14 @@ export function scheduleForToday(library: Library, now: LocalNow): ValidSchedule
   return library.schedules.find((candidate) => candidate.id === id) ?? null;
 }
 
+/**
+ * The tab title for the whole view, not just for a running period.
+ *
+ * `formatTabTitle` only knows about `DayState`, which cannot express "the
+ * calendar says there is no school". Number first is preserved where there is a
+ * number; where there is not, the string still has to say something useful in
+ * the ~12 characters a tab shows.
+ */
 export function tabTitleFor(view: TodayView): string {
   if (view.kind === "scheduled") return formatTabTitle(view.state);
   return view.kind === "no-school" ? "No school · BellTab" : "BellTab";

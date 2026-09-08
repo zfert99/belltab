@@ -120,7 +120,7 @@ export function unlockChime(): void {
  * reads as "bell" to an ear without pretending to be a real school Klaxon,
  * and at ~1.2 seconds it is over before it becomes an alarm.
  */
-export function ringChime(): void {
+function ringChime(): void {
   const context = ensureAudioContext();
   if (context === null || context.state !== "running") return;
 
