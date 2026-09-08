@@ -32,8 +32,8 @@ small. Pass 1 found no bugs at all — only documentation drift, dead code and
 duplication, which is what that pass was asked for.
 
 > **Status.** The findings below are recorded as they were written, before any
-> fix. **B1 and B5 were fixed on `fix/backup-panel-reflow`** (#53) and **B2 on
-> `fix/theme-hydration-warning`** — see *What was changed* at the bottom.
+> fix. **B1 and B5** landed in #53, **B2** in #55, and **B3** is on
+> `fix/unreadable-library-notice` — see *What was changed* at the bottom.
 > B2's severity was **corrected from High to Low** while fixing it; the
 > original text is kept below with the correction beside it. Everything else
 > is still open.
@@ -570,5 +570,27 @@ fix is not a test.
 - Dev preview with `theme: "light"`: attribute applied pre-paint, no Issues
   badge, no hydration error. Verified before and after.
 
-Still open: **B3** (wants a design rather than a patch), **B4**, **B6**, **B7**,
-**B8**, and all of **S1–S10**.
+**B3**, on `fix/unreadable-library-notice`. The design call, since it was
+the one finding that needed one: keep the degrade, add what was missing, never
+block.
+
+- `src/app/_lib/library.ts` — `parseLibrary` errors carry a `field`
+  (`json` / `shape` / `schedules`); new `loadLibraryReport` returns the library
+  *and* a storage-voiced problem, `null` for a fresh install or a readable
+  value. `loadLibrary` delegates to it.
+- `src/app/_lib/libraryStore.ts` — records the problem inside `load` without
+  emitting (it runs during render); `saveLibrary` copies the unreadable bytes
+  to `belltab.v1.unreadable` **before** `store.save`, so the first edit can no
+  longer destroy the only copy; `useLibraryProblem` / `dismissLibraryProblem`.
+  Dismiss leaves the quarantine armed.
+- `src/app/_components/LibraryNotice.tsx` — the banner, in the share offer's
+  slot and styles, with **Download what was there** (Export's object-URL
+  pattern, bytes verbatim) and **Dismiss**. Mounted in `App.tsx` above
+  everything.
+- Tests: six unit tests on `loadLibraryReport`; `e2e/library-notice.spec.ts`
+  covers the sentence and reason, the fresh-install and readable no-shows, the
+  quarantine-then-overwrite order with the live key readable afterwards, a real
+  download read back from disk, dismiss, and 320px reflow.
+- Verified in the dev preview end to end before the tests were run.
+
+Still open: **B4**, **B6**, **B7**, **B8**, and all of **S1–S10**.

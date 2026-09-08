@@ -95,10 +95,50 @@ export const DEFAULT_LIBRARY: Library = {
  * which is a screen the app already renders properly.
  */
 export function loadLibrary(raw: string | null): Library {
-  if (raw === null) return DEFAULT_LIBRARY;
+  return loadLibraryReport(raw).library;
+}
+
+/** The three ways a stored library can be unreadable. `ParseError.field` carries one. */
+export type LibraryFault = "json" | "shape" | "schedules";
+
+/** The prefix `parseLibrary` puts on a schedule-level refusal; stripped by the loader. */
+const UNREADABLE_SCHEDULE_PREFIX = "That backup has a schedule BellTab cannot read: ";
+
+/**
+ * `loadLibrary`, plus the one thing it used to throw away.
+ *
+ * `problem` is `null` for an absent value AND for a readable one - a fresh
+ * install is not a problem, it is the ordinary case. It is a sentence only when
+ * something WAS saved and cannot be read, which is the case the review of
+ * 2026-09-05 found the app handling silently: the library on screen was the
+ * seeded defaults, the user's own was still in storage, and the next save would
+ * have written the one over the other with nothing said. The degrade is right
+ * (`loadLibrary` documents why); this is the notice it was missing.
+ *
+ * Worded for storage, not for a file. `parseLibrary`'s sentences talk about
+ * "that file" and the Export button, which is correct on the import path and
+ * nonsense on this one - so they are mapped by `field` rather than reused.
+ */
+export interface LibraryLoad {
+  library: Library;
+  problem: string | null;
+}
+
+export function loadLibraryReport(raw: string | null): LibraryLoad {
+  if (raw === null) return { library: DEFAULT_LIBRARY, problem: null };
 
   const parsed = parseLibrary(raw);
-  return parsed.ok ? parsed.value : DEFAULT_LIBRARY;
+  if (parsed.ok) return { library: parsed.value, problem: null };
+
+  const [error] = parsed.errors;
+  const problem =
+    error.field === "json"
+      ? "What was saved isn\u2019t JSON."
+      : error.field === "shape"
+        ? "What was saved isn\u2019t a BellTab library."
+        : `One of the saved schedules can\u2019t be read: ${error.message.slice(UNREADABLE_SCHEDULE_PREFIX.length)}`;
+
+  return { library: DEFAULT_LIBRARY, problem };
 }
 
 /**
@@ -114,26 +154,28 @@ export function loadLibrary(raw: string | null): Library {
  * do with a failure. The errors are worded for somebody who just chose a file.
  */
 export function parseLibrary(raw: string): ParseResult<Library> {
-  const fail = (message: string): ParseResult<Library> => ({
+  // `field` names WHICH of the three ways it failed, so `loadLibraryReport`
+  // can say the same thing in storage's voice without parsing the sentence.
+  const fail = (field: LibraryFault, message: string): ParseResult<Library> => ({
     ok: false,
-    errors: [{ index: null, field: "library", message }],
+    errors: [{ index: null, field, message }],
   });
 
   let decoded: unknown;
   try {
     decoded = JSON.parse(raw);
   } catch {
-    return fail("That file is not JSON. A BellTab backup is the file the Export button writes.");
+    return fail("json", "That file is not JSON. A BellTab backup is the file the Export button writes.");
   }
 
   if (typeof decoded !== "object" || decoded === null || Array.isArray(decoded)) {
-    return fail("That file is JSON, but it is not a BellTab backup.");
+    return fail("shape", "That file is JSON, but it is not a BellTab backup.");
   }
 
   const source = decoded as { schedules?: unknown; calendar?: unknown };
   const schedules = parseScheduleCollection(source.schedules);
   if (!schedules.ok) {
-    return fail(`That backup has a schedule BellTab cannot read: ${schedules.errors[0].message}`);
+    return fail("schedules", `${UNREADABLE_SCHEDULE_PREFIX}${schedules.errors[0].message}`);
   }
 
   return {
