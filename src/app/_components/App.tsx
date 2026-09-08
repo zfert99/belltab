@@ -10,7 +10,7 @@ import { useBells } from "@/app/_lib/bells";
 import { addSchedule, setOverride } from "@/app/_lib/library";
 import { clearShareFragment, incomingSchedule } from "@/app/_lib/shareLink";
 import type { ValidSchedule } from "@/lib/schedule";
-import { tabTitleFor, viewForNow } from "@/app/_lib/today";
+import { tabTitleFor, viewForNow, type TodayView } from "@/app/_lib/today";
 import { formatClock } from "@/lib/format";
 import { shiftNow, type LocalNow } from "@/lib/clock";
 import { stateAt } from "@/lib/engine";
@@ -158,6 +158,18 @@ export function App() {
    * whatever this says, and leaving it comes back here.
    */
   const [screen, setScreen] = useState<"now" | "day">("now");
+
+  /**
+   * Whether the Day view is actually on screen - which is not the same as
+   * whether Day was pressed. A day with no schedule has no list to show, so
+   * the Now view's empty state renders instead, and until 2026-09-05 the Day
+   * button still reported `aria-pressed="true"` over it: a screen-reader user
+   * was told "Day, pressed" while looking at "No school today". Every weekend,
+   * for anyone who last used the Day view. One predicate now drives both the
+   * render and the two buttons' pressed state, so they cannot disagree; the
+   * `screen` intent is kept, and the list comes back the next day it can.
+   */
+  const dayViewShown = screen === "day" && !big && shown?.kind === "scheduled" && shifted !== null;
 
   /**
    * The audible bell and the notification, keyed on the SHIFTED state - the
@@ -394,7 +406,7 @@ export function App() {
         <h1 className="screen__schedule">BellTab</h1>
         <div className="screen__meta">
           <p id="schedule-name" className="screen__clock">
-            {shown?.kind === "scheduled" ? shown.scheduleName : PENDING}
+            {scheduleLabelFor(shown)}
           </p>
           <WallClock now={now} />
           <button
@@ -429,7 +441,7 @@ export function App() {
         />
       ) : (
         <>
-          {screen === "day" && !big && shown?.kind === "scheduled" && shifted !== null ? (
+          {dayViewShown && shown?.kind === "scheduled" && shifted !== null ? (
             <DayView schedule={shown.schedule} nowSec={shifted.secOfDay} />
           ) : (
             <NowView
@@ -467,7 +479,7 @@ export function App() {
                   type="button"
                   className="viewswitch__btn"
                   id="view-now"
-                  aria-pressed={screen === "now"}
+                  aria-pressed={!dayViewShown}
                   onClick={() => setScreen("now")}
                 >
                   Now
@@ -476,7 +488,7 @@ export function App() {
                   type="button"
                   className="viewswitch__btn"
                   id="view-day"
-                  aria-pressed={screen === "day"}
+                  aria-pressed={dayViewShown}
                   onClick={() => setScreen("day")}
                 >
                   Day
@@ -532,6 +544,27 @@ export function App() {
       <PeriodAnnouncer state={shown?.kind === "scheduled" ? shown.state : null} />
     </>
   );
+}
+
+/**
+ * The header's schedule slot, which has to say four different things.
+ *
+ * `PENDING` is for exactly one of them: the clock has not been read yet. Until
+ * 2026-09-05 it also stood in for "no school" and "no schedules", so on a
+ * weekend the header read `-- 10:05` - a placeholder beside a live clock,
+ * which reads as "still loading" when it means "nothing today". The two
+ * empty states now say so in words, matching the headline beneath them.
+ */
+function scheduleLabelFor(view: TodayView | null): string {
+  if (view === null) return PENDING;
+  switch (view.kind) {
+    case "scheduled":
+      return view.scheduleName;
+    case "no-school":
+      return "No school";
+    case "no-schedules":
+      return "No schedule";
+  }
 }
 
 /**

@@ -306,3 +306,33 @@ test.describe("backup", () => {
     expect(stored === null || stored.includes("Regular")).toBe(true);
   });
 });
+
+/**
+ * The import confirmation counts the way the export summary above it counts.
+ * It said "This backup holds 1 schedules" until 2026-09-05, eleven lines under
+ * a sentence that got the same word right.
+ */
+test.describe("the import confirmation", () => {
+  test("says 1 schedule, not 1 schedules", async ({ page }) => {
+    await openApp(page, MID_PERIOD);
+    await page.locator("#settings-toggle").click();
+    await page.locator("#tab-backup").click();
+
+    const oneSchedule = JSON.stringify({
+      schedules: [{ id: "s1", name: "Only", periods: [{ name: "P", kind: "Class", startMin: 480, endMin: 540 }] }],
+      calendar: { weekdays: [null, "s1", "s1", "s1", "s1", "s1", null], overrides: [] },
+    });
+    await page.locator("#backup-import").setInputFiles({
+      name: "one.json",
+      mimeType: "application/json",
+      buffer: Buffer.from(oneSchedule),
+    });
+
+    const body = page.locator("#confirm-body");
+    await expect(body).toContainText("holds 1 schedule.");
+    await expect(body).not.toContainText("1 schedules");
+    // The other count in the same sentence, for a four-schedule library.
+    await expect(body).toContainText("replaces the 4 schedules in this browser");
+  });
+});
+
