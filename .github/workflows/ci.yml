@@ -98,6 +98,9 @@ jobs:
             !.next/cache
           retention-days: 1
           if-no-files-found: error
+          # `.next` is a dot-folder, and the action skips hidden paths unless
+          # told otherwise - the first run uploaded nothing and said so.
+          include-hidden-files: true
 
   unit:
     name: Unit tests
