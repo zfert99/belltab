@@ -273,7 +273,7 @@ test.describe("by default", () => {
 });
 
 test.describe("the chime", () => {
-  test("rings at a boundary once ticked on, and not before", async ({ page }) => {
+  test("rings at a boundary once ticked on, and not before", { tag: "@smoke" }, async ({ page }) => {
     await stubBells(page);
     await openApp(page, MID_PERIOD);
     await openSettings(page, "preferences");

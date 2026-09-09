@@ -152,7 +152,7 @@ test.describe("the period announcer", () => {
 test.describe("the period announcer, driven through the editor", () => {
   const announcer = (page: import("@playwright/test").Page) => page.locator("#period-announcer");
 
-  test("says nothing while the running period's name is typed", async ({ page }) => {
+  test("says nothing while the running period's name is typed", { tag: "@smoke" }, async ({ page }) => {
     await openApp(page, MID_PERIOD);
     await openSettings(page, "schedules");
 

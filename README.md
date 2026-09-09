@@ -119,7 +119,8 @@ Before calling any change done:
 npm run lint      # eslint, including jsx-a11y at full `recommended`
 npm run typecheck # tsc --noEmit, strict
 npm test          # vitest - the engine, the parser, the library and the calendar
-npm run e2e       # playwright - three engines, the reflow gate and an axe sweep
+npm run e2e       # playwright on Chrome; PW_ENGINES=all for Chrome, WebKit and Firefox
+npm run e2e:smoke # the nine core journeys, under a minute - a pre-push signal, not the gate
 npm run lint:md   # markdownlint
 ```
 

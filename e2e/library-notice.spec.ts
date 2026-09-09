@@ -36,7 +36,7 @@ const stored = (page: Page, key: string) =>
   page.evaluate((k) => window.localStorage.getItem(k), key);
 
 test.describe("an unreadable saved library", () => {
-  test("is announced, and the seeded defaults run in its place", async ({ page }) => {
+  test("is announced, and the seeded defaults run in its place", { tag: "@smoke" }, async ({ page }) => {
     await openApp(page, MID_PERIOD, { storage: NOT_JSON });
 
     await expect(notice(page)).toBeVisible();

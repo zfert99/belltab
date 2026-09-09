@@ -2504,3 +2504,46 @@ Checked, not assumed: 58 + 17 + 9 = 84 entries, the number `main` had; no
 archived-era heading remains in the live file; every markdown link under
 `Docs/` resolves; markdownlint is clean. "How to update this file" gains a
 fourth point saying how the next phase gets archived.
+
+### 2026-09-09 — the E2E job reuses the build, and a nine-test smoke run
+
+The two optional halves of the E2E research, done together at the owner's
+request, on `chore/e2e-reuse-and-smoke`.
+
+**Build reuse.** The `Next build` job and the E2E job each ran `next build`
+on every push - the same build, 25-30 seconds twice. The build job now
+uploads `.next` (minus the incremental cache) as a one-day artifact, the E2E
+job `needs` it, downloads it, and sets `PW_PREBUILT`, which makes
+`playwright.config.ts` run `next start` alone. Locally nothing changes: the
+variable is unset and the config builds first, as it always has. The suite
+measures the same shipped CSS either way, because it is the same build
+either way. What `needs` costs is the build job's own ~30 seconds before the
+E2E job can start, so the saving is the difference, not the whole build;
+the PR that carries this is the measurement, against 3m21s-3m32s.
+
+**Measured (PR #62, run 34360777814):** the E2E job itself took **2m32s** -
+Playwright 1.7 minutes for 291 tests, the artifact download a few seconds -
+against 3m21s-3m32s before. But it could not start until the build job had
+uploaded, which was +42s into the run, so the run's wall-clock went from
+about 3m25s to **3m14s**: the job lost nearly a minute, the wait for it lost
+about fifteen seconds. Honest arithmetic - `needs` costs what it costs, the
+build job's 40s including the upload. Kept: fifteen seconds off every PR for
+zero coverage change and a build that is the same build, and the E2E job's
+own log now reads as tests rather than tests plus a compile.
+
+**Smoke.** The one slice of the priority-tier idea the research endorsed: a
+local pre-push signal, never the gate. Nine tests carry `@smoke`, one per
+core journey - the countdown's digits, title and catch-up; the Day view; the
+editor via the announcer's typing test; the chime at a boundary; a share link
+round trip; a dated exception; and the unreadable-library notice - and
+`npm run e2e:smoke` runs them on Chrome. Measured locally against a prebuilt
+app: **nine passed in 8.6 seconds**, 9 seconds wall-clock; with the build in
+front of it, under a minute. The README says what it is for and what it is
+not.
+
+Also merged today, on the owner's word: Dependabot's #51 (five patch bumps)
+and #52 (vitest 4 to 5). The major was checked against its own release notes
+before merging rather than trusted to a green run: Node 24 clears the new
+floor of 22, the suite has no `vi.*` mocks for the new clear-by-default to
+touch, nothing uses the removed `sequential`, and the one `$name` title just
+loses its quotes.

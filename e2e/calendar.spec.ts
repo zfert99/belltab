@@ -63,7 +63,7 @@ test.describe("the calendar resolves the day", () => {
    * screen can say "Assembly" is the dated exception winning - which is the
    * priority order the resolver promises.
    */
-  test("a one-off assembly beats the weekday it lands on", async ({ page }) => {
+  test("a one-off assembly beats the weekday it lands on", { tag: "@smoke" }, async ({ page }) => {
     await openApp(page, MID_PERIOD);
     await openSettings(page, "calendar");
 

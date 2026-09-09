@@ -48,7 +48,7 @@ test.describe("when the clipboard is refused", () => {
 });
 
 test.describe("a link out and a link in", () => {
-  test("a copied link opens on a schedule the other person can add", async ({ page, context }) => {
+  test("a copied link opens on a schedule the other person can add", { tag: "@smoke" }, async ({ page, context }) => {
     await openApp(page, MID_PERIOD);
     await openSettings(page, "schedules");
     const url = await copyShareLink(page);
