@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useRef, useSyncExternalStore } from "react";
-import { announcementFor, boundaryKey } from "@/lib/format";
-import type { DayState } from "@/lib/engine";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { announcementFor } from "@/lib/format";
+import { crossedBell, type DayState } from "@/lib/engine";
+import type { ValidSchedule } from "@/lib/schedule";
 import type { Preferences } from "@/app/_lib/preferences";
 import { listenForGesture } from "@/app/_lib/gesture";
 
@@ -21,11 +22,13 @@ import { listenForGesture } from "@/app/_lib/gesture";
  * panel says exactly that, in the user's language.
  *
  * **One definition of "the bell".** The chime, the notification and the
- * screen-reader announcement all key on `boundaryKey` and speak
- * `announcementFor` - the same two functions `PeriodAnnouncer` has used since
- * Phase 2. A boundary the announcer would not announce (first paint, midnight
- * rollover into "before") rings nothing here either, so the three surfaces
- * cannot drift into disagreeing about what counts as a bell.
+ * screen-reader announcement all fire on the same `useBellCrossings` count and
+ * speak `announcementFor`. A crossing the announcer would not announce (the
+ * first reading, midnight rollover into "before") rings nothing here either,
+ * so the three surfaces cannot drift into disagreeing about what counts as a
+ * bell. Until 2026-09-09 they keyed on `boundaryKey(state)` instead, which
+ * names the running period by its TIMES - so editing those times in the
+ * editor rang on every spinner step. See `crossedBell`.
  */
 
 /**
@@ -310,6 +313,31 @@ export interface BellStatuses {
 }
 
 /**
+ * How many times the clock has crossed a bell of the schedule in force, since
+ * this hook mounted. Every bell surface fires when this number changes.
+ *
+ * Adjusted during render, the way the announcer always has been - React
+ * re-runs the component before painting, so no consumer sees a stale count.
+ * The previous reading is kept as a second-of-day, and the comparison is
+ * always made against the schedule in force NOW: an edit that changes the
+ * schedule does not change the clock, so it cannot change the count, and a
+ * tick that crosses a boundary of the edited schedule counts exactly as it
+ * would have under the old one. A `null` schedule (no school) keeps the last
+ * reading, so the next tick with a schedule is compared to a real second.
+ */
+export function useBellCrossings(schedule: ValidSchedule | null, nowSec: number | null): number {
+  const [seen, setSeen] = useState<{ sec: number | null; count: number }>({ sec: null, count: 0 });
+
+  if (nowSec !== null && nowSec !== seen.sec) {
+    const crossed =
+      schedule !== null && seen.sec !== null && crossedBell(schedule, seen.sec, nowSec);
+    setSeen({ sec: nowSec, count: seen.count + (crossed ? 1 : 0) });
+  }
+
+  return seen.count;
+}
+
+/**
  * Rings the enabled bells at each period boundary, and reports what both
  * features can honestly do right now.
  *
@@ -317,7 +345,11 @@ export interface BellStatuses {
  * wake lock's: a bell that rings while the editor is open is still a bell, and
  * the settings panel unmounting must not silence it.
  */
-export function useBells(state: DayState | null, preferences: Preferences): BellStatuses {
+export function useBells(
+  state: DayState | null,
+  crossings: number,
+  preferences: Preferences,
+): BellStatuses {
   const audioState = useSyncExternalStore(subscribeToBells, audioSnapshot, serverSnapshotNull);
   const permission = useSyncExternalStore(subscribeToBells, permissionSnapshot, serverSnapshotNull);
 
@@ -356,27 +388,23 @@ export function useBells(state: DayState | null, preferences: Preferences): Bell
     else if (!preferences.notifyOnBell) void unregisterBellWorker();
   }, [preferences.notifyOnBell, permission]);
 
-  const key = state === null ? null : boundaryKey(state);
   const message = state === null ? "" : announcementFor(state);
 
   /**
-   * `undefined` means "no boundary ever observed", which is what makes the
-   * first one silent - the announcer's rule 2, enforced with the same shape.
-   * `state` going null (a day with no schedule) keeps the last key rather than
-   * clearing it, so a schedule reappearing unchanged does not re-ring.
+   * The count this hook last acted on. The first render records it and rings
+   * nothing - the announcer's rule 2, enforced with the same shape - and from
+   * then on only a CHANGED count rings. An edit re-renders with the same
+   * count; a tick across a boundary is the only thing that moves it.
    */
-  const lastKey = useRef<string | undefined>(undefined);
+  const lastCrossings = useRef<number | undefined>(undefined);
 
   useEffect(() => {
-    if (key === null) return;
+    const previous = lastCrossings.current;
+    lastCrossings.current = crossings;
 
-    const previous = lastKey.current;
-    lastKey.current = key;
-
-    if (previous === undefined || previous === key) return;
-    // A boundary the announcer would say nothing about - "before", "empty" -
-    // rings nothing. This is what keeps midnight silent: "after" changing to
-    // "before" is a new day, not a bell.
+    if (previous === undefined || previous === crossings) return;
+    // A crossing the announcer would say nothing about - into "before", into
+    // "empty" - rings nothing.
     if (message === "") return;
 
     if (preferences.chimeOnBell) ringChime();
@@ -413,8 +441,8 @@ export function useBells(state: DayState | null, preferences: Preferences): Bell
     }
     // The preference and permission values are read at ring time and belong in
     // the dependency list; extra runs they cause are harmless because a run
-    // with an unchanged key rings nothing.
-  }, [key, message, preferences.chimeOnBell, preferences.notifyOnBell, permission]);
+    // with an unchanged count rings nothing.
+  }, [crossings, message, preferences.chimeOnBell, preferences.notifyOnBell, permission]);
 
   const chime: ChimeStatus = !audioSupported()
     ? "unsupported"

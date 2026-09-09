@@ -161,6 +161,34 @@ export function periodStatusAt(period: Period, nowSec: number): PeriodStatus {
 }
 
 /**
+ * Whether the clock crossed a bell between two readings of the same day.
+ *
+ * A bell is the CLOCK crossing a period's start or end - not the state's
+ * identity changing. The two were the same thing until 2026-09-09, when the
+ * chime, the notification and the announcer all keyed on
+ * `boundaryKey(state)`, which names the running period by its times: editing
+ * that period's start, end or length in the editor changed the key on every
+ * spinner step, and every step rang. Nothing had happened to the clock.
+ *
+ * Half-open, like `stateAt`: the instant a period starts is inside it, so a
+ * reading that lands exactly on a boundary has crossed it. `toSec <= fromSec`
+ * is never a bell - the same second read twice, or a new day, where the
+ * midnight rollover from "after" into "before" is a date change and not a
+ * ring. A tab that slept through several boundaries crosses them all in one
+ * call and rings ONCE, for the state it woke into, which is what the
+ * recompute rule already asks of every other surface.
+ */
+export function crossedBell(schedule: ValidSchedule, fromSec: number, toSec: number): boolean {
+  if (toSec <= fromSec) return false;
+
+  return schedule.periods.some((period) => {
+    const startSec = period.startMin * 60;
+    const endSec = period.endMin * 60;
+    return (fromSec < startSec && startSec <= toSec) || (fromSec < endSec && endSec <= toSec);
+  });
+}
+
+/**
  * "3 of 7" - which countable block of the day this is.
  *
  * Passing periods are excluded because they are the seams, not the units. A

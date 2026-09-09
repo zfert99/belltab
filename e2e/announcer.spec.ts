@@ -168,6 +168,27 @@ test.describe("the period announcer, driven through the editor", () => {
     await expect(announcer(page)).toHaveText("");
   });
 
+  test("says nothing while the running period's times are stepped", async ({ page }) => {
+    // The rename case above was fixed by keying on the period's TIMES - and
+    // then stepping those times in the editor announced once per step
+    // (2026-09-09). A bell is the clock crossing a boundary; an edit is not.
+    await openApp(page, MID_PERIOD);
+    await openSettings(page, "schedules");
+
+    const running = page.locator("#period-editor .editrow").nth(2);
+    await expect(running.locator('[data-field="name"]')).toHaveValue("Period 2");
+
+    const length = running.locator('[data-field="length"]');
+    await length.click();
+    for (let i = 0; i < 3; i++) await page.keyboard.press("ArrowUp");
+    await expect(length).toHaveValue("63");
+
+    await running.locator('[data-field="start"]').click();
+    await page.keyboard.press("ArrowUp");
+
+    await expect(announcer(page)).toHaveText("");
+  });
+
   // Live since Phase 4 built the calendar panel.
   test("says nothing when the calendar is repointed", async ({ page }) => {
     await openApp(page, MID_PERIOD);
