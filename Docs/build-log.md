@@ -756,6 +756,43 @@ it. None is a task.
 
 ## Bugs found
 
+### 2026-09-09 — editing the running period rang the bell on every spinner step
+
+Reported by the owner: with the chime on, stepping the running period's start,
+end or length in the editor chimed on every step. The announcer and the
+notification had the same defect, because all three surfaces keyed on the
+same thing - `boundaryKey(state)`, which names the running period as
+`during:${startMin}-${endMin}`. That key was chosen on purpose, on
+2026-08-27, so that RENAMING the running period would not re-announce; the
+trade nobody noticed was that RETIMING it now did, once per keystroke or
+spinner step, with the clock sitting still.
+
+The fix is a definition. A bell is the CLOCK crossing a period's start or
+end - not the state's identity changing under a clock that stayed put. So:
+`crossedBell(schedule, fromSec, toSec)` in the engine, half-open like
+`stateAt`, never true backwards (the same second, or midnight); a
+`useBellCrossings` hook in `App.tsx` that compares each reading to the last
+against the schedule in force NOW and counts crossings; and the chime, the
+notification and the announcer all fire on that count and nothing else. An
+edit re-renders with the same count. A tick across an edited boundary counts
+exactly as it would have under the old schedule. A schedule swapped in by a
+share-link preview no longer rings either, which it did before and should
+not have.
+
+Verified with the user's own gesture, not a typed value: two E2E tests step
+the running period's length and end with the arrow keys and assert zero
+strikes and an empty announcer. Both are red on `main`'s sources - the chime
+one fails at the strike count, the announcer one at the empty text - and
+green with the fix. Seven unit tests on `crossedBell`, including the
+retimed-period case that is the whole reason for it.
+
+**The lesson is one this file has recorded before, from the other side.**
+The rename bug was fixed by keying on times, and the fix carried a comment
+explaining exactly why - and that comment made the next bug look like a
+design decision. A key that identifies a boundary by the period's PROPERTIES
+will fire whenever those properties change; only a comparison of two
+readings of the clock can say whether time actually crossed anything.
+
 ### 2026-09-05 — the audit called a dev-only warning a user-facing error
 
 Not a bug in the app. A bug in the review of it, which is the kind this file
@@ -5499,3 +5536,21 @@ be: three engines and `next start` on four cores are CPU-bound. The ~4½
 minutes came off pull requests, which is where the research said they would.
 
 Nothing from the 2026-09-04 audit is still open.
+
+### 2026-09-09 — a bell is the clock crossing a boundary
+
+The owner reported that stepping the running period's times in the editor
+chimed on every step. The diagnosis, the fix and the lesson are in Bugs found
+above; the shape of the change is small. `crossedBell` joins the engine as a
+pure function of a schedule and two seconds-of-day. `useBellCrossings` sits
+in `App.tsx` beside the one clock and counts genuine crossings against the
+schedule in force. `useBells` and `PeriodAnnouncer` take the count instead of
+computing a key, and `boundaryKey` keeps its one remaining job - the name
+crossfade in `NowView`, which is cosmetic and was never wrong.
+
+Verified with the user's own gesture on the production build: the spinner
+and the time control's segments, four saved edits, zero strikes, an empty
+announcer, and then a real boundary crossing that still rings exactly once.
+Negative control against `main`'s sources: both tests red at the line that
+matters. 455 unit tests, lint, typecheck green; bells, announcer, countdown
+and a11y specs on all three engines.

@@ -580,3 +580,52 @@ test.describe("the notification", () => {
     await expect(notifyStatus(page)).toHaveText("This browser can’t show notifications.");
   });
 });
+
+/**
+ * A bell is the CLOCK crossing a boundary - not the schedule changing under a
+ * clock that stayed put. Reported 2026-09-09: with the chime on, every spinner
+ * step on the running period's start, end or length rang, because every bell
+ * surface keyed on the running period's TIMES and each step changed them.
+ */
+test.describe("editing the running period", () => {
+  test("rings nothing, however many times its start, end and length are stepped", async ({
+    page,
+  }) => {
+    await stubBells(page);
+    await openApp(page, MID_PERIOD);
+    await openSettings(page, "preferences");
+    await chime(page).check();
+    expect(await probe(page).strikes()).toBe(0);
+
+    // Period 2 is 09:05-10:05 and the clock is at 09:30: the running row.
+    await page.locator("#tab-schedules").click();
+    const running = page.locator("#period-editor .editrow").nth(2);
+    await expect(running.locator('[data-field="name"]')).toHaveValue("Period 2");
+
+    // The user's gesture: the spinner, not a typed value. DOWN, so every step
+    // is a valid, saved schedule - Period 2 shortening into the gap before
+    // Passing - and each one changed the running period's times, which is
+    // exactly what used to ring.
+    const length = running.locator('[data-field="length"]');
+    await length.click();
+    for (let i = 0; i < 3; i++) await page.keyboard.press("ArrowDown");
+    await expect(length).toHaveValue("57");
+
+    // And the end control's own segment, one more saved edit.
+    const end = running.locator('[data-field="end"]');
+    await end.click();
+    await page.keyboard.press("ArrowDown");
+
+    // Four saved edits to the running period, and nothing rang.
+    expect(await probe(page).strikes()).toBe(0);
+    // The countdown is running the edited period.
+    await page.locator("#settings-toggle").click();
+    await expect(page.locator("#period-name")).toHaveText("Period 2");
+    await expect(page.locator(".bounds__edge--end")).not.toHaveText("10:05");
+
+    // The clock crossing the (edited) boundary still rings - once.
+    await crossBoundary(page, PASSING_STARTS);
+    await expect.poll(() => probe(page).strikes()).toBe(2);
+  });
+});
+

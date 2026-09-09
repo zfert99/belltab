@@ -6,7 +6,7 @@ import { saveLibrary, useLibrary } from "@/app/_lib/libraryStore";
 import { savePreferences, usePreferences } from "@/app/_lib/preferencesStore";
 import { applyMotion, applyTheme } from "@/app/_lib/theme";
 import { useWakeLock, wantsSignpost } from "@/app/_lib/wakeLock";
-import { useBells } from "@/app/_lib/bells";
+import { useBellCrossings, useBells } from "@/app/_lib/bells";
 import { addSchedule, setOverride } from "@/app/_lib/library";
 import { clearShareFragment, incomingSchedule } from "@/app/_lib/shareLink";
 import type { ValidSchedule } from "@/lib/schedule";
@@ -180,7 +180,15 @@ export function App() {
    * Mounted here beside the wake lock for the same reason it is: a bell that
    * rings while the editor is open is still a bell.
    */
-  const bellStatuses = useBells(shown?.kind === "scheduled" ? shown.state : null, preferences);
+  const crossings = useBellCrossings(
+    shown?.kind === "scheduled" ? shown.schedule : null,
+    shifted?.secOfDay ?? null,
+  );
+  const bellStatuses = useBells(
+    shown?.kind === "scheduled" ? shown.state : null,
+    crossings,
+    preferences,
+  );
 
   /**
    * A schedule somebody sent, waiting to be accepted or dismissed.
@@ -541,7 +549,10 @@ export function App() {
         regions are the same set on both screens, which is what makes the
         enumeration tests worth running.
       */}
-      <PeriodAnnouncer state={shown?.kind === "scheduled" ? shown.state : null} />
+      <PeriodAnnouncer
+        state={shown?.kind === "scheduled" ? shown.state : null}
+        crossings={crossings}
+      />
     </>
   );
 }

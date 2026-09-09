@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { stateAt, daySummaryAt, periodStatusAt, blockPositionAt } from "./engine";
+import { stateAt, daySummaryAt, periodStatusAt, blockPositionAt, crossedBell } from "./engine";
 import { parseSchedule } from "./parse";
 import { DEFAULT_SCHEDULES, type ValidSchedule } from "./schedule";
 
@@ -203,3 +203,60 @@ describe("blockPositionAt", () => {
     expect(blockPositionAt(regular, at(14, 30))).toEqual({ index: 7, total: 7 });
   });
 });
+
+describe("crossedBell", () => {
+  /**
+   * What a bell IS: the clock crossing a period's start or end. Regular's
+   * Period 2 runs 09:05-10:05 (33300-36300s); Passing follows to 10:10.
+   */
+  const regular = (() => {
+    const parsed = parseSchedule(DEFAULT_SCHEDULES[0]);
+    if (!parsed.ok) throw new Error("seed must parse");
+    return parsed.value;
+  })();
+  const PERIOD_2_ENDS = 10 * 3600 + 5 * 60;
+
+  it("is false for the same second read twice", () => {
+    expect(crossedBell(regular, 34000, 34000)).toBe(false);
+  });
+
+  it("is false for a tick inside a period", () => {
+    expect(crossedBell(regular, 34000, 34001)).toBe(false);
+  });
+
+  it("is true for the tick that lands exactly on a boundary - half-open, like stateAt", () => {
+    expect(crossedBell(regular, PERIOD_2_ENDS - 1, PERIOD_2_ENDS)).toBe(true);
+  });
+
+  it("is false for the tick just after it", () => {
+    expect(crossedBell(regular, PERIOD_2_ENDS, PERIOD_2_ENDS + 1)).toBe(false);
+  });
+
+  it("counts a slept-through stretch as one crossing, however many bells it spans", () => {
+    // 09:30 to 10:11 spans Passing's start and end and Period 3's start.
+    expect(crossedBell(regular, 34200, 36660)).toBe(true);
+  });
+
+  it("is never true backwards - the same second, or a new day", () => {
+    expect(crossedBell(regular, 36300, 36299)).toBe(false);
+    // Midnight: "after" at 86399 to "before" at 0 is a date change, not a bell.
+    expect(crossedBell(regular, 86399, 0)).toBe(false);
+  });
+
+  it("does not care that the schedule was edited, only where the clock went", () => {
+    // The running period's end moved from 10:05 to 10:04 while the clock sat
+    // at 10:04:30: no second was crossed, so no bell - the whole reason this
+    // function exists.
+    const edited = parseSchedule({
+      ...DEFAULT_SCHEDULES[0],
+      periods: DEFAULT_SCHEDULES[0].periods.map((period) =>
+        period.name === "Period 2" ? { ...period, endMin: 10 * 60 + 4 } : period,
+      ),
+    });
+    if (!edited.ok) throw new Error("edited seed must parse");
+    const at = 10 * 3600 + 4 * 60 + 30;
+    expect(crossedBell(edited.value, at, at)).toBe(false);
+    expect(crossedBell(edited.value, at, at + 1)).toBe(false);
+  });
+});
+
