@@ -12,6 +12,7 @@
     "test": "vitest run",
     "watch": "vitest",
     "e2e": "playwright test",
+    "e2e:smoke": "playwright test --grep @smoke",
     "e2e:ui": "playwright test --ui"
   },
   "repository": {

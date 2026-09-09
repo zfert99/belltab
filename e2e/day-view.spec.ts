@@ -25,7 +25,7 @@ async function openDay(page: Page, at: string = MID_PERIOD) {
 }
 
 test.describe("the Day view", () => {
-  test("lists the whole day, marks the running period, and sums it up", async ({ page }) => {
+  test("lists the whole day, marks the running period, and sums it up", { tag: "@smoke" }, async ({ page }) => {
     await openDay(page);
 
     await expect(page.locator("#view-day")).toHaveAttribute("aria-pressed", "true");

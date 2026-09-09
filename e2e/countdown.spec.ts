@@ -35,7 +35,7 @@ async function returnToTab(page: Page, at: string, event: "visibilitychange" | "
 }
 
 test.describe("during a period", () => {
-  test("shows the period, the remaining time and its units", async ({ page }) => {
+  test("shows the period, the remaining time and its units", { tag: "@smoke" }, async ({ page }) => {
     await openApp(page, MID_PERIOD);
 
     // Period 2 runs 09:05-10:05 and the clock is at 09:30, so 35:00 remains.
@@ -53,7 +53,7 @@ test.describe("during a period", () => {
     await expect(nextUp(page)).toHaveText("Next: Passing at 10:05");
   });
 
-  test("puts the number first in the tab title, at minute resolution", async ({ page }) => {
+  test("puts the number first in the tab title, at minute resolution", { tag: "@smoke" }, async ({ page }) => {
     await openApp(page, MID_PERIOD);
     await expect(page).toHaveTitle("35m · Period 2");
   });
@@ -111,7 +111,7 @@ test.describe("coming back to a throttled tab", () => {
     });
   }
 
-  test("catches up across a period boundary it slept through", async ({ page }) => {
+  test("catches up across a period boundary it slept through", { tag: "@smoke" }, async ({ page }) => {
     await openApp(page, MID_PERIOD);
     await expect(periodName(page)).toHaveText("Period 2");
 

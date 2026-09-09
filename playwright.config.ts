@@ -150,7 +150,17 @@ export default defineConfig({
      * form in `next build`, and the reflow gate is a measurement of the CSS that
      * actually ships. A dev server would gate on a stylesheet no user receives.
      */
-    command: `npm run build && npx next start --port ${PORT}`,
+    //
+    // Unless the build is already there. CI's `Next build` job has just made
+    // exactly this build, and until 2026-09-09 the E2E job made it again -
+    // 25-30 seconds of the same work. With `PW_PREBUILT` set, the job has
+    // downloaded that job's `.next` and only `next start` runs. Locally the
+    // variable is unset and the build happens here, as before; the suite
+    // still measures the CSS that ships either way, because it is the same
+    // build either way. Docs/research/e2e-ci-runtime.md, its Stage 1.3.
+    command: process.env.PW_PREBUILT
+      ? `npx next start --port ${PORT}`
+      : `npm run build && npx next start --port ${PORT}`,
 
     // The prefix is required. `basePath` makes the origin root a 404, and
     // Playwright's readiness probe accepts 2xx/3xx/400/401/402/403 - a 404

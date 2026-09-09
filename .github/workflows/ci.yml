@@ -86,6 +86,19 @@ jobs:
       - name: Build
         run: npm run build
 
+      # Handed to the E2E job so it does not build the same thing again. The
+      # cache is left out: it is the incremental-compile cache, large and of no
+      # use to `next start`. One day's retention is one day more than needed.
+      - name: Upload the build for E2E
+        uses: actions/upload-artifact@v7
+        with:
+          name: next-build
+          path: |
+            .next
+            !.next/cache
+          retention-days: 1
+          if-no-files-found: error
+
   unit:
     name: Unit tests
     runs-on: ubuntu-latest
@@ -115,6 +128,12 @@ jobs:
     # (Discovered on `test/three-engines`, where renaming this to match what it
     # does would have removed the gate silently rather than failing loudly.)
     runs-on: ubuntu-latest
+    # Waits for the build job and reuses its output rather than building
+    # again: `next build` took 25-30s of every E2E run for a result the job
+    # beside it had already produced. `needs` adds that job's ~30s to this
+    # one's start, so the saving is the difference, not the whole build - see
+    # the build log for the measured number.
+    needs: build
     # Chrome alone on a pull request; all three engines on a push to `main`
     # and on the nightly schedule. The ONE job, under the ONE required name -
     # not a matrix, whose per-engine job names would never report to a
@@ -123,6 +142,8 @@ jobs:
     # overnight. Docs/research/e2e-ci-runtime.md, adopted 2026-09-08.
     env:
       PW_ENGINES: ${{ github.event_name == 'pull_request' && 'chrome' || 'all' }}
+      # Tells playwright.config.ts the `.next` below is already built.
+      PW_PREBUILT: "1"
     steps:
       - uses: actions/checkout@v7
 
@@ -157,9 +178,15 @@ jobs:
       # Chrome, WebKit and Firefox, because "real WebKit coverage" is the reason
       # this repo chose Playwright over Cypress in the first place.
       #
-      # No separate build step: Playwright's `webServer` runs `npm run build &&
-      # next start` itself, so the suite measures the CSS that actually ships
-      # rather than a dev server's unchunked version of it.
+      - name: Download the build
+        uses: actions/download-artifact@v7
+        with:
+          name: next-build
+          path: .next
+
+      # Playwright's `webServer` runs `next start` against that build, so the
+      # suite measures the CSS that actually ships rather than a dev server's
+      # unchunked version of it - the same property as before, one build fewer.
       - name: Playwright
         run: npm run e2e
 
