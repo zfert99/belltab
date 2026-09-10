@@ -61,9 +61,12 @@ kind    = free text, e.g. "Class" | "Passing" | "Lunch" | "Planning" | anything
           as a seam rather than a block — see Docs/build-log.md, 2026-09-03)
 ```
 
-`startMin` and `endMin` are integers in `[0, 1440]`, and `startMin < endMin`.
+`startMin` and `endMin` are integers in `[0, 1439]`, and `startMin < endMin`.
 The interval is half-open: at exactly `endMin` you are in the *next* thing, not
-this one. That removes the off-by-one ambiguity at every bell.
+this one. That removes the off-by-one ambiguity at every bell. (Corrected from
+`[0, 1440]` on 2026-09-10: a period ending at 24:00 had no second on which it
+was over, so it never rang and never said "School is out." — see
+Docs/build-log.md, Deviations.)
 
 A **schedule** is a named, sorted, non-overlapping list of periods:
 

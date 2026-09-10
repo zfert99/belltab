@@ -63,6 +63,16 @@ found two more at the edges of the day. Passes 1–3 found no bugs, as on
 for — and the largest single item is again in `e2e/`, where six recipes are
 spelled out across specs that `helpers.ts` was created to hold.
 
+> **Status.** The findings below are recorded as they were written, before any
+> fix. **P1, P2, P3 and Q1** landed together on `fix/closing-review-items` the
+> same afternoon — the focus guard with a negative-control test that asserts
+> what *is* focused; 1440 refused at the boundary with its own sentence, which
+> closes the unreachable `after` phase, the empty end box and the `12:00`
+> label at once (the plan now reads `[0, 1439]`, and Deviations has the
+> reasoning); an integer guard in `endOf`. **P4** is a decision, not yet
+> taken. **P5, Q2** and every quality finding are still open, in the build
+> log's Open gaps with file and line.
+
 ---
 
 ## Summary

@@ -492,6 +492,18 @@ test.describe("the keyboard alone", () => {
     throw new Error(`${selector} was not reachable by Tab within ${limit} presses`);
   }
 
+  test("does not steal focus on first paint", async ({ page }) => {
+    // The settings focus effect runs once on mount with settings closed, and
+    // until 2026-09-10 fell through to focusing the gear button on every load.
+    // Big mode's twin test asserted only that ITS button was not focused - one
+    // selector away from the one that was - so this one asserts what IS
+    // focused: nothing but the document itself.
+    await openApp(page, MID_PERIOD);
+
+    await expect(page.locator("#settings-toggle")).not.toBeFocused();
+    expect(await page.evaluate(() => document.activeElement === document.body)).toBe(true);
+  });
+
   test("a period can be added, named, timed and moved without a mouse", async ({ page }) => {
     await openApp(page, MID_PERIOD);
 

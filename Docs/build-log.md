@@ -382,6 +382,8 @@ development too, so the bare origin is a 404 exactly as it is in production.
 | 2026-09-04 | The strip draws a dash only where the KIND changes; passing periods are the gaps | Superseding the same-day decision above (a dash per passing, a seam per kind change) - two vocabularies for one line. The user's rule is simpler and reads better: Planning, dash, a run of classes, dash, Lunch. A passing period is not drawn at all; the gap between two blocks is the hallway. Seven blocks for eleven periods on the seeded day, and exactly two dashes. |
 | 2026-09-10 | The closing review RECORDS its findings and fixes none of them | Asked for as "one last code review … and then consider project closed". A review that also fixes is two changes under one title, and the 2026-09-04 audit's shape - findings written as found, each fix its own PR with its own negative control - is what made that audit's severity correction (B2) possible. Every finding is in Open gaps with a file and line, so closing the project on this commit leaves an honest ledger rather than a clean one. |
 | 2026-09-10 | Every static finding that could be checked in a browser was, before it was written up | The static-bugs pass reads code and runs probes; it does not see a page. Three of its five findings (P1 focus on load, P3 the empty 24:00 end box, P4 the offset ringing a bell) were reproduced in the live preview before being rated, and P4 moved from "plausible" to "confirmed" because of it. A review that is about to be the last word should not rate what it has not seen. |
+| 2026-09-10 | 1440 is refused at the boundary rather than taught to the rollover | Two ways to make a 24:00 end honest: refuse it, or let the first tick of a new day ring the previous day's dismissal when the last state was `during` a period ending at 1440. The second is the truer model and costs a special case in `useBellCrossings` (which currently treats `toSec <= fromSec` as a date change, never a bell), one in the announcer, and a `formatClock` that can say "24:00" - all to serve a schedule no school has. The first is one constant, one sentence, and closes the editor's empty end box and the "12:00" label in the same stroke. A link carrying 1440 now fails to parse with a sentence about midnight; none is known to exist, and "a format you support forever" is about the SHAPE of the payload, which is unchanged. |
+| 2026-09-10 | The focus test asserts what IS focused, not what is not | Big mode's "does not steal focus on first paint" checked only its own button, and the gear was focused one selector away for six phases. The new test in `editor.spec.ts` asserts `document.activeElement === document.body` after `openApp`: the only assertion that fails for ANY stolen focus, not just the one somebody thought of. Negative control: with the guard commented out it goes red, naming the gear. |
 | 2026-09-10 | Intensive throttling is now a measurement, not a citation | The preview tab sat hidden for the middle of the session and Chrome throttled its one-second interval to about once a minute; a synthetic `visibilitychange` brought every surface current in one repaint. This is the research's central claim, observed on a real engine for the first time in this repo, and it is recorded in the audit (§5.4) as the evidence behind the first invariant rather than as a finding against the app. |
 | 2026-09-08 | Scope the E2E job by ENGINE, not by test priority: Chrome alone on pull requests, all three engines on every push to `main` and nightly; workers at 100% on CI as a measured experiment | Audit S8 wanted the 7m53s job shorter, and the owner's first idea was high/medium/low tiers. The research in `Docs/research/e2e-ci-runtime.md` argues the tiers away: a cut on "which tests are low-risk" is a judgement that drifts and nobody revisits, while a cut on the engine axis is exact - a PR knows precisely what it did not check - and self-correcting, because the full run has a fixed cadence. One job under the one required name, never a matrix: per-engine job names would never report to `E2E (reflow gate)` and every PR would hang, which this repo has met once already. Build reuse and sharding wait until the Chrome-only run is measured, in the research's own order. |
 
@@ -633,6 +635,31 @@ half-recorded on 2026-09-02 about Big mode: **a parked block has to name the
 phase that revives it, AND the phase has to name the block back** — and when
 neither does, the block is not "deferred", it is lost.
 
+### `endMin` may be 1440, the plan said — RESOLVED 2026-09-10, the plan corrected
+
+`Docs/belltab-plan.md` gave `startMin` and `endMin` as integers in `[0, 1440]`,
+and `toMinuteOfDay` in `parse.ts` implemented exactly that, with a comment:
+"Midnight-as-end (1440) is legal; as start it is not."
+
+The closing review found 1440 was legal only there. `secOfDay` runs 0 to 86399,
+so a day whose last period ends at 1440 has no second on which it is over: the
+`after` phase, "School is out.", `Done · BellTab` and the dismissal bell were
+all unreachable (Q1, confirmed live across midnight). `<input type="time">`
+cannot hold "24:00", so the editor rendered such a period with an empty end
+box and no error (P3, confirmed live). And `formatClock(1440)` read "12:00"
+in 12-hour mode, so 23:00–24:00 was labelled `11:00–12:00`. One value the
+parser accepted and three surfaces could not show.
+
+**Resolved 2026-09-10:** the parser refuses 1440 with its own sentence ("A
+period has to end before midnight."), the draft's `endOf` blanks an end that
+lands on it, and the plan now reads `[0, 1439]` with a note pointing here. A
+share link or backup carrying `endMin: 1440` - none is known to exist, and no
+seeded, fixture or realistic schedule has one - now fails to parse with that
+sentence rather than silently never ending. The alternative, teaching the
+rollover to ring the previous day's dismissal, would have been the more
+correct model and would have touched `useBellCrossings` and the announcer to
+serve a schedule nobody has; recorded in Decisions.
+
 ## Known limits
 
 Facts about the platform, the toolchain or the deploy that this repo has
@@ -658,11 +685,8 @@ it. None is a task.
 | --- | --- | --- |
 | 2026-08-27 | There is no undo | Deleting a *period* is still immediate and unconfirmed, and the only way back is to retype it. Deliberate for a four-field row whose result is visible behind the editor. Deleting a whole *schedule* now goes through a modal confirmation, which is the half of this gap Phase 4 closed; a real undo is still owed and would remove the need for the dialog. |
 | 2026-09-01 | An import cannot be undone | It replaces every schedule and the whole calendar, behind a confirmation that says so. Exporting first is the answer the panel gives, and it puts the export above the import for that reason. A real undo would be better and is the same gap as the one open for deleting a period. |
-| 2026-09-10 | Focus lands on the gear button on every page load | `Docs/code-review-2026-09-10-full-audit.md` P1, **Medium**. The settings focus-return effect in `App.tsx` runs once on mount with settings closed and falls through to `toggleRef.current?.focus()`. The Big-mode effect beside it has the `hasBeenBig` guard and a test for exactly this; the settings one has neither, since Phase 3. Confirmed in jsdom and in a live Chrome. Fix is a `hasOpenedSettings` ref and a negative-control E2E asserting the gear is NOT focused after `openApp`. |
-| 2026-09-10 | A period ending at 24:00 is legal to the parser and unrepresentable everywhere else | Q1 + P3. `endMin: 1440` parses on purpose, but `secOfDay` tops out at 86399 so the `after` phase, "School is out.", `Done · BellTab` and the dismissal bell are unreachable for that day; the editor's `<input type="time">` cannot hold `"24:00"` so the end box renders empty; and `formatClock(1440)` reads `12:00`. Confirmed live with a 0–1440 schedule across midnight. One line at the boundary closes all three; teaching the rollover to ring is the more correct answer and touches `useBellCrossings`. |
 | 2026-09-10 | Changing the bell offset can ring a bell | P4. `useBellCrossings` compares consecutive SHIFTED seconds, so typing an offset moves the clock discontinuously: at 09:04:50 typing `12` announced "Period 2 has started." from inside the Preferences panel, confirmed live. Lowering the offset after a bell rings it again. Consistent with "every derived view agrees, including the ones you hear", but the same user-facing shape as the 2026-09-09 bug. A decision is owed either way: accept and record, or reset `seen.sec` when `bellOffsetSec` changes. |
 | 2026-09-10 | "Keep it" is silent at the caps | P5. At 50 schedules `addSchedule` returns the library unchanged and the shared schedule vanishes with no message; at 400 overrides it is kept but not made today's while the offer said it would be. Two sentences in the offer, gated on the counts. |
-| 2026-09-10 | `minutesToClock` is not integer-safe | P2. A typed `0.5` length makes `endOf` return `"08:0.5"`; the time control blanks it and the parser refuses the draft, so it is recoverable, but the draft briefly holds a string that is not a time. An integer guard in `endOf`. |
 | 2026-09-10 | The tab title stays in minutes however long the wait | Q2, a design call. `480m · Period 1` from midnight to the first bell; the body already switches to `hr : min` above an hour and the title does not. `8h · Period 1` keeps "number first". |
 | 2026-09-10 | The closing review's quality findings | Five optimizations, fifteen condensations, six dead-code items and eleven drifted comments, none a bug, each with file and line in the audit's summary table. The three worth doing first if any are: the e2e helper recipes (C1, ~90 lines, no app risk), `--with-deps` off the Chrome-only CI path (O1, ~39 s per PR), and the comment drift (C15) — the design record disagreeing with the code it describes. The CSS control-skin collapse (C5) reverses a recorded decision and needs its own Decisions row before it is done. |
 
@@ -670,6 +694,9 @@ it. None is a task.
 
 | Opened | Closed | Item |
 | --- | --- | --- |
+| 2026-09-10 | 2026-09-10 | Focus no longer lands on the gear button on every page load (audit P1, the one Medium). The settings focus-return effect has the same first-mount guard Big mode's always had, `hasOpenedSettings`; a new E2E in `editor.spec.ts` asserts `document.activeElement === document.body` after `openApp`, which is the assertion that catches ANY stolen focus. Negative control: with the guard commented out, exactly that test fails. |
+| 2026-09-10 | 2026-09-10 | A period ending at 24:00 is refused at the boundary (audit Q1 + P3), with "A period has to end before midnight." bound to the end box; the draft's `endOf` blanks an end that lands on 1440; the plan reads `[0, 1439]`. Closes the unreachable `after` phase, the empty end box and the "12:00" label together. Deviations has the reasoning; Decisions has the road not taken. |
+| 2026-09-10 | 2026-09-10 | `endOf` accepts integers only (audit P2): a typed `0.5` length now blanks the end box instead of emitting "08:0.5", and the parser's "That is not a length." says why. One line and one test. |
 | 2026-09-05 | 2026-09-08 | A typed impossible date is told apart from an emptied box. The row said the fix wanted `validity.badInput` on a TYPED date and that automation could not measure it; Playwright's `keyboard.type` could, and on all three engines a typed February 30th leaves `value` at "" with `badInput` true. Read on change, key-up and blur - change never fires because "" to "" is no change, and Tab does not leave Chrome's segmented control - so the panel says "That isn't a date that exists", marks the field invalid, and keeps Add disabled until a real date replaces it. One test that types; negative control red with the reads disabled. |
 | 2026-09-05 | 2026-09-05 | An unreadable saved library is now SAID, KEPT and RETURNABLE. The degrade to the seeded defaults is unchanged; what changed is that `loadLibraryReport` reports which of three ways the value failed, in storage's voice; `libraryStore` records it, and the first `saveLibrary` copies the unreadable bytes to `belltab.v1.unreadable` BEFORE overwriting - so one keystroke no longer destroys the only copy; and `LibraryNotice`, in the share offer's slot, says so and hands the bytes back as a file. Nothing blocks. Verified live: planted one bad period, saw the banner with the reason, renamed a schedule, and read the planted string back from the quarantine key with the live key readable again. Six unit tests, an E2E spec with a real download read back from disk, and a 320px reflow check. |
 | 2026-09-05 | 2026-09-05 | The themed-load hydration mismatch is gone: `suppressHydrationWarning` on `<html>` in `layout.tsx`, the standard other half of a pre-paint theme script. **Downgraded while fixing** - the gap was opened as if users saw it, and they do not: React 19 checks attribute mismatches in development builds only, and a themed load of the production build logged zero console lines of any type. Dev-only noise, fixed because a console that always carries one error hides the next real one. Pinned by a source test in `preferences.test.ts` (negative control: removing the attribute fails it); a prod E2E test asserts a themed load logs nothing at all. |
@@ -776,7 +803,7 @@ it. None is a task.
 ### 2026-09-10 — the settings focus effect had the hazard its neighbour was guarded against
 
 Found by the closing review's static-bugs pass, confirmed in jsdom and in a
-live Chrome, not yet fixed (Open gaps, P1).
+live Chrome, fixed the same day on `fix/closing-review-items` (Closed, P1).
 
 `App.tsx` has two focus-follows-the-mode effects side by side. The Big-mode
 one carries `hasBeenBig`, with a comment saying why: the effect "runs once with
@@ -2681,3 +2708,40 @@ through a hidden tab, so both were closed by clicking. Both contracts are in
 `confirm-dialog.spec.ts` and `editor.spec.ts`, which passed on Chrome in this
 session. Reflow at 320 px was not eyeballed for the same reason; the gate
 that measures it passed.
+
+### 2026-09-10 — the three cheap ones from the closing review, on `fix/closing-review-items`
+
+Asked for at 12:05 as "commit as is and then sure lets get these last things
+in - they don't seem like they would take long", once the review itself was
+on `docs/closing-review` (#64). They did not: P1, the 1440 pair (Q1 + P3) and
+P2, about forty lines including tests and comments.
+
+**P1, the focus guard.** `App.tsx`'s settings focus-return effect gets
+`hasOpenedSettings`, the same ref-shaped guard Big mode's effect has carried
+since Phase 6, with a comment saying what six phases without it did. The
+E2E in `editor.spec.ts` asserts `document.activeElement === document.body`
+after `openApp` - the assertion that catches ANY stolen focus, which is the
+lesson from Big mode's test checking only its own button. **Negative
+control:** with the guard commented out, exactly that test fails, at the
+`not.toBeFocused()` on the gear; with it, the editor, Big mode and a11y specs
+pass 55 of 55 on Chrome. Live in the dev preview: body focused on load, the
+settings heading on open, the gear on close.
+
+**Q1 + P3, midnight as an end.** `toMinuteOfDay` caps at a named
+`LAST_MINUTE_OF_DAY` of 1439, and `endMin: 1440` gets its own sentence, "A
+period has to end before midnight.", so the person who typed 23:20 + 40 is not
+told their length is not a length. `endOf` in the draft blanks an end that
+lands exactly on 1440 (its guard was `> 1440`). The plan's `[0, 1440]` now
+reads `[0, 1439]` with a note, and Deviations has the entry - a plan-level
+value changed, so it is recorded as one, not as a bug fix. Live: 23:20 with a
+length of 40 shows an empty end box, both boxes `aria-invalid` with the
+midnight sentence, and nothing saved; 39 gives 23:59 and saves.
+
+**P2, integers only.** `endOf` checks `Number.isInteger(minutes)` rather than
+`isFinite`, so a typed `0.5` blanks the end instead of producing "08:0.5".
+Live: the parser's "That is not a length." on both boxes.
+
+Four unit tests added (459 pass on vitest 5), one E2E; lint, typecheck and
+markdownlint green. Nothing else from the audit was touched - P4 is a
+decision the user has not taken, and P5, Q2 and the quality findings stay in
+Open gaps.

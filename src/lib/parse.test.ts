@@ -151,12 +151,26 @@ describe("parseSchedule", () => {
       ["zero length", [period("X", "class", 540, 540)], { index: 0, field: "endMin" }],
       ["a fractional start", [period("X", "class", 480.5, 540)], { index: 0, field: "startMin" }],
       ["a start past midnight", [period("X", "class", 1441, 1450)], { index: 0, field: "startMin" }],
+      ["an end at midnight", [period("X", "class", 1380, 1440)], { index: 0, field: "endMin" }],
     ];
 
     it.each(cases)("rejects %s", (_label, periods, expected) => {
       const result = parseSchedule(schedule(periods));
       expect(result.ok).toBe(false);
       expect(firstError(result)).toEqual(expected);
+    });
+
+    it("accepts the last minute of the day as an end, and names midnight when refusing it", () => {
+      // 1440 was legal until 2026-09-10, and legal only here: the day has no
+      // second on which such a period is over, and the time control cannot
+      // show it. Its refusal is a sentence about midnight, not about lengths.
+      expect(parseSchedule(schedule([period("X", "class", 1380, 1439)])).ok).toBe(true);
+
+      const result = parseSchedule(schedule([period("X", "class", 1380, 1440)]));
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.errors[0].message).toBe("A period has to end before midnight.");
+      }
     });
 
     it("rejects a blank schedule name against no row", () => {

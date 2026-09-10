@@ -106,9 +106,24 @@ function daysInMonth(year: number, month: number): number {
   return month === 2 && isLeapYear(year) ? 29 : DAYS_IN_MONTH[month - 1];
 }
 
-/** A minute-of-day, or null. Midnight-as-end (1440) is legal; as start it is not. */
+/**
+ * A minute-of-day, or null.
+ *
+ * 0 to 1439. Midnight-as-end (1440) WAS legal until 2026-09-10, and the
+ * closing review found it was legal only here: the day's last second is
+ * 23:59:59, so a period ending at 1440 never reached the `after` phase, never
+ * rang its end bell and never said "School is out."; `<input type="time">`
+ * cannot hold "24:00", so the editor showed an empty end box; and
+ * `formatClock(1440)` read "12:00". One value the parser accepted and three
+ * surfaces could not show. Refused here so the three agree, with its own
+ * sentence below. Docs/build-log.md, Deviations, 2026-09-10.
+ */
+const LAST_MINUTE_OF_DAY = 1439;
+
 function toMinuteOfDay(value: unknown): MinuteOfDay | null {
-  return Number.isInteger(value) && (value as number) >= 0 && (value as number) <= 1440
+  return Number.isInteger(value) &&
+    (value as number) >= 0 &&
+    (value as number) <= LAST_MINUTE_OF_DAY
     ? (value as number)
     : null;
 }
@@ -201,7 +216,17 @@ export function parseSchedule(input: unknown): ParseResult<ValidSchedule> {
     const startMin = toMinuteOfDay(row.startMin);
     const endMin = toMinuteOfDay(row.endMin);
     if (startMin === null) fail(index, "startMin", "That is not a time of day.");
-    if (endMin === null) fail(index, "endMin", "That is not a length.");
+    if (endMin === null) {
+      // 1440 gets its own sentence: it is a real time somebody meant, not a
+      // stray string, and "not a length" would send them to the wrong box.
+      fail(
+        index,
+        "endMin",
+        row.endMin === LAST_MINUTE_OF_DAY + 1
+          ? "A period has to end before midnight."
+          : "That is not a length.",
+      );
+    }
     if (startMin !== null && endMin !== null && startMin >= endMin) {
       fail(index, "endMin", "A period has to end after it starts.");
     }
