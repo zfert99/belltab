@@ -313,6 +313,23 @@ describe("updatePeriod", () => {
     expect(next.periods[2]).toMatchObject({ start: "23:50", end: "", length: "40" });
   });
 
+  it("blanks the end AT midnight too, which the time control cannot hold", () => {
+    // 23:20 + 40 is exactly 1440. Until 2026-09-10 this produced "24:00", a
+    // value `<input type="time">` silently shows as empty, and the parser
+    // accepted the 1440 behind it. Now both refuse; see parse.ts.
+    const next = updatePeriod(sample, "2", { start: "23:20" });
+
+    expect(next.periods[2]).toMatchObject({ start: "23:20", end: "", length: "40" });
+  });
+
+  it("blanks the end for a fractional length rather than emitting a non-time", () => {
+    // step="1" does not stop a typed 0.5; 480.5 came out as "08:0.5".
+    const next = updatePeriod(sample, "0", { length: "0.5" });
+
+    expect(next.periods[0]).toMatchObject({ start: "08:00", end: "", length: "0.5" });
+    expect(parseDraft(next).ok).toBe(false);
+  });
+
   it("keeps a custom kind exactly as typed", () => {
     const next = updatePeriod(sample, "0", { kind: "Study hall" });
 

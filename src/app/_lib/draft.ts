@@ -88,10 +88,15 @@ export function minutesToClock(totalMinutes: number): string {
 function endOf(start: string, length: string): string {
   const startMin = clockToMinutes(start);
   const minutes = length.trim() === "" ? null : Number(length);
-  if (startMin === null || minutes === null || !Number.isFinite(minutes)) return "";
+  // Integers only: a typed "0.5" gets past `step="1"`, and 480.5 would come
+  // out of `minutesToClock` as "08:0.5" - a string the time control blanks
+  // anyway, so blank it here and let the parser say why.
+  if (startMin === null || minutes === null || !Number.isInteger(minutes)) return "";
 
   const endMin = startMin + minutes;
-  return endMin < 0 || endMin > 24 * 60 ? "" : minutesToClock(endMin);
+  // 24:00 is not a value `<input type="time">` can hold, and since 2026-09-10
+  // not one the parser accepts either - see `toMinuteOfDay`.
+  return endMin < 0 || endMin >= 24 * 60 ? "" : minutesToClock(endMin);
 }
 
 /**

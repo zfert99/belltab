@@ -316,13 +316,29 @@ export function App() {
   /** Where focus lands on OPEN, when a link asked for somewhere below the heading. */
   const openFocusIdRef = useRef<string | null>(null);
 
+  /**
+   * The same guard as `hasBeenBig`, for the same reason - and it was missing
+   * for six phases. This effect runs once on mount with `settingsOpen === false`,
+   * and without the guard that fell through to `toggleRef.current?.focus()`:
+   * every load put focus on the gear button before the user had touched
+   * anything, and a screen-reader user heard "Edit the schedule, button" first.
+   * Nothing showed on screen, because Chrome paints no `:focus-visible` ring for
+   * programmatic focus with no prior keyboard use. Found by the closing review
+   * of 2026-09-10; the test beside Big mode's asserted only that ITS button was
+   * not focused, one selector away from the one that was.
+   */
+  const hasOpenedSettings = useRef(false);
+
   useEffect(() => {
     if (settingsOpen) {
+      hasOpenedSettings.current = true;
       const target =
         openFocusIdRef.current === null ? null : document.getElementById(openFocusIdRef.current);
       (target ?? headingRef.current)?.focus();
       return;
     }
+
+    if (!hasOpenedSettings.current) return;
 
     const opener = openerIdRef.current === null ? null : document.getElementById(openerIdRef.current);
     (opener ?? toggleRef.current)?.focus();
