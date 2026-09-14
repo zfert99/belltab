@@ -182,7 +182,7 @@ jobs:
       # this repo chose Playwright over Cypress in the first place.
       #
       - name: Download the build
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           name: next-build
           path: .next
