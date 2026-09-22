@@ -447,28 +447,54 @@ test.describe("the weekend's second way out", () => {
 });
 
 /**
- * A typed impossible date is told apart from an emptied box.
+ * A typed impossible date is told apart from an emptied box - where the engine
+ * makes that possible at all.
  *
- * Every engine turns a typed "February 30th" into `value === ""`, which is also
- * what an empty box reports - so the panel used to see "cleared", show no
- * error, and leave the user with a disabled Add button and no reason.
+ * Every engine sanitises a typed "February 30th" to `value === ""`, which is
+ * also what an empty box reports, so the value alone cannot separate them.
+ * `validity.badInput` can, and the 2026-09-22 probe measured exactly how far
+ * that goes (Docs/research/webkit-date-input-validity.md):
  *
- * What separates them is NOT `validity.badInput`, which is what the first fix
- * read and what made this test the only red one on `main` for sixteen nightly
- * runs. Measured on the CI runner on 2026-09-22
- * (Docs/research/webkit-date-input-validity.md): WebKit never sets `badInput`
- * on a date control at all, and Chrome and Firefox set it from the SECOND
- * keystroke of a perfectly ordinary date. The panel now asks a question with
- * the same answer on all three - did the user type into this field and leave
- * it empty - and asks it once, on blur.
+ * - Chrome and Firefox set it - but from the SECOND keystroke, because an
+ *   incomplete date is unparseable too. The fix that shipped on 2026-09-08
+ *   read it on every keystroke and therefore called ordinary dates impossible
+ *   while they were being typed. It is now read on blur only.
+ * - WebKit does not set it, and does not accept typed digits into a date
+ *   control either: `09142026` typed key by key leaves `value` at "" just as
+ *   `02302026` does. Nothing distinguishes them there, and nothing can.
  *
- * So this test TYPES, because a programmatic set is sanitised to "" on every
- * engine and proves nothing, and it BLURS by moving to the next control, which
- * is what a person does. One Tab is not enough: Chrome and Firefox walk their
- * segmented control with Tab and focus is still in the field afterwards -
- * measured, same probe.
+ * So the contract splits, and both halves are asserted rather than one being
+ * skipped. What every engine owes: silence while the field has focus, and an
+ * Add button that stays disabled. What an engine that reports `badInput` owes
+ * on top: the message. The capability is detected at runtime rather than
+ * matched against a browser name, so an engine that gains it later is held to
+ * the stricter contract automatically.
  */
 test.describe("an impossible typed date", () => {
+  /** Whether this engine can tell a typed impossible date from an empty box. */
+  const reportsBadInput = (page: import("@playwright/test").Page) =>
+    page
+      .locator("#override-date")
+      .evaluate((element: HTMLInputElement) => element.validity.badInput);
+
+  test("leaves Add disabled and says nothing until focus moves on", async ({ page }) => {
+    await openApp(page, MID_PERIOD);
+    await openSettings(page, "calendar");
+
+    const input = page.locator("#override-date");
+    await input.click();
+    await page.keyboard.type("02302026");
+
+    // Nothing is claimed while the field still has focus. This is the half the
+    // first fix got wrong in the other direction - it accused a half-typed date
+    // from its second character.
+    await expect(page.locator("#override-date-error")).toHaveCount(0);
+    await expect(input).not.toHaveAttribute("aria-invalid", "true");
+
+    await page.locator("#override-schedule").focus();
+    await expect(page.locator("#override-add")).toBeDisabled();
+  });
+
   test("is named as one, with the field marked invalid, until a real date replaces it", async ({
     page,
   }) => {
@@ -479,9 +505,12 @@ test.describe("an impossible typed date", () => {
     await input.click();
     await page.keyboard.type("02302026");
 
-    // Nothing is claimed while the field still has focus. This is the half the
-    // old fix got wrong in the other direction: it accused a half-typed date.
-    await expect(page.locator("#override-date-error")).toHaveCount(0);
+    test.skip(
+      !(await reportsBadInput(page)),
+      "This engine does not report validity.badInput on a date control, so a " +
+        "typed impossible date is indistinguishable from an empty field. The " +
+        "test above pins what it does owe.",
+    );
 
     await page.locator("#override-schedule").focus();
 
@@ -504,7 +533,7 @@ test.describe("an impossible typed date", () => {
    * exists" from the second keystroke until the last - a false statement about
    * a real date, on Chrome and Firefox. Nothing caught it because the only test
    * typed a date that was genuinely impossible, where a wrong message and a
-   * right one look the same.
+   * right one look identical. This is the negative control that was missing.
    */
   test("says nothing while an ordinary date is being typed", async ({ page }) => {
     await openApp(page, MID_PERIOD);
@@ -519,27 +548,10 @@ test.describe("an impossible typed date", () => {
       await expect(input).not.toHaveAttribute("aria-invalid", "true");
     }
 
-    // And having typed a real date, leaving the field says nothing either.
+    // And leaving the field says nothing either. On an engine that took the
+    // keystrokes the value is now a real date; on one that did not it is still
+    // empty, and an empty field the user never completed is not an error.
     await page.locator("#override-schedule").focus();
     await expect(page.locator("#override-date-error")).toHaveCount(0);
-  });
-
-  /**
-   * Typed, then deleted, then left. The field is empty because the user emptied
-   * it - the one case "typed into and still empty" would get wrong without the
-   * deletion clearing the flag.
-   */
-  test("says nothing when a date is typed and then cleared", async ({ page }) => {
-    await openApp(page, MID_PERIOD);
-    await openSettings(page, "calendar");
-
-    const input = page.locator("#override-date");
-    await input.click();
-    await page.keyboard.type("02302026");
-    await page.keyboard.press("Backspace");
-    await page.locator("#override-schedule").focus();
-
-    await expect(page.locator("#override-date-error")).toHaveCount(0);
-    await expect(page.locator("#override-add")).toBeDisabled();
   });
 });

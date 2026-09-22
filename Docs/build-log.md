@@ -189,7 +189,7 @@ development too, so the bare origin is a 404 exactly as it is in production.
 
 | Date | Decision | Why |
 | --- | --- | --- |
-| 2026-09-22 | The date field is judged on blur, not on every keystroke, and `validity.badInput` is not read at all — SUPERSEDES the 2026-09-08 row below | `badInput` fails in both directions, measured on the CI runner: absent on WebKit, where it left the nightly red for sixteen runs, and true from the second keystroke on Chrome and Firefox, where it made the panel call a half-typed ordinary date impossible. Both are the same mistake — asking the control whether it can parse a field that is still being filled in. "Typed into, and left empty" is answerable on every engine without `validity`, and only at the moment it means anything. Research: `research/webkit-date-input-validity.md`. |
+| 2026-09-22 | `validity.badInput` is read on blur and nowhere else, and the feature is accepted as absent on WebKit — SUPERSEDES the 2026-09-08 row below | Read per keystroke it is wrong even where it exists: Chrome and Firefox set it from the second character of any incomplete date, so the panel called ordinary dates impossible while they were typed. Blur is the first moment the question means anything. WebKit sets it never AND ignores typed digits in a date control, so there is nothing there to read and nothing to infer — a synthesised signal ("typed into and left empty") was tried first and was wrong for every valid date. Silence plus a disabled Add is the honest degraded state; that engine's users reach the field through the picker, which cannot produce an impossible date. Research: `research/webkit-date-input-validity.md`. |
 | 2026-09-22 | A fix for an engine-specific failure is verified on all three engines before it merges, not after | The engine-scoped CI cut means a PR checks Chrome only. That is how the original defect reached `main`; shipping its fix under the same gate would prove nothing about the engine that was broken. Done here with a temporary all-engine workflow on the branch, deleted once green. The general version of this — making a red nightly reach somebody — is a recommendation in the research doc, not a change, because it reverses a documented decision and is the owner's call. |
 | 2026-08-26 | Build in plain HTML/CSS/JS first, port to Next.js + TypeScript after | Deliberate detour from roadmap Phase 0. Goal is to see the wiring before a framework hides it. The engine is framework-free by design, so the port is mechanical. |
 | 2026-08-26 | `src/` from the first file, even without a build step | Matches `AGENTS.md`. Moving later is pure churn. |
@@ -697,7 +697,7 @@ it. None is a task.
 
 | Opened | Closed | Item |
 | --- | --- | --- |
-| 2026-09-08 | 2026-09-22 | `main` is green on all three engines again. The B7 fix read `validity.badInput`, which WebKit never sets on a date control and which Chrome and Firefox set from the second keystroke of any incomplete date - so the nightly was red for sixteen runs and, on the engines that worked, the panel called ordinary dates impossible while they were being typed. The field is now judged once, on blur, on "typed into and still empty", with no `validity` read anywhere. Three tests, no engine skipped, verified on all three before merge. Measurement in `research/webkit-date-input-validity.md`. |
+| 2026-09-08 | 2026-09-22 | `main` is green on all three engines again. The B7 fix read `validity.badInput` on every keystroke: WebKit never sets it on a date control, so the nightly was red for sixteen runs, and Chrome and Firefox set it from the second character of any incomplete date, so the panel called ordinary dates impossible while they were being typed. It is now read on blur only, and WebKit - which also ignores typed digits entirely - gets silence and a disabled Add rather than a guess. Three tests, contract split by measured engine capability with both halves asserted, verified on all three engines before merge. Measurement in `research/webkit-date-input-validity.md`. |
 | 2026-09-10 | 2026-09-10 | Focus no longer lands on the gear button on every page load (audit P1, the one Medium). The settings focus-return effect has the same first-mount guard Big mode's always had, `hasOpenedSettings`; a new E2E in `editor.spec.ts` asserts `document.activeElement === document.body` after `openApp`, which is the assertion that catches ANY stolen focus. Negative control: with the guard commented out, exactly that test fails. |
 | 2026-09-10 | 2026-09-10 | A period ending at 24:00 is refused at the boundary (audit Q1 + P3), with "A period has to end before midnight." bound to the end box; the draft's `endOf` blanks an end that lands on 1440; the plan reads `[0, 1439]`. Closes the unreachable `after` phase, the empty end box and the "12:00" label together. Deviations has the reasoning; Decisions has the road not taken. |
 | 2026-09-10 | 2026-09-10 | `endOf` accepts integers only (audit P2): a typed `0.5` length now blanks the end box instead of emitting "08:0.5", and the parser's "That is not a length." says why. One line and one test. |
@@ -825,14 +825,25 @@ nobody was looking for: on the two engines that *were* measured, `badInput` is
 true from the second keystroke of any incomplete date, so the panel told users
 that ordinary dates did not exist while they typed them.
 
-**The lesson has two halves.** The obvious one: "measured on WebKit" is not a
-sentence this repo is allowed to write — it has to say which WebKit, and the
-rule was already on the books when it was broken. The sharper one: the test
-written alongside the fix typed an *impossible* date, which is the one input for
-which a correct implementation and a broken one produce the same screen. A test
-that only exercises the case the fix was written for cannot discover that the
-fix is too eager. The new suite types an ordinary date as well, and that test
-fails against the old code on Chrome — the negative control that was missing.
+**The lesson has three halves, and the third one arrived while fixing it.**
+
+The obvious one: "measured on WebKit" is not a sentence this repo is allowed to
+write — it has to say which WebKit, and the rule was already on the books when
+it was broken.
+
+The sharper one: the test written alongside the fix typed an *impossible* date,
+which is the one input for which a correct implementation and a too-eager one
+produce the same screen. A test that only exercises the case the fix was written
+for cannot discover that the fix is wrong about everything else. The new suite
+types an ordinary date as well, and that test fails against the old code on
+Chrome — the negative control that was missing.
+
+The third: the first replacement signal, "typed into and left empty", passed the
+impossible-date test on WebKit and was still wrong — it fires for every typed
+date there, valid ones included, because that engine ignores typed digits
+outright. Right answer, wrong cause, caught only because the branch ran all
+three engines before merging. The same mistake as the original, reproduced
+inside its own fix, one run from shipping.
 
 ### 2026-09-10 — the settings focus effect had the hazard its neighbour was guarded against
 
@@ -2332,21 +2343,43 @@ the control. The entry that would have caught that was written on 2026-09-01, in
 this file: *"any sentence of the form 'X works in WebKit' now has to say which
 WebKit."*
 
-**The fix.** Stop asking the control whether it is confused — at a moment when
-confusion is normal — and ask whether the user is finished. On blur, the field
-is unusable if it was typed into and is still empty. No `validity` anywhere: it
-needs no `badInput`, so WebKit is covered, and it cannot fire mid-typing, so the
-false message on Chrome and Firefox goes with it. The parse branch that catches
-a five-digit year is untouched and was always green on all three.
+**The first fix was wrong, and the branch run caught it.** The obvious move is
+to drop `validity` entirely and ask whether the USER is finished: on blur, is
+this field one the user typed into and left empty? It needs no `badInput`, so
+WebKit is covered, and it cannot fire mid-typing, so the Chrome and Firefox
+false message goes too. Both true; the rule is still wrong.
 
-Three tests now where there was one, and none of them skips an engine: the
-impossible date named on blur, silence while an ordinary date is typed (the
-defect above, which had no test), and silence when a date is typed and then
-deleted.
+The full three-engine run on the branch turned the originally-red test green on
+all three and put a *new* one red on WebKit: typing `09142026`, a date that
+plainly exists, produced the error. **WebKit does not accept typed digits into a
+date control at all** — a valid date typed key by key leaves `value` empty
+exactly as an impossible one does. So "typed into and left empty" is true of
+every typed date there, and no signal can be synthesised from it. Worse, the
+first fix's WebKit behaviour had been passing its test *for the wrong reason* —
+which is the exact failure mode this whole entry is about, reproduced while
+fixing it.
+
+**The fix that shipped.** `badInput` stays, because it is the only thing that
+separates the two cases, but it is read **on blur and nowhere else**. That fixes
+Chrome and Firefox: mid-typing the answer is always "unparseable" and always
+meaningless, and blur is the first moment the question has content. WebKit gets
+no message and Add stays disabled, which is the honest outcome rather than a
+guess — a WebKit user reaches this field through the picker, which cannot
+produce an impossible date. The parse branch that catches a five-digit year is
+untouched and was always green on all three.
+
+Three tests where there was one, and the contract splits along what each engine
+can actually report, with both halves asserted rather than one skipped: every
+engine owes silence while the field has focus and a disabled Add button; an
+engine that reports `badInput` owes the message on top. The capability is
+detected at runtime rather than matched against a browser name, so an engine
+that gains it later is held to the stricter contract without anyone remembering
+to update a list.
 
 Verified on all three engines on the branch before merge, through a temporary
 workflow, for the reason this entry opens with: a fix for a WebKit-only failure
 that was itself checked on Chrome alone would be the same bet lost the same way.
+That workflow earned its cost on its first run.
 
 ### 2026-09-05 — a full audit: static review, then the app in a browser
 

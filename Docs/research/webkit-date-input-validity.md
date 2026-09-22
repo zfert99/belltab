@@ -149,38 +149,57 @@ programmatically reported `badInput: false`" was reporting real, specified
 behaviour. `keyboard.type` was the right instrument; the conclusion drawn from
 it was over-generalised to an engine that was never measured.
 
+## A second measurement, from trying the obvious fix
+
+The first fix attempt replaced `badInput` with a signal that needs no
+`validity`: **at blur, the field is unusable if the user typed into it and left
+it empty.** It covers WebKit by construction and cannot fire mid-typing, so it
+looked like it answered both failures at once.
+
+Run 4 of the branch workflow — the full suite, three engines — says otherwise.
+The originally-red test went green everywhere, and a *new* test went red on
+WebKit: typing `09142026`, a date that plainly exists, produced the error.
+
+That settles the open question this document had been carrying. **WebKit does
+not accept typed digits into a date control at all.** A valid date typed key by
+key leaves `value` at `""` exactly as an impossible one does, which is why
+`badInput` never has anything to report there — there is nothing in the control
+to be bad. The first probe could not see this because it only ever typed a date
+that was *supposed* to end up empty.
+
+So on WebKit there is no signal, and no signal can be synthesised: "typed into
+and left empty" is true of every typed date, correct and incorrect alike. The
+earlier version of this section proposed exactly that rule and was wrong; it is
+left above rather than deleted because the reasoning is what the next person
+will try first.
+
+It also means the first fix's WebKit behaviour was passing its test **for the
+wrong reason** — right answer, wrong cause, which is the failure mode that made
+this whole entry necessary in the first place.
+
 ## What it means for the fix
 
-`validity.badInput` is the wrong signal, and not only on WebKit. It is absent
-where the feature is needed (WebKit) and over-eager where it is present
-(Chrome, Firefox, from the second keystroke of a valid date). Both failures come
-from the same mistake: asking the *control* whether it is confused, at a moment
-when being confused is normal, instead of asking whether the *user is finished*.
+`badInput` is the only thing that separates a typed impossible date from an
+empty box, and it is right — but only when asked at the right moment, and only
+on engines that have it.
 
-The signal that works on all three engines is available without `validity` at
-all:
+- **Read on blur, not on every keystroke.** This fixes the Chrome and Firefox
+  defect: an incomplete date is unparseable, so mid-typing the answer is always
+  "unparseable" and always meaningless. Blur is the first moment the question
+  has content.
+- **WebKit gets no message, and that is the honest outcome.** The engine neither
+  reports `badInput` nor takes typed input, so the field stays empty and Add
+  stays disabled. A user on WebKit reaches this field through the picker, where
+  an impossible date cannot be produced.
+- **The parse branch is untouched** and still catches the five-digit year that a
+  control considers valid and `parseIsoDate` does not, on all three engines.
 
-> **At blur**, the field holds something unusable if the user typed into it and
-> left it empty.
-
-- It needs no `badInput`, so WebKit is covered.
-- It cannot fire mid-typing, because blur is the user leaving, so the Chrome and
-  Firefox false message disappears.
-- The existing parse branch (`newDate !== "" && parsedNewDate === null`) still
-  catches the five-digit year that a control considers valid, unchanged, and
-  that branch is already green on all three engines
-  (`calendar.spec.ts` › "a five-digit year is named, not swallowed").
-
-The keystroke reads go away with `badInput`. `onBlur` is enough because the
-question is only asked when focus leaves, and the readings show blur is
-reachable on every engine — on WebKit one `Tab` leaves the control outright, and
-on Chrome and Firefox `Tab` walks the segments and then leaves.
-
-One accepted imperfection: a user who types a date, deletes it, and tabs away
-has "typed and left it empty" by this definition. Clearing the typed flag on a
-deletion key covers the ordinary case; a user who deletes and leaves gets a
-disabled Add button and no message, which is the pre-B7 state for that one path
-and not worth more machinery.
+The test contract splits to match, with both halves asserted rather than one
+skipped: every engine owes silence while the field has focus and a disabled Add
+button; an engine that reports `badInput` owes the message on top. The suite
+detects the capability at runtime instead of matching a browser name, so an
+engine that gains it is held to the stricter contract without anyone
+remembering to change a list.
 
 ## What this says about the gate, which is the larger finding
 
@@ -198,12 +217,13 @@ that WebKit runs before a merge rather than after it. Anything that leaves a red
 
 ## Open questions
 
-- **Does WebKit's date control receive the digits at all?** `value` is `""`
-  either way and `badInput` is never set, so the probe cannot tell "typed and
-  rejected" from "keystrokes ignored". It does not change the fix — a field the
-  user typed into and left empty is unusable either way — but it does mean the
-  WebKit path is being *inferred*, not observed. A follow-up probe reading
-  `beforeinput`/`input` event counts would settle it.
+- **ANSWERED 2026-09-22, by run 4 above: no.** WebKit ignores typed digits in a
+  date control entirely — a valid date typed key by key leaves `value` empty.
+  The question is left here because the answer inverted the fix: it is the
+  difference between "WebKit needs a different signal" and "WebKit has nothing
+  to signal about". What is still unmeasured is *how* a WebKit user enters a
+  date here at all — presumably the picker, which cannot produce an impossible
+  one, but that is an inference and not a reading.
 - **Is real Safari a fourth answer?** Nothing here is evidence about a Mac; the
   2026-09-01 entry's warning applies to this document too. Safari has shipped
   `type="date"` since 14.1 and may well set `badInput`. Untested, and untestable
