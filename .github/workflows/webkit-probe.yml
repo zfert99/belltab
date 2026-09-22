@@ -1,0 +1,44 @@
+# TEMPORARY. Delete with e2e/date-input-probe.spec.ts once the research doc
+# records its readings.
+#
+# The nightly three-engine run has been red on WebKit since 2026-09-08, and the
+# fix it is red about depends on a browser behaviour that cannot be measured on
+# a development machine - the Linux WebKit build here and the one on a Mac
+# disagree about whether `<input type="date">` exists at all. This workflow runs
+# one probe spec on the CI WebKit so the fix is chosen from a reading rather
+# than from a guess.
+name: WebKit date probe
+
+on:
+  push:
+    branches: [claude/modest-thompson-dg1dhc]
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    name: Probe
+    runs-on: ubuntu-latest
+    env:
+      PW_ENGINES: all
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - run: npm ci
+
+      - name: Install WebKit
+        run: npx playwright install --with-deps webkit
+
+      # Chrome and Firefox read the same, for contrast - the point is which
+      # engine differs, not WebKit in isolation.
+      - name: Install the others
+        run: npx playwright install --with-deps chrome firefox
+
+      - name: Probe
+        run: npx playwright test e2e/date-input-probe.spec.ts --reporter=list
