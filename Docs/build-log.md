@@ -189,6 +189,8 @@ development too, so the bare origin is a 404 exactly as it is in production.
 
 | Date | Decision | Why |
 | --- | --- | --- |
+| 2026-09-22 | The date field is judged on blur, not on every keystroke, and `validity.badInput` is not read at all — SUPERSEDES the 2026-09-08 row below | `badInput` fails in both directions, measured on the CI runner: absent on WebKit, where it left the nightly red for sixteen runs, and true from the second keystroke on Chrome and Firefox, where it made the panel call a half-typed ordinary date impossible. Both are the same mistake — asking the control whether it can parse a field that is still being filled in. "Typed into, and left empty" is answerable on every engine without `validity`, and only at the moment it means anything. Research: `research/webkit-date-input-validity.md`. |
+| 2026-09-22 | A fix for an engine-specific failure is verified on all three engines before it merges, not after | The engine-scoped CI cut means a PR checks Chrome only. That is how the original defect reached `main`; shipping its fix under the same gate would prove nothing about the engine that was broken. Done here with a temporary all-engine workflow on the branch, deleted once green. The general version of this — making a red nightly reach somebody — is a recommendation in the research doc, not a change, because it reverses a documented decision and is the owner's call. |
 | 2026-08-26 | Build in plain HTML/CSS/JS first, port to Next.js + TypeScript after | Deliberate detour from roadmap Phase 0. Goal is to see the wiring before a framework hides it. The engine is framework-free by design, so the port is mechanical. |
 | 2026-08-26 | `src/` from the first file, even without a build step | Matches `AGENTS.md`. Moving later is pure churn. |
 | 2026-08-26 | ES modules + a local server, not `<script>` globals over `file://` | Globals would work with zero setup but teach a pattern we would throw away at the port. |
@@ -683,6 +685,7 @@ it. None is a task.
 
 | Opened | Item | Notes |
 | --- | --- | --- |
+| 2026-09-22 | A red nightly on `main` reaches nobody | The engine-scoped CI cut is sound and the nightly caught the WebKit failure on the merge commit itself - then reported it, accurately, sixteen more times, to no one. Nothing in the repo turns a red scheduled run into something a person sees. Two shapes would close it and they are alternatives, not both: the nightly opens an issue (or otherwise raises its hand) on failure, or the engine cut moves so WebKit runs before a merge rather than after. The second reverses the 2026-09-08 decision and needs its own row. Owner's call; recommended in `research/webkit-date-input-validity.md` rather than taken. |
 | 2026-08-27 | There is no undo | Deleting a *period* is still immediate and unconfirmed, and the only way back is to retype it. Deliberate for a four-field row whose result is visible behind the editor. Deleting a whole *schedule* now goes through a modal confirmation, which is the half of this gap Phase 4 closed; a real undo is still owed and would remove the need for the dialog. |
 | 2026-09-01 | An import cannot be undone | It replaces every schedule and the whole calendar, behind a confirmation that says so. Exporting first is the answer the panel gives, and it puts the export above the import for that reason. A real undo would be better and is the same gap as the one open for deleting a period. |
 | 2026-09-10 | Changing the bell offset can ring a bell | P4. `useBellCrossings` compares consecutive SHIFTED seconds, so typing an offset moves the clock discontinuously: at 09:04:50 typing `12` announced "Period 2 has started." from inside the Preferences panel, confirmed live. Lowering the offset after a bell rings it again. Consistent with "every derived view agrees, including the ones you hear", but the same user-facing shape as the 2026-09-09 bug. A decision is owed either way: accept and record, or reset `seen.sec` when `bellOffsetSec` changes. |
@@ -694,10 +697,11 @@ it. None is a task.
 
 | Opened | Closed | Item |
 | --- | --- | --- |
+| 2026-09-08 | 2026-09-22 | `main` is green on all three engines again. The B7 fix read `validity.badInput`, which WebKit never sets on a date control and which Chrome and Firefox set from the second keystroke of any incomplete date - so the nightly was red for sixteen runs and, on the engines that worked, the panel called ordinary dates impossible while they were being typed. The field is now judged once, on blur, on "typed into and still empty", with no `validity` read anywhere. Three tests, no engine skipped, verified on all three before merge. Measurement in `research/webkit-date-input-validity.md`. |
 | 2026-09-10 | 2026-09-10 | Focus no longer lands on the gear button on every page load (audit P1, the one Medium). The settings focus-return effect has the same first-mount guard Big mode's always had, `hasOpenedSettings`; a new E2E in `editor.spec.ts` asserts `document.activeElement === document.body` after `openApp`, which is the assertion that catches ANY stolen focus. Negative control: with the guard commented out, exactly that test fails. |
 | 2026-09-10 | 2026-09-10 | A period ending at 24:00 is refused at the boundary (audit Q1 + P3), with "A period has to end before midnight." bound to the end box; the draft's `endOf` blanks an end that lands on 1440; the plan reads `[0, 1439]`. Closes the unreachable `after` phase, the empty end box and the "12:00" label together. Deviations has the reasoning; Decisions has the road not taken. |
 | 2026-09-10 | 2026-09-10 | `endOf` accepts integers only (audit P2): a typed `0.5` length now blanks the end box instead of emitting "08:0.5", and the parser's "That is not a length." says why. One line and one test. |
-| 2026-09-05 | 2026-09-08 | A typed impossible date is told apart from an emptied box. The row said the fix wanted `validity.badInput` on a TYPED date and that automation could not measure it; Playwright's `keyboard.type` could, and on all three engines a typed February 30th leaves `value` at "" with `badInput` true. Read on change, key-up and blur - change never fires because "" to "" is no change, and Tab does not leave Chrome's segmented control - so the panel says "That isn't a date that exists", marks the field invalid, and keeps Add disabled until a real date replaces it. One test that types; negative control red with the reads disabled. |
+| 2026-09-05 | 2026-09-08 | **SUPERSEDED 2026-09-22 — the claim in this row is wrong, see the row below it and the 2026-09-22 Bugs found entry.** A typed impossible date is told apart from an emptied box. The row said the fix wanted `validity.badInput` on a TYPED date and that automation could not measure it; Playwright's `keyboard.type` could, and on all three engines a typed February 30th leaves `value` at "" with `badInput` true. Read on change, key-up and blur - change never fires because "" to "" is no change, and Tab does not leave Chrome's segmented control - so the panel says "That isn't a date that exists", marks the field invalid, and keeps Add disabled until a real date replaces it. One test that types; negative control red with the reads disabled. |
 | 2026-09-05 | 2026-09-05 | An unreadable saved library is now SAID, KEPT and RETURNABLE. The degrade to the seeded defaults is unchanged; what changed is that `loadLibraryReport` reports which of three ways the value failed, in storage's voice; `libraryStore` records it, and the first `saveLibrary` copies the unreadable bytes to `belltab.v1.unreadable` BEFORE overwriting - so one keystroke no longer destroys the only copy; and `LibraryNotice`, in the share offer's slot, says so and hands the bytes back as a file. Nothing blocks. Verified live: planted one bad period, saw the banner with the reason, renamed a schedule, and read the planted string back from the quarantine key with the live key readable again. Six unit tests, an E2E spec with a real download read back from disk, and a 320px reflow check. |
 | 2026-09-05 | 2026-09-05 | The themed-load hydration mismatch is gone: `suppressHydrationWarning` on `<html>` in `layout.tsx`, the standard other half of a pre-paint theme script. **Downgraded while fixing** - the gap was opened as if users saw it, and they do not: React 19 checks attribute mismatches in development builds only, and a themed load of the production build logged zero console lines of any type. Dev-only noise, fixed because a console that always carries one error hides the next real one. Pinned by a source test in `preferences.test.ts` (negative control: removing the attribute fails it); a prod E2E test asserts a themed load logs nothing at all. |
 | 2026-09-05 | 2026-09-05 | The Backup panel reflows at 320px, and the suite can no longer miss a panel. `width: 100%` + `min-width: 0` on `.backup__file` and `#backup-import` - the recipe the calendar's selects already carried - takes the page from 345px to 320px inside a 320px viewport. The panel list moved to `src/app/_lib/panels.ts`, and both `reflow.spec.ts` and `a11y.spec.ts` now loop over `PANEL_IDS` instead of a hand-written three, with a guard test asserting the tabs the app RENDERS equal the ids the suite ITERATES. Negative control run: with the CSS reverted, exactly one test fails and its message names the panel. |
@@ -799,6 +803,36 @@ it. None is a task.
 ---
 
 ## Bugs found
+
+### 2026-09-22 — a browser-behaviour claim measured on one engine and written down as "all three"
+
+The defect is in `CalendarPanel`, but the lesson is about evidence.
+
+Closing B7 on 2026-09-08 required knowing what a date control reports for a
+typed February 30th. That was measured — with real key events, which was the
+right instrument, after a programmatic set had been correctly identified as the
+wrong one — and the result was recorded, in three places, as "on Chrome,
+Firefox and WebKit alike a typed February 30th leaves `value === ""` with
+`validity.badInput === true`."
+
+Two engines were measured. The third was a different build of WebKit than the
+one CI runs, and the difference had already been written down in this file seven
+days earlier: the dev machine hands back a text box, the Linux runner implements
+the control. On the runner's build `badInput` is never set at all.
+
+The cost was sixteen red nightly runs that nobody saw, plus a second defect
+nobody was looking for: on the two engines that *were* measured, `badInput` is
+true from the second keystroke of any incomplete date, so the panel told users
+that ordinary dates did not exist while they typed them.
+
+**The lesson has two halves.** The obvious one: "measured on WebKit" is not a
+sentence this repo is allowed to write — it has to say which WebKit, and the
+rule was already on the books when it was broken. The sharper one: the test
+written alongside the fix typed an *impossible* date, which is the one input for
+which a correct implementation and a broken one produce the same screen. A test
+that only exercises the case the fix was written for cannot discover that the
+fix is too eager. The new suite types an ordinary date as well, and that test
+fails against the old code on Chrome — the negative control that was missing.
 
 ### 2026-09-10 — the settings focus effect had the hazard its neighbour was guarded against
 
@@ -2254,6 +2288,65 @@ entries), and [`build-log-phase-7-8.md`](archive/build-log-phase-7-8.md) for
 the cutover through the Day view and the tidy-up (2026-09-02 to 2026-09-05,
 17 entries). The tables above were not split. This log picks up at the
 2026-09-04 audit.
+
+### 2026-09-22 16:05 — `main` had been red for sixteen nightly runs, and the fix was reading the wrong signal
+
+Found by looking, not by being told, which is the whole problem.
+
+`e2e/calendar.spec.ts` › "an impossible typed date" has failed on the `webkit`
+project on every three-engine run since it merged in `36db33a` on 2026-09-08 —
+run 122, the merge push itself, through run 157 on 2026-09-22. 873 tests pass,
+one fails, deterministically, on the attempt and on the retry. The last green
+run on `main` was `c689dc8`, also 2026-09-08.
+
+**Why nothing caught it before the merge.** `ci.yml` runs Chrome alone on a
+pull request and all three engines on a push to `main` and nightly — the
+engine-scoped trade adopted the same day, whose stated justification is that it
+is "self-correcting, because the full run happens on every merge to `main` and
+every night". The mechanism worked exactly as written: the required check was
+green on Chrome, WebKit ran for the first time on the merge commit, and it went
+red immediately. What did not work is the part that is not in `ci.yml` — nobody
+reads the cadence. Sixteen red runs produced no Open gaps row, no Bugs found
+entry, and a Closed row that still said the fix was verified on three engines.
+
+**What was actually wrong.** Measured on the CI runner rather than guessed
+(`Docs/research/webkit-date-input-validity.md`), because the four browsers
+involved — the dev machine's WebKit, the Linux CI WebKit, Chrome and Firefox —
+do not agree and this repo already knew that. A probe workflow typed February
+30th into `#override-date` one key at a time and read `validity` after each:
+
+- **WebKit never sets `badInput` on a date control.** Not on any keystroke, not
+  after blur. `value` is `""` and `valid` is `true` throughout. There is no
+  observable difference on that engine between a typed impossible date and an
+  empty box — which is the exact distinction B7 existed to draw.
+- **Chrome and Firefox set it from the SECOND keystroke**, because an
+  *incomplete* date is unparseable too. So on the engines where the feature
+  looked like it worked, typing an ordinary date raised "That isn't a date that
+  exists. Check the day and the month." from the second character until the
+  last. A false statement about a real date, shipped for two weeks, invisible
+  because the only test typed a date that really was impossible.
+
+The B7 measurement of 2026-09-08 was taken on the development machine's WebKit,
+which renders a text box; the failing project runs the build that implements
+the control. The entry that would have caught that was written on 2026-09-01, in
+this file: *"any sentence of the form 'X works in WebKit' now has to say which
+WebKit."*
+
+**The fix.** Stop asking the control whether it is confused — at a moment when
+confusion is normal — and ask whether the user is finished. On blur, the field
+is unusable if it was typed into and is still empty. No `validity` anywhere: it
+needs no `badInput`, so WebKit is covered, and it cannot fire mid-typing, so the
+false message on Chrome and Firefox goes with it. The parse branch that catches
+a five-digit year is untouched and was always green on all three.
+
+Three tests now where there was one, and none of them skips an engine: the
+impossible date named on blur, silence while an ordinary date is typed (the
+defect above, which had no test), and silence when a date is typed and then
+deleted.
+
+Verified on all three engines on the branch before merge, through a temporary
+workflow, for the reason this entry opens with: a fix for a WebKit-only failure
+that was itself checked on Chrome alone would be the same bet lost the same way.
 
 ### 2026-09-05 — a full audit: static review, then the app in a browser
 
