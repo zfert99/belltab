@@ -2379,7 +2379,15 @@ to update a list.
 Verified on all three engines on the branch before merge, through a temporary
 workflow, for the reason this entry opens with: a fix for a WebKit-only failure
 that was itself checked on Chrome alone would be the same bet lost the same way.
-That workflow earned its cost on its first run.
+That workflow earned its cost on its first run, catching the wrong fix
+described above.
+
+**Green at `b0f6fe6`: 879 passed, 3 skipped, 0 failed, 7.3m** — Chrome 154,
+Playwright Firefox 153 and WebKit v2336. Three skips, one more than the suite's
+standing two: the `badInput` message test, correctly standing down on the engine
+that cannot report it, with the contract it *does* owe asserted by the test
+beside it. The workflow is deleted in the commit after that run; nothing else
+changes with it, so the code that merges is the code that was measured.
 
 ### 2026-09-05 — a full audit: static review, then the app in a browser
 
