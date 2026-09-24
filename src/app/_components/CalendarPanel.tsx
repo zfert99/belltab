@@ -71,14 +71,28 @@ export function CalendarPanel({ library, save, now, headingRef }: CalendarPanelP
   const [newDate, setNewDate] = useState("");
   /**
    * Whether the date control is holding something it could not turn into a
-   * date - February 30th, typed. Every engine then reports `value` as "", and
-   * "" is also what an empty box reports, so the value alone cannot tell
-   * "cleared" from "typed nonsense": the user got a dead Add button and no
-   * reason. `validity.badInput` is the signal that tells them apart, and it is
-   * true for a typed impossible date on Chrome, Firefox AND WebKit - measured
-   * with real key events on 2026-09-08, after a programmatic set had reported
-   * false and left this as an open gap. Read on change, key-up AND blur - see
-   * the note on the control for why change alone is not enough.
+   * date - February 30th, typed. Every engine sanitises that to `value === ""`,
+   * which is also what an empty box reports, so the value alone cannot tell
+   * "cleared" from "typed nonsense" and the user got a dead Add button with no
+   * reason.
+   *
+   * `validity.badInput` is the only signal that separates them, and it is read
+   * ON BLUR AND NOWHERE ELSE. Both halves of that sentence are measurements
+   * from the CI runner, 2026-09-22, written up in
+   * Docs/research/webkit-date-input-validity.md:
+   *
+   * - Read on every keystroke - which is what shipped on 2026-09-08 - it is
+   *   WRONG on the engines that have it. Chrome and Firefox set `badInput`
+   *   from the SECOND character, because an incomplete date is unparseable
+   *   too, so typing an ordinary date raised "That isn't a date that exists"
+   *   until the last digit landed. Blur is the first moment the question
+   *   "can this be parsed" has a meaningful answer.
+   * - WebKit does not have it. That engine never sets `badInput` on a date
+   *   control, and does not accept typed digits into one either - a valid date
+   *   typed key by key leaves `value` at "" exactly as an impossible one does.
+   *   There is no signal there to read and nothing this component can infer:
+   *   the field stays silent and Add stays disabled, which is honest rather
+   *   than a guess. The parse branch below still covers what it always did.
    */
   const [dateBadInput, setDateBadInput] = useState(false);
   const [newScheduleId, setNewScheduleId] = useState<string>(NO_SCHOOL);
@@ -227,10 +241,12 @@ export function CalendarPanel({ library, save, now, headingRef }: CalendarPanelP
           <label className="addoverride__field">
             <span className="visually-hidden">Date of the exception</span>
             {/*
-              Same reason as the editor's time field: WebKit reports
-              `input.type === "text"` here and hands back a plain text box, so
-              the format has to be stated somewhere. Chrome and Firefox render
-              a date control and ignore this.
+              Same reason as the editor's time field: SOME WebKit builds report
+              `input.type === "text"` here and hand back a plain text box, so
+              the format has to be stated somewhere. The development machine's
+              build does; the Linux CI build does not, and reports `"date"`
+              (measured 2026-09-22 - see the research doc). Chrome and Firefox
+              render a date control and ignore this.
             */}
             <input
               type="date"
@@ -241,16 +257,14 @@ export function CalendarPanel({ library, save, now, headingRef }: CalendarPanelP
               aria-describedby={dateIsUnusable ? "override-date-error" : undefined}
               onChange={(event) => {
                 setNewDate(event.target.value);
-                setDateBadInput(event.target.validity.badInput);
+                // A value the control could turn into something is not the case
+                // this flag is about, and clearing it here is what lets a
+                // corrected date drop the message without waiting for a blur.
+                if (event.target.value !== "") setDateBadInput(false);
               }}
-              // ALSO on key-up and on blur, and those are the ones that matter:
-              // a typed impossible date leaves `value` at "" - the same "" an
-              // empty box has - so no change event fires and the read above
-              // never runs. Nor can blur be relied on alone: Chrome's segmented
-              // control swallows Tab to move between month, day and year, so
-              // focus stays put. Key-up fires per keystroke into a segment on
-              // every engine; blur covers a pointer leaving the field.
-              onKeyUp={(event) => setDateBadInput(event.currentTarget.validity.badInput)}
+              // Blur, and ONLY blur - not change, not key-up. See the note on
+              // `dateBadInput`: asked mid-typing, this question has a wrong
+              // answer on every engine that can answer it at all.
               onBlur={(event) => setDateBadInput(event.target.validity.badInput)}
             />
           </label>
@@ -290,10 +304,10 @@ export function CalendarPanel({ library, save, now, headingRef }: CalendarPanelP
         </div>
 
         {/*
-          Bound to the control that caused it rather than announced. The date
-          field has focus while it is being typed into, which is when this
-          appears, and the editor's rule is that a message with a control to
-          point at points at it - only the one with no control speaks.
+          Bound to the control that caused it rather than announced. It appears
+          when focus LEAVES the field, and the editor's rule is that a message
+          with a control to point at points at it - only the one with no
+          control speaks.
         */}
         {dateIsUnusable && (
           <p className="editrow__error" id="override-date-error">

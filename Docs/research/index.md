@@ -14,6 +14,7 @@ quoting a figure at BellTab.
 | Document | What it settles |
 | --- | --- |
 | [background-timers-and-schedule-modeling.md](background-timers-and-schedule-modeling.md) | **The load-bearing one.** Why the countdown recomputes instead of decrementing, why times are minutes-since-midnight integers, and why periods may not overlap. `AGENTS.md`'s domain invariants cite it directly; do not overturn one from memory. |
+| [webkit-date-input-validity.md](webkit-date-input-validity.md) | What `<input type="date">` reports for a typed impossible date, per engine, measured on the CI runner. WebKit never sets `validity.badInput`; Chrome and Firefox set it from the second keystroke of any incomplete date. Also the post-mortem on how a WebKit-only failure sat red on `main` for sixteen nightly runs. Its numbers are this repo's own. |
 | [e2e-ci-runtime.md](e2e-ci-runtime.md) | Why the E2E job is engine-scoped on PRs and run on all three engines on merge and nightly, rather than split into priority tiers. Inherited research with a caveat block that resolves every item it could not read against `playwright.config.ts` and `ci.yml`; the numbers in the caveat block are this repo's, the numbers in the body are estimates it labels as such. |
 
 ## Inherited references — general advice
